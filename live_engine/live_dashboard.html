@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="refresh" content="60">
+<title>V1 SMC Engine — Live Dashboard</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background:#0a0e17; color:#e2e8f0; padding:16px; }
+.header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid #1e293b; padding-bottom:16px; }
+.header h1 { font-size:22px; color:#f8fafc; }
+.header .status { font-size:14px; padding:6px 14px; border-radius:20px; font-weight:600; }
+.alive { background:#065f46; color:#6ee7b7; }
+.dead { background:#7f1d1d; color:#fca5a5; }
+.updated { font-size:12px; color:#64748b; margin-top:4px; }
+
+/* KPI Cards */
+.kpi-row { display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:12px; margin-bottom:20px; }
+.kpi { background:#111827; border:1px solid #1e293b; border-radius:10px; padding:14px 16px; text-align:center; }
+.kpi .kpi-val { font-size:28px; font-weight:800; color:#f8fafc; }
+.kpi .kpi-label { font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:0.5px; margin-top:4px; }
+.kpi .kpi-val.green { color:#34d399; }
+.kpi .kpi-val.red { color:#f87171; }
+.kpi .kpi-val.yellow { color:#fbbf24; }
+.kpi .kpi-val.blue { color:#60a5fa; }
+.kpi .kpi-val.purple { color:#a78bfa; }
+
+/* Grid / Cards */
+.grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-bottom:20px; }
+.card { background:#111827; border:1px solid #1e293b; border-radius:10px; padding:16px; }
+.card.highlight { border-color:#fbbf24; }
+.card h2 { font-size:13px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:12px; }
+.full-width { grid-column: 1 / -1; }
+
+/* Tables */
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th { text-align:left; padding:8px 10px; background:#1e293b; color:#94a3b8; font-weight:600; font-size:11px; text-transform:uppercase; }
+td { padding:7px 10px; border-bottom:1px solid #1e293b; }
+tr:hover { background:#1e293b33; }
+
+/* Badges */
+.badge { display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:700; }
+.b-TREND { background:#065f46; color:#6ee7b7; }
+.b-REVERSAL { background:#7c2d12; color:#fdba74; }
+.b-NO_TRADE { background:#1e293b; color:#64748b; }
+.b-CALL { background:#065f46; color:#6ee7b7; }
+.b-PUT { background:#7f1d1d; color:#fca5a5; }
+.b-LONG { background:#065f46; color:#6ee7b7; }
+.b-SHORT { background:#7f1d1d; color:#fca5a5; }
+.b-NEUTRAL { background:#1e293b; color:#94a3b8; }
+.b-WIN { background:#065f46; color:#6ee7b7; }
+.b-LOSS { background:#7f1d1d; color:#fca5a5; }
+.b-STOPPED { background:#7f1d1d; color:#fca5a5; }
+.b-BREAKEVEN { background:#1e293b; color:#94a3b8; }
+.b-FULL_RUNNER { background:#1e3a5f; color:#93c5fd; }
+.b-TP1_ONLY { background:#065f46; color:#6ee7b7; }
+.b-blocked { background:#7f1d1d; color:#fca5a5; }
+.b-passed { background:#065f46; color:#6ee7b7; }
+.b-processing { background:#1e293b; color:#fbbf24; }
+
+/* Signal bars */
+.sig-bar { display:inline-block; height:12px; border-radius:2px; margin-right:1px; min-width:2px; vertical-align:middle; }
+.sig-c { background:#3b82f6; }
+.sig-p { background:#ef4444; }
+
+/* TF chips */
+.tf-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(90px, 1fr)); gap:6px; }
+.tf-chip { background:#1e293b; padding:5px 8px; border-radius:5px; text-align:center; font-size:11px; }
+.tf-chip b { color:#60a5fa; }
+
+.empty { text-align:center; color:#475569; padding:30px; font-style:italic; font-size:13px; }
+.pnl-pos { color:#34d399; font-weight:700; }
+.pnl-neg { color:#f87171; font-weight:700; }
+.section { margin-bottom:24px; }
+.section-title { font-size:16px; font-weight:700; margin-bottom:12px; color:#f8fafc; display:flex; align-items:center; gap:8px; }
+.section-title .count { font-size:12px; background:#1e293b; padding:2px 8px; border-radius:10px; color:#94a3b8; }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <div>
+        <h1>V1 SMC Engine — Live Dashboard</h1>
+        <div class="updated">Updated: 2026-04-13 17:43:28 &bull; Auto-refresh 60s &bull; Paper Mode</div>
+    </div>
+    <div class="status dead">OFFLINE</div>
+</div>
+
+<!-- KPI Row -->
+<div class="kpi-row">
+    <div class="kpi"><div class="kpi-val green">$+123.37</div><div class="kpi-label">Total PnL</div></div>
+    <div class="kpi"><div class="kpi-val blue">5</div><div class="kpi-label">Trades Closed</div></div>
+    <div class="kpi"><div class="kpi-val purple">0</div><div class="kpi-label">Open Positions</div></div>
+    <div class="kpi"><div class="kpi-val green">60%</div><div class="kpi-label">Win Rate</div></div>
+    <div class="kpi"><div class="kpi-val yellow">533</div><div class="kpi-label">Signals Found</div></div>
+    <div class="kpi"><div class="kpi-val red">81</div><div class="kpi-label">Blocks</div></div>
+    <div class="kpi"><div class="kpi-val">0</div><div class="kpi-label">WS Bars</div></div>
+</div>
+<div class="section"><div class="section-title">Open Positions <span class="count">0</span></div><div class="card highlight full-width"><div class="empty">No open positions — engine is scanning for setups</div></div></div><div class="section"><div class="section-title">Completed Trades <span class="count">5</span></div><div class="card full-width"><table><thead><tr>
+            <th>Ticker</th><th>Dir</th><th>Strategy</th><th>Entry</th><th>Exit</th>
+            <th>PnL</th><th>PnL %</th><th>Outcome</th><th>Hold</th><th>MFE</th><th>MAE</th>
+        </tr></thead><tbody><tr>
+                <td><strong>QQQ</strong></td>
+                <td><span class="badge b-PUT">PUT</span></td>
+                <td>SMC_OB_1M</td>
+                <td>$615.30</td>
+                <td>$615.30</td>
+                <td class="pnl-neg">$+0.00</td>
+                <td class="pnl-neg">+0.00%</td>
+                <td><span class="badge b-BREAKEVEN">BREAKEVEN</span></td>
+                <td>0m</td>
+                <td>0.01%</td>
+                <td>-0.00%</td>
+            </tr><tr>
+                <td><strong></strong></td>
+                <td><span class="badge b-"></span></td>
+                <td></td>
+                <td>$0.00</td>
+                <td>$611.85</td>
+                <td class="pnl-pos">$+100.00</td>
+                <td class="pnl-pos">+16.34%</td>
+                <td><span class="badge b-WIN">WIN</span></td>
+                <td>0m</td>
+                <td>0.06%</td>
+                <td>0.00%</td>
+            </tr><tr>
+                <td><strong>QQQ</strong></td>
+                <td><span class="badge b-PUT">PUT</span></td>
+                <td>SMC_OB_1M</td>
+                <td>$611.64</td>
+                <td>$611.94</td>
+                <td class="pnl-pos">$+20.00</td>
+                <td class="pnl-pos">+3.27%</td>
+                <td><span class="badge b-WIN">WIN</span></td>
+                <td>0m</td>
+                <td>0.00%</td>
+                <td>-0.06%</td>
+            </tr><tr>
+                <td><strong>AAPL</strong></td>
+                <td><span class="badge b-CALL">CALL</span></td>
+                <td>SMC_OB_1M</td>
+                <td>$257.46</td>
+                <td>$257.59</td>
+                <td class="pnl-pos">$+11.42</td>
+                <td class="pnl-pos">+4.44%</td>
+                <td><span class="badge b-WIN">WIN</span></td>
+                <td>0m</td>
+                <td>0.06%</td>
+                <td>0.00%</td>
+            </tr><tr>
+                <td><strong>QQQ</strong></td>
+                <td><span class="badge b-PUT">PUT</span></td>
+                <td>SMC_OB_1M</td>
+                <td>$612.18</td>
+                <td>$611.85</td>
+                <td class="pnl-neg">$-8.05</td>
+                <td class="pnl-neg">-1.32%</td>
+                <td><span class="badge b-LOSS">LOSS</span></td>
+                <td>0m</td>
+                <td>0.00%</td>
+                <td>-0.05%</td>
+            </tr></tbody></table></div></div><div class="section"><div class="section-title">Signal Pipeline (recent) <span class="count">0</span></div><div class="card full-width"><div class="empty">No signals have reached the filter pipeline yet</div></div></div><div class="grid"><div class="card"><h2>Current Modes</h2><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;"><span>AAPL</span><span class="badge b-REVERSAL">REVERSAL</span></div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;"><span>GOOGL</span><span class="badge b-REVERSAL">REVERSAL</span></div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;"><span>NVDA</span><span class="badge b-TREND">TREND</span></div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;"><span>PLTR</span><span class="badge b-REVERSAL">REVERSAL</span></div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;"><span>QQQ</span><span class="badge b-TREND">TREND</span></div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;"><span>SPY</span><span class="badge b-TREND">TREND</span></div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;"><span>TSLA</span><span class="badge b-REVERSAL">REVERSAL</span></div></div><div class="card"><h2>Block Reasons</h2><div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:#94a3b8;font-size:13px;">unknown</span><span style="color:#f87171;font-weight:700;">81</span></div></div></div><div class="section"><div class="section-title">Signal Detection <span class="count">0 strategies active</span></div><div class="card full-width"><div class="empty">Waiting for first scan cycle...</div></div></div><div class="section"><div class="section-title">Timeframe Data</div><div class="grid"><div class="card"><div class="empty">Waiting for first scan...</div></div></div></div><div class="section"><div class="section-title">Mode Timeline (last 15)</div><div class="card full-width"><table><thead><tr><th>Time</th><th>Ticker</th><th>From</th><th>To</th><th>ADX</th><th>Sweep</th></tr></thead><tbody><tr>
+                <td>2026-04-13T12:59:01</td>
+                <td><strong>QQQ</strong></td>
+                <td><span class="badge b-REVERSAL">REVERSAL</span></td>
+                <td><span class="badge b-TREND">TREND</span></td>
+                <td>38.4</td>
+                <td></td>
+            </tr><tr>
+                <td>2026-04-13T12:59:01</td>
+                <td><strong>PLTR</strong></td>
+                <td><span class="badge b-TREND">TREND</span></td>
+                <td><span class="badge b-REVERSAL">REVERSAL</span></td>
+                <td>25.0</td>
+                <td>Yes</td>
+            </tr><tr>
+                <td>2026-04-13T12:59:01</td>
+                <td><strong>SPY</strong></td>
+                <td><span class="badge b-REVERSAL">REVERSAL</span></td>
+                <td><span class="badge b-TREND">TREND</span></td>
+                <td>33.3</td>
+                <td></td>
+            </tr><tr>
+                <td>2026-04-13T12:59:01</td>
+                <td><strong>AAPL</strong></td>
+                <td><span class="badge b-TREND">TREND</span></td>
+                <td><span class="badge b-REVERSAL">REVERSAL</span></td>
+                <td>29.5</td>
+                <td>Yes</td>
+            </tr><tr>
+                <td>2026-04-13T12:58:01</td>
+                <td><strong>QQQ</strong></td>
+                <td><span class="badge b-REVERSAL">REVERSAL</span></td>
+                <td><span class="badge b-TREND">TREND</span></td>
+                <td>38.4</td>
+                <td></td>
+            </tr><tr>
+                <td>2026-04-13T12:58:00</td>
+                <td><strong>TSLA</strong></td>
+                <td><span class="badge b-TREND">TREND</span></td>
+                <td><span class="badge b-REVERSAL">REVERSAL</span></td>
+                <td>20.5</td>
+                <td>Yes</td>
+            </tr><tr>
+                <td>2026-04-13T12:58:00</td>
+                <td><strong>SPY</strong></td>
+                <td><span class="badge b-REVERSAL">REVERSAL</span></td>
+                <td><span class="badge b-TREND">TREND</span></td>
+                <td>33.3</td>
+                <td></td>
+            </tr><tr>
+                <td>2026-04-13T12:58:00</td>
+                <td><strong>AAPL</strong></td>
+                <td><span class="badge b-TREND">TREND</span></td>
+                <td><span class="badge b-REVERSAL">REVERSAL</span></td>
+                <td>29.5</td>
+                <td>Yes</td>
+            </tr><tr>
+                <td>2026-04-13T12:57:01</td>
+                <td><strong>QQQ</strong></td>
+                <td><span class="badge b-REVERSAL">REVERSAL</span></td>
+                <td><span class="badge b-TREND">TREND</span></td>
+                <td>38.4</td>
+                <td>Yes</td>
+            </tr><tr>
+                <td>2026-04-13T12:57:01</td>
+                <td><strong>TSLA</strong></td>
+                <td><span class="badge b-TREND">TREND</span></td>
+                <td><span class="badge b-REVERSAL">REVERSAL</span></td>
+                <td>20.5</td>
+                <td>Yes</td>
+            </tr><tr>
+                <td>2026-04-13T12:57:01</td>
+                <td><strong>SPY</strong></td>
+                <td><span class="badge b-REVERSAL">REVERSAL</span></td>
+                <td><span class="badge b-TREND">TREND</span></td>
+                <td>33.3</td>
+                <td>Yes</td>
+            </tr><tr>
+                <td>2026-04-13T12:57:01</td>
+                <td><strong>AAPL</strong></td>
+                <td><span class="badge b-TREND">TREND</span></td>
+                <td><span class="badge b-REVERSAL">REVERSAL</span></td>
+                <td>29.5</td>
+                <td>Yes</td>
+            </tr><tr>
+                <td>2026-04-13T12:56:00</td>
+                <td><strong>QQQ</strong></td>
+                <td><span class="badge b-REVERSAL">REVERSAL</span></td>
+                <td><span class="badge b-TREND">TREND</span></td>
+                <td>38.4</td>
+                <td>Yes</td>
+            </tr><tr>
+                <td>2026-04-13T12:56:00</td>
+                <td><strong>TSLA</strong></td>
+                <td><span class="badge b-TREND">TREND</span></td>
+                <td><span class="badge b-REVERSAL">REVERSAL</span></td>
+                <td>20.5</td>
+                <td>Yes</td>
+            </tr><tr>
+                <td>2026-04-13T12:56:00</td>
+                <td><strong>SPY</strong></td>
+                <td><span class="badge b-REVERSAL">REVERSAL</span></td>
+                <td><span class="badge b-TREND">TREND</span></td>
+                <td>33.3</td>
+                <td>Yes</td>
+            </tr></tbody></table></div></div></body></html>

@@ -1,0 +1,23 @@
+# Environments
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+
+# Logs and Data
+*.log
+*.sqlite
+*.json
+!live_state.json
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
+
+# Temporary files
+*.tmp
+
+# Credentials
+.env

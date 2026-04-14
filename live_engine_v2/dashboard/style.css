@@ -1,0 +1,357 @@
+:root {
+    /* Brand Palette */
+    --bg-deep: #0a0b10;
+    --card-bg: rgba(20, 22, 33, 0.65);
+    --card-border: rgba(255, 255, 255, 0.08);
+    --primary: #6366f1;
+    --accent: #8b5cf6;
+    --glow-primary: rgba(99, 102, 241, 0.4);
+    
+    /* Status Colors */
+    --profit-green: #10b981;
+    --profit-green-glow: rgba(16, 185, 129, 0.3);
+    --loss-red: #ef4444;
+    --loss-red-glow: rgba(239, 68, 68, 0.3);
+    --neutral-blue: #3b82f6;
+
+    /* Typhography */
+    --text-main: #f8fafc;
+    --text-dim: #94a3b8;
+    
+    /* Animation Speeds */
+    --transition: 0.3s ease-in-out;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background-color: var(--bg-deep);
+    color: var(--text-main);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+    position: relative;
+}
+
+/* Background Ambient Orbs */
+.bg-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(120px);
+    z-index: -1;
+    opacity: 0.5;
+    animation: float 20s infinite alternate;
+}
+.orb-1 {
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, var(--glow-primary) 0%, transparent 70%);
+    top: -150px;
+    left: -150px;
+}
+.orb-2 {
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(139, 92, 246, 0.25) 0%, transparent 70%);
+    bottom: -200px;
+    right: -100px;
+    animation-delay: -5s;
+}
+
+@keyframes float {
+    0% { transform: translateY(0) scale(1); }
+    100% { transform: translateY(60px) scale(1.1); }
+}
+
+/* Base Layout Container */
+.dashboard-container {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+/* Glassmorphism Classes */
+.glass-panel {
+    background: var(--card-bg);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--card-border);
+    border-radius: 20px;
+    padding: 1.5rem;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* Header */
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem 2.5rem;
+}
+.logo-section h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 800;
+    font-size: 1.8rem;
+    letter-spacing: -0.05em;
+}
+.logo-section .accent {
+    color: var(--primary);
+    text-shadow: 0 0 15px var(--glow-primary);
+}
+.subtitle {
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    margin-top: 0.2rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+/* Connection Status */
+.status-section {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    background: rgba(0,0,0,0.3);
+    padding: 0.6rem 1.2rem;
+    border-radius: 100px;
+    border: 1px solid var(--card-border);
+}
+.pulsing-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--loss-red);
+    box-shadow: 0 0 10px var(--loss-red-glow);
+}
+.pulsing-dot.connected {
+    background: var(--profit-green);
+    box-shadow: 0 0 10px var(--profit-green-glow);
+    animation: pulse-green 2s infinite;
+}
+@keyframes pulse-green {
+    0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+    70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+#connection-status-text {
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+}
+
+/* Header summary KPIs */
+.glass-kpi {
+    padding: 0.8rem 1.7rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+.glass-kpi .label {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    font-weight: 600;
+    margin-bottom: 0.3rem;
+}
+.glass-kpi .value {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.6rem;
+    font-weight: 700;
+}
+.value.profit { color: var(--profit-green); text-shadow: 0 0 20px var(--profit-green-glow); }
+.value.loss { color: var(--loss-red); text-shadow: 0 0 20px var(--loss-red-glow); }
+
+/* Main Grid Layout */
+.grid-layout {
+    display: grid;
+    grid-template-columns: 300px 1fr 350px;
+    gap: 1.5rem;
+    align-items: stretch;
+}
+
+/* Panels General */
+.panel h2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.1rem;
+    color: var(--text-main);
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.panel h3 {
+    font-size: 0.9rem;
+    color: var(--text-dim);
+    margin: 1.5rem 0 1rem 0;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+.badge {
+    background: var(--glow-primary);
+    color: var(--primary);
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.6rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    border: 1px solid rgba(99,102,241,0.5);
+}
+
+/* Metrics Row (Center) */
+.metrics-row {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+.kpi {
+    flex: 1;
+    background: rgba(0,0,0,0.2);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    padding: 1.2rem;
+    display: flex;
+    flex-direction: column;
+}
+.kpi .label {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.05em;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+.kpi .value {
+    font-size: 1.8rem;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+}
+
+/* Whale Intelligence specific */
+.gradient-text {
+    background: linear-gradient(90deg, #6366f1, #a855f7);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+#whale-state-card {
+    background: rgba(0,0,0,0.3);
+    border-radius: 12px;
+    padding: 2rem 1.5rem;
+    text-align: center;
+    border: 1px solid rgba(139, 92, 246, 0.2);
+}
+#whale-bias-intent {
+    font-size: 2.2rem;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    display: block;
+    margin-top: 0.5rem;
+}
+
+/* Statistics Grid */
+.stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+.stat-item {
+    background: rgba(0,0,0,0.2);
+    padding: 1rem;
+    border-radius: 10px;
+    display: flex;
+    border: 1px solid var(--card-border);
+    justify-content: space-between;
+    align-items: center;
+}
+.stat-item .label {
+    font-size: 0.85rem;
+    color: var(--text-main);
+}
+.stat-item .value {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+
+/* Lists and Cards */
+.list-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+.placeholder-text {
+    font-size: 0.85rem;
+    font-style: italic;
+    color: var(--text-dim);
+    text-align: center;
+    padding: 2rem 0;
+}
+.text-dim { color: var(--text-dim) !important; }
+.green-txt { color: var(--profit-green) !important; }
+.red-txt { color: var(--loss-red) !important; }
+
+/* Dynamic Holding Cards */
+.holding-card {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--card-border);
+    border-left: 4px solid var(--primary);
+    border-radius: 12px;
+    padding: 1.2rem;
+    animation: slideIn 0.4s ease-out;
+    transition: var(--transition);
+}
+.holding-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.4);
+}
+.holding-card.win { border-left-color: var(--profit-green); }
+.holding-card.loss { border-left-color: var(--loss-red); }
+
+.hc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.8rem;
+}
+.hc-ticker {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+.hc-dir {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-weight: 800;
+}
+.hc-dir.CALL { background: rgba(16, 185, 129, 0.15); color: var(--profit-green); }
+.hc-dir.PUT { background: rgba(239, 68, 68, 0.15); color: var(--loss-red); }
+
+.hc-metrics {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+}
+.hc-pnl {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 1.2rem;
+}
+
+@keyframes slideIn {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+/* Responsive constraints */
+@media (max-width: 1200px) {
+    .grid-layout {
+        grid-template-columns: 1fr;
+    }
+}

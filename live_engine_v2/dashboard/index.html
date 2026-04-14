@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vanguard Institutional V2 | Live</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Abstract Background -->
+    <div class="bg-orb orb-1"></div>
+    <div class="bg-orb orb-2"></div>
+
+    <div class="dashboard-container">
+        <!-- Header -->
+        <header class="glass-panel">
+            <div class="logo-section">
+                <h1>VANGUARD <span class="accent">V2</span></h1>
+                <p class="subtitle">Institutional Options Engine</p>
+            </div>
+            <div class="status-section">
+                <div class="pulsing-dot" id="connection-status-dot"></div>
+                <span id="connection-status-text">CONNECTING API...</span>
+            </div>
+            <div class="summary-pnl glass-kpi">
+                <span class="label">DAILY PNL</span>
+                <span class="value" id="global-pnl">$0.00</span>
+            </div>
+        </header>
+
+        <!-- Main Grid Layout -->
+        <main class="grid-layout">
+            
+            <!-- Left Column: Whale Intelligence -->
+            <section class="panel glass-panel">
+                <h2>Whale Intelligence <span class="badge">LIVE</span></h2>
+                <div class="whale-grid" id="whale-state-card">
+                    <div class="metric">
+                        <span class="label">CURRENT BIASED INTENT</span>
+                        <span class="value gradient-text" id="whale-bias-intent">AWAITING...</span>
+                    </div>
+                </div>
+                <h3>Active Institutional Flow</h3>
+                <div class="list-container" id="institutional-flow-list">
+                    <p class="placeholder-text text-dim">No physical block data flowing.</p>
+                </div>
+                <h3 style="margin-top: 20px;">Recent Options Triggered</h3>
+                <div class="list-container" id="latest-signals-list" style="max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;">
+                    <p class="placeholder-text text-dim">Scanner active, monitoring limits...</p>
+                </div>
+            </section>
+
+            <!-- Center Column: Core Metrics & Execution Logs -->
+            <section class="panel glass-panel main-center">
+                <div class="metrics-row">
+                    <div class="kpi">
+                        <span class="label">OPEN POSITIONS</span>
+                        <span class="value" id="stat-open-pos">0</span>
+                    </div>
+                    <div class="kpi">
+                        <span class="label">TRADES TODAY</span>
+                        <span class="value" id="stat-trades-today">0</span>
+                    </div>
+                    <div class="kpi">
+                        <span class="label">WIN RATE</span>
+                        <span class="value" id="stat-win-rate">0.0%</span>
+                    </div>
+                </div>
+                
+                <h2>Execution Engine </h2>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <span class="label">Total Signals Filtered</span>
+                        <span class="value text-dim" id="stat-blocks">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="label">Options Executed</span>
+                        <span class="value green-txt" id="stat-execs">0</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Column: Active Market Holdings -->
+            <section class="panel glass-panel">
+                <h2>Active Holdings </h2>
+                <div class="holdings-container" id="active-holdings-list">
+                    <!-- Cards injected by JS -->
+                    <div class="placeholder-card">
+                        <p class="text-dim">Engine scanning for A+ Grade Setups...</p>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
