@@ -1,0 +1,21 @@
+event_id,date_utc,time_utc,ticker,direction,event_type,score,path,dte,entry_price,spy_at_event,ret_1h_pct,ret_4h_pct,ret_eod_pct,ret_d1_pct,ret_d3_pct,spy_ret_eod_pct,excess_eod_pct,mfe_eod_pct,mae_eod_pct,factor_summary,screener_logic
+1f857ac17035988f,2026-04-17,01:16:13,AMD,UNKNOWN,REJECTED_BID_SIDE,0.0,,0,,,,,,,,,,,,,Screener detected $62.3M Net Premium Imbalance and 79 massive Darkpool prints.
+b34923f9b82b47de,2026-04-17,01:16:13,SOXX,UNKNOWN,REJECTED_BID_SIDE,0.0,,0,,,,,,,,,,,,,Screener detected $24.3M Net Premium Imbalance and 39 massive Darkpool prints.
+9406d4558324d8d9,2026-04-17,01:16:13,MSTR,UNKNOWN,REJECTED_BID_SIDE,0.0,,0,,,,,,,,,,,,,Screener detected $19.8M Net Premium Imbalance and 30 massive Darkpool prints.
+e2d63826959b069f,2026-04-17,01:16:13,MARA,UNKNOWN,REJECTED_BID_SIDE,0.0,,0,,,,,,,,,,,,,Screener detected $3.3M Net Premium Imbalance and 8 massive Darkpool prints.
+38b06801d78422b1,2026-04-17,01:16:13,TLT,UNKNOWN,REJECTED_BID_SIDE,0.0,,0,,,,,,,,,,,,,Screener detected $3.1M Net Premium Imbalance and 36 massive Darkpool prints.
+67482c4b5ae80943,2026-04-17,01:16:13,GLD,UNKNOWN,REJECTED_BID_SIDE,0.0,,0,,,,,,,,,,,,,Screener detected $13.6M Net Premium Imbalance and 63 massive Darkpool prints.
+8e162ac758829646,2026-04-17,01:16:13,QQQ,UNKNOWN,REJECTED_BID_SIDE,0.0,,0,,,,,,,,,,,,,Screener detected $15.8M Net Premium Imbalance and 86 massive Darkpool prints.
+cbf510b5cf30bc09,2026-04-17,01:16:13,SPY,UNKNOWN,REJECTED_BID_SIDE,0.0,,0,,,,,,,,,,,,,Screener detected $28.6M Net Premium Imbalance and 85 massive Darkpool prints.
+7f94fb8c74858a8c,2026-04-17,01:16:13,IWM,UNKNOWN,REJECTED_BID_SIDE,0.0,,0,,,,,,,,,,,,,Screener detected $31.0M Net Premium Imbalance and 78 massive Darkpool prints.
+5de5311670127ff3,2026-04-17,01:16:13,TSLA,UNKNOWN,REJECTED_BID_SIDE,0.0,,0,,,,,,,,,,,,,Screener detected $43.8M Net Premium Imbalance and 79 massive Darkpool prints.
+6f5d7513011ae6b3,2026-04-17,03:16:00,QQQ,UNKNOWN,REJECTED_LOW_PREMIUM,0.0,,0,,,,,,,,,,,,,Screener detected $15.8M Net Premium Imbalance and 86 massive Darkpool prints.
+adfe3b8d5be4d82c,2026-04-17,03:16:00,SPY,UNKNOWN,REJECTED_LOW_PREMIUM,0.0,,0,,,,,,,,,,,,,Screener detected $28.6M Net Premium Imbalance and 85 massive Darkpool prints.
+d8e48af0e1453cce,2026-04-17,03:16:00,AMD,UNKNOWN,REJECTED_LOW_PREMIUM,0.0,,0,,,,,,,,,,,,,Screener detected $62.3M Net Premium Imbalance and 79 massive Darkpool prints.
+fef0cb6ca2f62410,2026-04-17,03:16:00,TSLA,UNKNOWN,REJECTED_LOW_PREMIUM,0.0,,0,,,,,,,,,,,,,Screener detected $43.8M Net Premium Imbalance and 79 massive Darkpool prints.
+55d596e16934fa9c,2026-04-17,03:16:00,IWM,UNKNOWN,REJECTED_LOW_PREMIUM,0.0,,0,,,,,,,,,,,,,Screener detected $31.0M Net Premium Imbalance and 78 massive Darkpool prints.
+9cf25dfd59796841,2026-04-17,03:16:00,GLD,UNKNOWN,REJECTED_LOW_PREMIUM,0.0,,0,,,,,,,,,,,,,Screener detected $13.6M Net Premium Imbalance and 63 massive Darkpool prints.
+e4bd11552238ceae,2026-04-17,03:16:00,SOXX,UNKNOWN,REJECTED_LOW_PREMIUM,0.0,,0,,,,,,,,,,,,,Screener detected $24.3M Net Premium Imbalance and 39 massive Darkpool prints.
+91c05ba3829c629a,2026-04-17,03:16:00,TLT,UNKNOWN,REJECTED_LOW_PREMIUM,0.0,,0,,,,,,,,,,,,,Screener detected $3.1M Net Premium Imbalance and 36 massive Darkpool prints.
+51c277edcb391f20,2026-04-17,03:16:00,MSTR,UNKNOWN,REJECTED_LOW_PREMIUM,0.0,,0,,,,,,,,,,,,,Screener detected $19.8M Net Premium Imbalance and 30 massive Darkpool prints.
+f0feab269e737dce,2026-04-17,03:16:00,MARA,UNKNOWN,REJECTED_LOW_PREMIUM,0.0,,0,,,,,,,,,,,,,Screener detected $3.3M Net Premium Imbalance and 8 massive Darkpool prints.

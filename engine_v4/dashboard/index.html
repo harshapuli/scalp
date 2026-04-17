@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V4 Elite Engine | Quantitative Execution</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation — now drives page switching -->
+        <nav class="sidebar">
+            <div class="brand">
+                <i data-lucide="activity" class="brand-icon"></i>
+                <span>ELITE V4</span>
+            </div>
+
+            <div class="nav-links" id="page-nav">
+                <a href="#/confirmed" data-page="confirmed" class="active">
+                    <i data-lucide="zap"></i>
+                    <span class="nav-label">Confirmed</span>
+                    <span class="nav-count" id="nav-count-confirmed">0</span>
+                </a>
+                <a href="#/watching" data-page="watching">
+                    <i data-lucide="eye"></i>
+                    <span class="nav-label">Watching</span>
+                    <span class="nav-count" id="nav-count-watching">0</span>
+                </a>
+                <a href="#/expired" data-page="expired">
+                    <i data-lucide="clock"></i>
+                    <span class="nav-label">Expired</span>
+                    <span class="nav-count" id="nav-count-expired">0</span>
+                </a>
+                <a href="#/breakouts" data-page="breakouts">
+                    <i data-lucide="trending-up"></i>
+                    <span class="nav-label">Mega Caps</span>
+                    <span class="nav-count" id="nav-count-breakouts">0</span>
+                </a>
+                <a href="#/dynamic" data-page="dynamic">
+                    <i data-lucide="activity"></i>
+                    <span class="nav-label">Dynamic</span>
+                    <span class="nav-count" id="nav-count-dynamic">0</span>
+                </a>
+                <a href="#/positions" data-page="positions">
+                    <i data-lucide="briefcase"></i>
+                    <span class="nav-label">Positions</span>
+                    <span class="nav-count" id="nav-count-positions">0</span>
+                </a>
+            </div>
+
+            <div class="sidebar-footer">
+                <div class="regime-badge sidebar-regime" id="macro-regime">
+                    <span class="dot pulse"></span>
+                    <span id="regime-text">Detecting...</span>
+                </div>
+                <div class="timer-badge sidebar-timer" id="scan-timer">
+                    <i data-lucide="clock" class="timer-icon"></i>
+                    <span id="countdown-text">Next: --:--</span>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="dashboard">
+            <!-- PAGE 1 — CONFIRMED -->
+            <section class="page-view active-page" id="page-confirmed" data-page="confirmed">
+                <header class="page-header">
+                    <div class="page-titles">
+                        <h1><span class="page-icon">⚡</span> Ready to Enter</h1>
+                        <p>SMC retest fired · execute these now</p>
+                    </div>
+                    <div class="page-meta">
+                        <span class="meta-count" id="meta-confirmed">0</span>
+                        <span class="meta-label">live entries</span>
+                    </div>
+                </header>
+
+                <div class="signals-container" id="confirmed-container">
+                    <div class="empty-state empty-confirmed">
+                        <p>No confirmed entries. Engine fires when watched tickers retest their FVG/OB zone with a rejection wick.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- PAGE 2 — WATCHING -->
+            <section class="page-view" id="page-watching" data-page="watching">
+                <header class="page-header">
+                    <div class="page-titles">
+                        <h1><span class="page-icon">👁️</span> Watching</h1>
+                        <p>Scored ≥ 40 · awaiting SMC retest in the watch zone</p>
+                    </div>
+                    <div class="page-meta">
+                        <span class="meta-count" id="meta-watching">0</span>
+                        <span class="meta-label">queued</span>
+                    </div>
+                </header>
+
+                <div class="signals-container" id="watching-container">
+                    <div class="empty-state empty-watching">
+                        <p>No active watches. Engine queues tickers when flow + structure align above threshold.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- PAGE 3 — EXPIRED (diagnostic view) -->
+            <section class="page-view" id="page-expired" data-page="expired">
+                <header class="page-header">
+                    <div class="page-titles">
+                        <h1><span class="page-icon">⏳</span> Recently Expired</h1>
+                        <p>Scored ≥ 40 but no SMC retest before timeout — diagnostic view for tuning</p>
+                    </div>
+                    <div class="page-meta">
+                        <span class="meta-count" id="meta-expired">0</span>
+                        <span class="meta-label">expired</span>
+                    </div>
+                </header>
+
+                <div class="signals-container compact" id="expired-container">
+                    <div class="empty-state">
+                        <p>No expired watches yet.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- PAGE 6 — DYNAMIC (flow-ranked universe, same scoring as Mega Caps) -->
+            <section class="page-view" id="page-dynamic" data-page="dynamic">
+                <header class="page-header">
+                    <div class="page-titles">
+                        <h1><span class="page-icon">⚡</span> Dynamic Buildup</h1>
+                        <p>Top ~35 tickers by today's net options premium flow · same 6-signal scoring · universe changes daily, no hardcoding</p>
+                    </div>
+                    <div class="page-meta">
+                        <span class="meta-count" id="meta-dynamic">0</span>
+                        <span class="meta-label">candidates</span>
+                    </div>
+                </header>
+
+                <div class="status-filters" data-page-target="dynamic">
+                    <button class="filter-btn active" data-filter="all">All <span class="filter-count" id="filter-count-dynamic-all">0</span></button>
+                    <button class="filter-btn" data-filter="buy">🟢 Buy <span class="filter-count" id="filter-count-dynamic-buy">0</span></button>
+                    <button class="filter-btn" data-filter="approaching">🟡 Approaching <span class="filter-count" id="filter-count-dynamic-approaching">0</span></button>
+                    <button class="filter-btn" data-filter="waiting">⏳ Waiting <span class="filter-count" id="filter-count-dynamic-waiting">0</span></button>
+                </div>
+
+                <div class="signals-container" id="dynamic-container">
+                    <div class="empty-state empty-dynamic">
+                        <p>No dynamic candidates yet. Next scan (after market close) will pull the flow-ranked universe and score it against the same 6 signals as the Mega Cap page.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- PAGE 5 — POSITIONS (live paper trades with contract details) -->
+            <section class="page-view" id="page-positions" data-page="positions">
+                <header class="page-header">
+                    <div class="page-titles">
+                        <h1><span class="page-icon">💼</span> Paper Positions</h1>
+                        <p>Live paper account · actual contracts + live P&L · auto-managed by the paper trader</p>
+                    </div>
+                    <div class="page-meta">
+                        <span class="meta-count" id="meta-positions">0</span>
+                        <span class="meta-label">positions</span>
+                    </div>
+                </header>
+
+                <div class="signals-container" id="positions-container">
+                    <div class="empty-state">
+                        <p>No positions yet. The paper trader auto-enters on confirmed triggers during market hours.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- PAGE 4 — MEGA CAPS (multi-day pre-position scanner on fixed mega-cap universe) -->
+            <section class="page-view" id="page-breakouts" data-page="breakouts">
+                <header class="page-header">
+                    <div class="page-titles">
+                        <h1><span class="page-icon">📈</span> Mega Cap Buildup</h1>
+                        <p>Multi-day pre-position detector on 15 mega-caps · scanned daily after close · catches positioning BEFORE the break</p>
+                    </div>
+                    <div class="page-meta">
+                        <span class="meta-count" id="meta-breakouts">0</span>
+                        <span class="meta-label">candidates</span>
+                    </div>
+                </header>
+
+                <details class="page-legend">
+                    <summary>📖 What do the 6 signals mean? Click to expand</summary>
+                    <div class="legend-grid">
+                        <div class="legend-item">
+                            <div class="legend-title">1. Compression <span class="legend-weight">0–20 pts</span></div>
+                            <div class="legend-desc">Price tightening over 10 days — a coiled spring before expansion. Lit when daily range &lt; 3-7% of price. Mega-caps in trend rarely show this; mostly fires on consolidating stocks.</div>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-title">2. Persistent Flow <span class="legend-weight">0–25 pts</span></div>
+                            <div class="legend-desc">Net call (or put) ASK-side premium over 5 consecutive days. Large, repeated institutional bets — not a single sweep. Strongest single signal when lit. Direction determined here.</div>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-title">3. Dark Pool <span class="legend-weight">0–15 pts</span></div>
+                            <div class="legend-desc">Multi-day institutional block prints at a cluster price, validated 0–4/4: (≥3 days of prints) + (size ≥ 5% ADV) + (spot holds above the cluster) + (support tested). Quiet accumulation footprint.</div>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-title">4. Sector RS <span class="legend-weight">0–15 pts</span></div>
+                            <div class="legend-desc">Ticker's 5-day return vs SPY. Lit when outperforming by 0.5%+; full points at &gt;3%. Money rotating IN means this name is leading, not lagging.</div>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-title">5. GEX Regime <span class="legend-weight">0–15 pts</span></div>
+                            <div class="legend-desc">Where today's aggregate dealer gamma exposure sits in its 1-year distribution. Short gamma (negative or bottom 20%) = amplification regime = breakout-friendly (+15). Top 70%+ = HEAVY_LONG = dealers suppress moves (0 pts). Today most mega-caps are 95-99th percentile long — retail FOMO is fighting dealer walls.</div>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-title">6. Skew Flat <span class="legend-weight">0–10 pts</span></div>
+                            <div class="legend-desc">Difference between 25-delta put IV and 25-delta call IV, normalized by ATM IV. Flat skew (&lt;3%) = market not paying for downside protection = risk-on confirmation (+10). Steep skew (&gt;15%) = fear premium in puts, bullish fighting headwind (0 pts).</div>
+                        </div>
+                    </div>
+                    <div class="legend-footer">
+                        <strong>Score threshold: 40 out of 100.</strong> A candidate at 40 has ~2-3 lit signals — enough for a watch, not enough for conviction. Most actionable setups land at 50+. The killer combo: <em>Persistent Flow + multi-day Dark Pool + short-gamma regime + flat skew</em> — all four confirming = real institutional positioning.
+                    </div>
+                </details>
+
+                <div class="status-filters" data-page-target="breakouts">
+                    <button class="filter-btn active" data-filter="all">All <span class="filter-count" id="filter-count-breakouts-all">0</span></button>
+                    <button class="filter-btn" data-filter="buy">🟢 Buy <span class="filter-count" id="filter-count-breakouts-buy">0</span></button>
+                    <button class="filter-btn" data-filter="approaching">🟡 Approaching <span class="filter-count" id="filter-count-breakouts-approaching">0</span></button>
+                    <button class="filter-btn" data-filter="waiting">⏳ Waiting <span class="filter-count" id="filter-count-breakouts-waiting">0</span></button>
+                </div>
+
+                <div class="signals-container" id="breakouts-container">
+                    <div class="empty-state empty-breakouts">
+                        <p>No breakout candidates yet. The pre-position scanner runs once daily after close (planned). Will surface tickers with 4+ of: compression, persistent flow, multi-day dark pool, sector strength, GEX flip alignment.</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div id="toast-container"></div>
+
+    <script src="app.js"></script>
+    <script>lucide.createIcons();</script>
+</body>
+</html>
