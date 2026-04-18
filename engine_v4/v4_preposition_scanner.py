@@ -83,7 +83,10 @@ def fetch_tier2_universe():
 
 LOOKBACK_DAYS = 5
 COMPRESSION_DAYS = 10
-SCORE_THRESHOLD = 40
+SCORE_THRESHOLD = 40  # Reverted from 35 → 40 (2026-04-17 17:10): empirical check on the
+                      # 33 rejections in 30-39 band showed 12% +1% wins vs 21% -1% losses,
+                      # avg -0.34% vs SPY. Lowering would have added more losers than winners.
+                      # The 40 threshold IS doing real filtering work — keep it.
 
 # Rate limiter (UW only)
 _uw_calls = 0
