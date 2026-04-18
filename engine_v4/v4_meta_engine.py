@@ -60,12 +60,81 @@ def load_watchlist() -> dict:
 
     return watchlist
 
+def check_gap_hold(ticker: str, direction: str) -> dict:
+    """Detect overnight gap + confirm it's holding intraday.
+    Classic institutional setup: gap up on catalyst, doesn't fade, sustained volume.
+    Returns dict with gap_pct, holding (bool), bonus_pts."""
+    try:
+        end = datetime.utcnow()
+        # Daily bars: need yesterday + today to compute gap
+        df_d = fetch_alpaca_bars(ticker, '1Day',
+            (end - timedelta(days=7)).strftime('%Y-%m-%dT%H:%M:%SZ'),
+            end.strftime('%Y-%m-%dT%H:%M:%SZ'))
+        if df_d is None or df_d.empty or len(df_d) < 2:
+            return {"gap_pct": 0, "holding": False, "bonus_pts": 0, "note": "no daily data"}
+        yesterday_close = float(df_d['Close'].iloc[-2])
+        today_open = float(df_d['Open'].iloc[-1])
+        if yesterday_close <= 0:
+            return {"gap_pct": 0, "holding": False, "bonus_pts": 0}
+        gap_pct = (today_open - yesterday_close) / yesterday_close * 100
+
+        # Sign-adjust for direction (CALL wants gap UP; PUT wants gap DOWN)
+        signed_gap = gap_pct if direction == 'CALL' else -gap_pct
+        if signed_gap < 1.5:
+            return {"gap_pct": round(gap_pct, 2), "holding": False, "bonus_pts": 0,
+                    "note": "no meaningful gap in trade direction"}
+
+        # Check hold: current price must still be beyond yesterday_close in direction of trade
+        # (i.e., the gap hasn't filled back)
+        df_im = fetch_alpaca_bars(ticker, '5Min',
+            (end - timedelta(hours=12)).strftime('%Y-%m-%dT%H:%M:%SZ'),
+            end.strftime('%Y-%m-%dT%H:%M:%SZ'))
+        if df_im is None or df_im.empty:
+            current = today_open  # fallback — just opened, haven't seen intraday yet
+        else:
+            current = float(df_im['Close'].iloc[-1])
+
+        # For CALL: current should be >= today_open × 0.995 (within 0.5% of gap level — not filled)
+        if direction == 'CALL':
+            holding = current >= today_open * 0.995
+            vs_gap_pct = (current - today_open) / today_open * 100
+        else:
+            holding = current <= today_open * 1.005
+            vs_gap_pct = (today_open - current) / today_open * 100
+
+        # Volume check: today's volume vs 20-day avg
+        today_vol = float(df_d['Volume'].iloc[-1]) if 'Volume' in df_d.columns else 0
+        avg_vol = float(df_d['Volume'].tail(20).mean()) if len(df_d) >= 20 else today_vol
+        vol_ratio = (today_vol / avg_vol) if avg_vol > 0 else 1
+
+        # Scoring: gap size × hold × volume confirmation
+        if not holding:
+            bonus = 0  # faded gap — no bonus, just noise
+        else:
+            abs_gap = abs(gap_pct)
+            if abs_gap >= 7:    bonus = 15
+            elif abs_gap >= 4:  bonus = 12
+            elif abs_gap >= 2:  bonus = 8
+            else:               bonus = 5   # small gap, just holding
+            if vol_ratio < 1.2: bonus -= 3   # weak volume degrades conviction
+
+        return {
+            "gap_pct": round(gap_pct, 2),
+            "holding": holding,
+            "vs_gap_pct": round(vs_gap_pct, 2),
+            "vol_ratio": round(vol_ratio, 2),
+            "bonus_pts": max(0, bonus),
+        }
+    except Exception as e:
+        return {"gap_pct": 0, "holding": False, "bonus_pts": 0, "note": f"err: {str(e)[:60]}"}
+
+
 def check_200sma_regime(ticker: str, direction: str) -> tuple:
     """Hard gate: CALL only if spot > 200 SMA, PUT only if spot < 200 SMA.
     Returns (pass, {spot, sma_200, ratio, regime_desc})."""
     try:
         end = datetime.utcnow()
-        start = end - timedelta(days=300)  # 200 trading days ≈ 280 calendar days
+        start = end - timedelta(days=400)  # 200 trading days ≈ 280 calendar days; buffer for holidays
         df = fetch_alpaca_bars(ticker, '1Day', start.strftime('%Y-%m-%dT%H:%M:%SZ'), end.strftime('%Y-%m-%dT%H:%M:%SZ'))
         if df is None or df.empty or len(df) < 200:
             return (True, {"note": "insufficient history for 200 SMA"})  # permissive: don't block on missing data
@@ -586,7 +655,13 @@ def run_v4_meta_engine():
         base_score -= iv_penalty
         dp_score = fetch_darkpool_confidence(ticker, flow['type'])
         base_score += dp_score
-        
+
+        # Gap + hold bonus: catches gap-up-and-holds (classic institutional setup).
+        # Awards 5-15 pts when direction-aligned gap is holding with volume.
+        gap_info = check_gap_hold(ticker, flow['type'])
+        gap_bonus = gap_info.get('bonus_pts', 0)
+        base_score += gap_bonus
+
         # Dual-Execution Node Fork
         smc_score, is_pb, smc_sl, brk_score, is_brk, brk_sl, pb_zone, brk_level = evaluate_technical_structure(ticker, flow['type'], flow['spot'])
 
@@ -670,7 +745,14 @@ def run_v4_meta_engine():
                 status = "REJECTED_LOW_SCORE"
                 final_selected_score = max(final_pb_score, final_brk_score)
 
-        metrics = { "persistence": round(prem_score, 1), "smc": smc_score, "dp": round(dp_score, 1), "greek": g_score, "iv": round(iv_penalty, 1), "open_conf": 10 if flow['confirmed_opening'] else 0, "tod": tod_active, "ask_dom": round(flow.get('ask_dominance', 0), 2) }
+        metrics = {
+            "persistence": round(prem_score, 1), "smc": smc_score, "dp": round(dp_score, 1),
+            "greek": g_score, "iv": round(iv_penalty, 1),
+            "open_conf": 10 if flow['confirmed_opening'] else 0, "tod": tod_active,
+            "ask_dom": round(flow.get('ask_dominance', 0), 2),
+            "gap_hold": gap_bonus,  # new: 5-15 pts if gap-up-and-holding
+            "gap_pct": gap_info.get('gap_pct', 0),
+        }
 
         signals.append({
              "Ticker": ticker, "Type": flow['type'], "DTE": dte, "Status": status, "Confidence": f"{final_selected_score:.1f}",

@@ -287,7 +287,7 @@ def score_trend_regime(ticker, direction, ref_date):
     try:
         df = fetch_alpaca_bars(
             ticker, '1Day',
-            (ref_date - timedelta(days=300)).strftime('%Y-%m-%dT%H:%M:%SZ'),
+            (ref_date - timedelta(days=400)).strftime('%Y-%m-%dT%H:%M:%SZ'),
             ref_date.strftime('%Y-%m-%dT%H:%M:%SZ'),
         )
         if df is None or df.empty or len(df) < 200:
