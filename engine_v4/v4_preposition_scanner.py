@@ -591,8 +591,19 @@ def scan():
         "candidates": candidates,
     }
 
-    with open(OUT_PATH, 'w') as f:
-        json.dump(payload, f, indent=2, default=str)
+    # Atomic write — patrol writes to this same file; non-atomic risks partial-read corruption
+    import tempfile
+    dir_path = os.path.dirname(OUT_PATH) or '.'
+    fd, tmp = tempfile.mkstemp(dir=dir_path, prefix='.tmp_', suffix='.json')
+    try:
+        with os.fdopen(fd, 'w') as f:
+            json.dump(payload, f, indent=2, default=str)
+        os.replace(tmp, OUT_PATH)
+    except Exception:
+        if os.path.exists(tmp):
+            try: os.unlink(tmp)
+            except Exception: pass
+        raise
 
     print(f"\n{'='*70}")
     print(f"DONE | UW calls: {_uw_calls} | candidates: {len(candidates)}")

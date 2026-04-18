@@ -316,6 +316,22 @@ def evaluate_technical_structure(ticker: str, trade_type: str, spot: float) -> t
 
 WATCHES_PATH = os.path.join(os.path.dirname(__file__), 'v4_watches.json')
 
+
+def atomic_write_json(path, data):
+    """Write JSON atomically (temp file + rename) — readers never see partial files."""
+    import tempfile as _tmp
+    dir_path = os.path.dirname(path) or '.'
+    fd, tmp = _tmp.mkstemp(dir=dir_path, prefix='.tmp_', suffix='.json')
+    try:
+        with os.fdopen(fd, 'w') as f:
+            json.dump(data, f, indent=4, default=str)
+        os.replace(tmp, path)
+    except Exception:
+        if os.path.exists(tmp):
+            try: os.unlink(tmp)
+            except Exception: pass
+        raise
+
 # DTE-scaled premium TP multipliers (premium-based exits matching trader style).
 # Short-dated trades take profit faster — theta is harsher, holding for 80% gain
 # rarely materializes. Longer-dated can ride further.
@@ -357,7 +373,7 @@ def load_watches() -> list:
     except: return []
 
 def save_watches(watches: list):
-    with open(WATCHES_PATH, 'w') as f: json.dump(watches, f, indent=2)
+    atomic_write_json(WATCHES_PATH, watches)
 
 def confirm_smc_retest(ticker: str, watch: dict) -> tuple:
     """Check if price has retested the FVG/OB zone with a rejection wick on intraday bars.
@@ -657,7 +673,7 @@ def run_v4_meta_engine():
                 if sig['Status'].startswith("TRIGGER_"):
                     print(f"📝 Memory Add: Logged New {sig['Status']} for {sig['Ticker']}")
 
-        with open(ledger_path, 'w') as f: json.dump(ledger, f, indent=4)
+        atomic_write_json(ledger_path, ledger)
     except Exception as e:
         print(f"⚠️ Ledger write failed: {e}")
 
@@ -702,7 +718,7 @@ def run_v4_meta_engine():
         },
         "signals": signals_for_ui,
     }
-    with open(out_path, 'w') as f: json.dump(payload, f, indent=4)
+    atomic_write_json(out_path, payload)
         
 if __name__ == "__main__":
     run_v4_meta_engine()

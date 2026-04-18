@@ -239,8 +239,19 @@ def load_positions():
 
 
 def save_positions(positions):
-    with open(POSITIONS_PATH, 'w') as f:
-        json.dump(positions, f, indent=2, default=str)
+    """Atomic write — never leave a partial positions file for the next cycle to corrupt-read."""
+    import tempfile
+    dir_path = os.path.dirname(POSITIONS_PATH) or '.'
+    fd, tmp = tempfile.mkstemp(dir=dir_path, prefix='.tmp_', suffix='.json')
+    try:
+        with os.fdopen(fd, 'w') as f:
+            json.dump(positions, f, indent=2, default=str)
+        os.replace(tmp, POSITIONS_PATH)
+    except Exception:
+        if os.path.exists(tmp):
+            try: os.unlink(tmp)
+            except Exception: pass
+        raise
 
 
 def open_count(positions):

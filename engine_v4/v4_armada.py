@@ -60,25 +60,36 @@ def next_window_open(now_pt: datetime) -> datetime:
 
 QUALITY_ANALYSIS_PATH = os.path.join(BASE_DIR, 'quality_analysis.py')
 
+def run_step(name, path, timeout=600):
+    """Run a pipeline step with a timeout — never let one hang the whole daemon."""
+    try:
+        subprocess.run([sys.executable, path], timeout=timeout)
+    except subprocess.TimeoutExpired:
+        log(f"⏱️  {name} exceeded {timeout}s timeout — killed. Continuing.", )
+    except Exception as e:
+        log(f"❌ {name} crashed: {type(e).__name__}: {str(e)[:120]} — continuing")
+
+
 def run_pipeline():
     log("Spinning up active Screener...")
-    subprocess.run([sys.executable, SCANNER_PATH])
+    run_step("Scanner", SCANNER_PATH, timeout=300)
 
     log("Piping Watchlist into V4 Execution Engine...")
-    subprocess.run([sys.executable, ENGINE_PATH])
+    run_step("Engine", ENGINE_PATH, timeout=600)
 
     log("Deploying AI Forensics & Shadow Book Audit...")
-    subprocess.run([sys.executable, ARTIFACT_ANALYZER_PATH])
+    run_step("Analyzer", ARTIFACT_ANALYZER_PATH, timeout=300)
 
     log("Capturing quality bucket distribution...")
-    subprocess.run([sys.executable, QUALITY_ANALYSIS_PATH])
+    run_step("Quality", QUALITY_ANALYSIS_PATH, timeout=120)
 
     log(f"Pipeline cycle complete. Next scan in {SLEEP_INSIDE_WINDOW}s.")
 
 
 def write_idle_status(reason: str, next_open_pt: datetime):
-    """Update v4_signals.json metadata so the dashboard shows the correct idle state."""
-    import json
+    """Update v4_signals.json metadata so the dashboard shows the correct idle state.
+    Atomic write — never leaves a partial file for the engine to read on next cycle."""
+    import json, tempfile
     sigs_path = os.path.join(BASE_DIR, 'v4_signals.json')
     try:
         if os.path.exists(sigs_path):
@@ -90,9 +101,11 @@ def write_idle_status(reason: str, next_open_pt: datetime):
             data['metadata'] = {}
         data['metadata']['daemon_status'] = reason
         data['metadata']['next_window_open_pt'] = next_open_pt.strftime('%Y-%m-%dT%H:%M:%S%z')
-        # Don't touch last_updated — dashboard uses that to know when engine last ran
-        with open(sigs_path, 'w') as f:
+        # Atomic: write to temp, rename. Concurrent readers (engine, dashboard) never see partial.
+        fd, tmp = tempfile.mkstemp(dir=BASE_DIR, prefix='.tmp_', suffix='.json')
+        with os.fdopen(fd, 'w') as f:
             json.dump(data, f, indent=4)
+        os.replace(tmp, sigs_path)
     except Exception as e:
         log(f"Could not update idle status: {e}")
 
