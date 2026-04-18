@@ -60,6 +60,34 @@ def load_watchlist() -> dict:
 
     return watchlist
 
+def check_200sma_regime(ticker: str, direction: str) -> tuple:
+    """Hard gate: CALL only if spot > 200 SMA, PUT only if spot < 200 SMA.
+    Returns (pass, {spot, sma_200, ratio, regime_desc})."""
+    try:
+        end = datetime.utcnow()
+        start = end - timedelta(days=300)  # 200 trading days ≈ 280 calendar days
+        df = fetch_alpaca_bars(ticker, '1Day', start.strftime('%Y-%m-%dT%H:%M:%SZ'), end.strftime('%Y-%m-%dT%H:%M:%SZ'))
+        if df is None or df.empty or len(df) < 200:
+            return (True, {"note": "insufficient history for 200 SMA"})  # permissive: don't block on missing data
+        sma_200 = float(df['Close'].tail(200).mean())
+        spot = float(df['Close'].iloc[-1])
+        ratio = spot / sma_200 if sma_200 > 0 else 0
+        if direction == 'CALL':
+            # Above 200 SMA (even just 1% above) → allowed. Below = macro downtrend, reject.
+            regime_ok = spot > sma_200
+            regime_desc = "ABOVE_200SMA" if regime_ok else "BELOW_200SMA_FAIL"
+        else:  # PUT
+            regime_ok = spot < sma_200
+            regime_desc = "BELOW_200SMA" if regime_ok else "ABOVE_200SMA_FAIL"
+        return (regime_ok, {
+            "sma_200": round(sma_200, 2), "spot": round(spot, 2),
+            "ratio": round(ratio, 3), "regime": regime_desc,
+        })
+    except Exception as e:
+        # On error: permissive (don't block trades if data is briefly unavailable)
+        return (True, {"note": f"error: {str(e)[:60]}"})
+
+
 def determine_market_regime() -> str:
     try:
         end = datetime.utcnow()
@@ -510,8 +538,19 @@ def run_v4_meta_engine():
             continue
 
         dte = (datetime.strptime(flow['expiry'], "%Y-%m-%d") - datetime.now()).days if flow['expiry'] else 0
-        base_score = 0
 
+        # 200 SMA regime gate — reject if direction disagrees with long-term trend
+        sma_pass, sma_info = check_200sma_regime(ticker, flow['type'])
+        if not sma_pass:
+            signals.append({
+                "Ticker": ticker, "Type": flow['type'], "DTE": dte,
+                "Status": "REJECTED_TREND_MISMATCH", "Confidence": "0.0",
+                "Screener_Logic": f"{flow['type']} flow but spot {sma_info.get('spot')} vs 200 SMA {sma_info.get('sma_200')} — macro trend disagrees. " + scr_logic,
+                "SMA_200_Info": sma_info,
+            })
+            continue
+
+        base_score = 0
         tod_active = flow['tod_score']
         if dte >= 3 and tod_active < 0: tod_active = 0
         base_score += tod_active

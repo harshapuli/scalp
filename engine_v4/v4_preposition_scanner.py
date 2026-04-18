@@ -279,6 +279,35 @@ def score_darkpool(ticker, ref_date):
     }
 
 
+# ============ SIGNAL 4b: 200 SMA TREND REGIME ============
+# Not a lit signal (doesn't take pts), acts as a hard gate + context flag.
+# Humbled Trader: "only long names above 200 SMA, only short names below."
+def score_trend_regime(ticker, direction, ref_date):
+    """Hard gate: spot vs 200-day SMA. Returns dict with pass/fail + context."""
+    try:
+        df = fetch_alpaca_bars(
+            ticker, '1Day',
+            (ref_date - timedelta(days=300)).strftime('%Y-%m-%dT%H:%M:%SZ'),
+            ref_date.strftime('%Y-%m-%dT%H:%M:%SZ'),
+        )
+        if df is None or df.empty or len(df) < 200:
+            return {"pass": True, "note": "insufficient history — permissive"}
+        sma_200 = float(df['Close'].tail(200).mean())
+        spot = float(df['Close'].iloc[-1])
+        if direction == 'CALL':
+            ok = spot > sma_200
+        else:
+            ok = spot < sma_200
+        return {
+            "pass": ok,
+            "sma_200": round(sma_200, 2), "spot": round(spot, 2),
+            "pct_vs_sma": round((spot - sma_200) / sma_200 * 100, 2),
+            "regime": "BULL" if spot > sma_200 else "BEAR",
+        }
+    except Exception as e:
+        return {"pass": True, "note": f"error: {str(e)[:60]}"}
+
+
 # ============ SIGNAL 4: SECTOR RELATIVE STRENGTH ============
 def score_sector_strength(ticker, ref_date, spy_5d_return=None):
     """0-15 points based on outperformance vs SPY over 5 days."""
@@ -529,8 +558,14 @@ def scan():
             sector = score_sector_strength(t, ref_dt, spy_5d)
             gex = score_gex_flip(t, ref_dt)
             skew = score_skew(t, ref_dt)
+            trend = score_trend_regime(t, flow.get('direction', 'CALL'), ref_dt)
         except Exception as e:
             print(f"  ⚠️ scoring failed for {t}: {type(e).__name__}: {str(e)[:100]} — skipping")
+            continue
+
+        # 200 SMA gate: CALL must be above, PUT must be below. Reject before scoring.
+        if not trend.get('pass', True):
+            print(f"  🚫 {t:>5} | skip — {flow.get('direction','?')} but spot ${trend.get('spot')} vs 200 SMA ${trend.get('sma_200')} ({trend.get('regime')})")
             continue
 
         total = comp['score'] + flow['score'] + dp['score'] + sector['score'] + gex['score'] + skew['score']
@@ -553,9 +588,10 @@ def scan():
                     "persistent_flow": flow,
                     "darkpool_accumulation": dp,
                     "sector_strength": sector,
-                    "gex_regime": gex,  # now a full object with score/regime/percentile/net_gamma
-                    "gamma_flip_distance_pct": gex.get('distance_pct'),  # kept for dashboard back-compat
+                    "gex_regime": gex,
+                    "gamma_flip_distance_pct": gex.get('distance_pct'),
                     "skew_flat": skew,
+                    "trend_regime_200sma": trend,  # hard-gate result + context
                 },
                 "narrative": narrative,
                 "key_levels": {
