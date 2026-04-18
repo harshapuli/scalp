@@ -68,7 +68,7 @@ KILL_FILE = os.path.join(BASE_DIR, 'v4_paper_trader_kill')
 # ---------- Risk parameters ----------
 TRADER_CADENCE = 30           # seconds between cycles
 MAX_CONCURRENT_POSITIONS = 3  # conservative first-day cap (raise to 5 after validating behavior)
-MAX_POSITION_USD = 1500
+MAX_POSITION_USD = 3000       # raised from 1500 so qty>=2 fits on ~$10-15 premium contracts (enables partial TP)
 BASE_SIZE_USD = 1000
 MAX_OPTION_SPREAD_PCT = 0.08  # skip illiquid contracts
 
@@ -385,6 +385,10 @@ def process_new_triggers(positions):
         target_usd = min(BASE_SIZE_USD * size_mult, MAX_POSITION_USD)
         contract_cost_usd = snap['ask'] * 100  # use ask for safety (worst-case fill)
         qty = max(1, int(target_usd / contract_cost_usd))
+        # Floor qty at 2 when the cap allows it — the partial-TP "leave 1 runner"
+        # logic is a no-op at qty=1. If 2 contracts fit MAX_POSITION_USD, take them.
+        if qty == 1 and (2 * contract_cost_usd) <= MAX_POSITION_USD:
+            qty = 2
         actual_cost = qty * contract_cost_usd
 
         log(f"SIGNAL {sig_id}: spot={spot:.2f}, contract={symbol}, ask=${snap['ask']:.2f}, "
