@@ -467,6 +467,8 @@ def run_v4_meta_engine():
                 # Surface contract details on the signal itself for the dashboard
                 "Strike": w.get('strike'), "Expiration": w.get('expiry'),
                 "Contract_Symbol": w.get('contract_symbol'),
+                # Preserve the score_matrix from the watch — needed for quality_analysis
+                "Score_Matrix": w.get('score_matrix', {}),
                 "Screener_Logic": w.get('screener_logic', '')
             })
             print(f"🚀 {w['ticker']} -> {trig_status} | {reason} | size={size_mult:.2f}x")
@@ -572,12 +574,15 @@ def run_v4_meta_engine():
                     # Contract suggestion — what smart money was actually buying
                     "Strike": strike, "Expiration": expiry, "Contract_Symbol": contract_sym,
                 }
+                # Build score_matrix early so we can persist it on the watch dict
+                breakout_metrics = { "persistence": round(prem_score, 1), "smc": smc_score, "dp": round(dp_score, 1), "greek": g_score, "iv": round(iv_penalty, 1), "open_conf": 10 if flow['confirmed_opening'] else 0, "tod": tod_active, "ask_dom": round(flow.get('ask_dominance', 0), 2) }
                 surviving_watches.append({
                     "ticker": ticker, "type": flow['type'], "path": "BREAKOUT", "dte": dte,
                     "zone_low": zone_low, "zone_high": zone_high,
                     "score": final_brk_score, "created_at": now_str,
                     "strike": strike, "expiry": expiry, "contract_symbol": contract_sym,
-                    "exit_protocol": exit_protocol, "screener_logic": scr_logic
+                    "exit_protocol": exit_protocol, "screener_logic": scr_logic,
+                    "score_matrix": breakout_metrics,  # persist for re-emit + trigger confirmation
                 })
                 status = "WATCH_BREAKOUT"
                 final_selected_score = final_brk_score
@@ -595,12 +600,14 @@ def run_v4_meta_engine():
                     "Spot_At_Watch": round(flow['spot'], 2),
                     "Strike": strike, "Expiration": expiry, "Contract_Symbol": contract_sym,
                 }
+                pullback_metrics = { "persistence": round(prem_score, 1), "smc": smc_score, "dp": round(dp_score, 1), "greek": g_score, "iv": round(iv_penalty, 1), "open_conf": 10 if flow['confirmed_opening'] else 0, "tod": tod_active, "ask_dom": round(flow.get('ask_dominance', 0), 2) }
                 surviving_watches.append({
                     "ticker": ticker, "type": flow['type'], "path": "PULLBACK", "dte": dte,
                     "zone_low": pb_zone[0], "zone_high": pb_zone[1],
                     "score": final_pb_score, "created_at": now_str,
                     "strike": strike, "expiry": expiry, "contract_symbol": contract_sym,
-                    "exit_protocol": exit_protocol, "screener_logic": scr_logic
+                    "exit_protocol": exit_protocol, "screener_logic": scr_logic,
+                    "score_matrix": pullback_metrics,
                 })
                 status = "WATCH_PULLBACK"
                 final_selected_score = final_pb_score

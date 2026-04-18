@@ -58,6 +58,8 @@ def next_window_open(now_pt: datetime) -> datetime:
     return candidate
 
 
+QUALITY_ANALYSIS_PATH = os.path.join(BASE_DIR, 'quality_analysis.py')
+
 def run_pipeline():
     log("Spinning up active Screener...")
     subprocess.run([sys.executable, SCANNER_PATH])
@@ -67,6 +69,9 @@ def run_pipeline():
 
     log("Deploying AI Forensics & Shadow Book Audit...")
     subprocess.run([sys.executable, ARTIFACT_ANALYZER_PATH])
+
+    log("Capturing quality bucket distribution...")
+    subprocess.run([sys.executable, QUALITY_ANALYSIS_PATH])
 
     log(f"Pipeline cycle complete. Next scan in {SLEEP_INSIDE_WINDOW}s.")
 
