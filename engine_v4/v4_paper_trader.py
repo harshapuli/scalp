@@ -480,13 +480,15 @@ def evaluate_exits(positions):
             continue
 
         # ===== PARTIAL PROFIT TAKING =====
-        # Only if qty >= 2 (can't partial-close 1 contract) AND haven't already partial-closed
+        # At TP1, close everything EXCEPT 1 runner. Locks in most of the gain, lets
+        # the last contract ride to TP2 or trailing stop for the "free lottery ticket".
+        # Requires qty >= 2; qty=1 can't partial-close, defaults to all-or-nothing logic.
         if not p.get('partial_closed') and p.get('qty', 0) >= 2 and p.get('tp1_exit_order_id') is None:
             tp1 = p.get('tp1_premium_target')
             if tp1 and current_premium >= float(tp1):
-                partial_qty = p['qty'] // 2  # close half (floor)
+                partial_qty = p['qty'] - 1  # always leave exactly 1 runner
                 log(f"TP1 HIT {p['ticker']} {p['contract_symbol']}: premium ${entry_premium:.2f} → ${current_premium:.2f} "
-                    f"({p['unrealized_pnl_pct']:+.1f}%) | closing {partial_qty}/{p['qty']} contracts", "EXIT")
+                    f"({p['unrealized_pnl_pct']:+.1f}%) | closing {partial_qty}/{p['qty']} contracts, 1 runner stays", "EXIT")
                 order = submit_order(p['contract_symbol'], partial_qty, 'sell', p['signal_id'] + '-TP1')
                 if order:
                     p['tp1_exit_order_id'] = order.get('id')
