@@ -395,24 +395,37 @@ def process_new_triggers(positions):
             log(f"order submission failed for {sig_id}", "ERR")
             continue
 
+        # Compute TP1 (halfway between entry and TP2 — for partial profit taking)
+        entry_est = snap['ask']
+        tp2 = ep.get('TP_Premium_Target')
+        tp1 = round(entry_est + (float(tp2) - entry_est) * 0.5, 2) if tp2 else None
+
         # Record position as PENDING_ENTRY
         positions.append({
             "id": str(uuid.uuid4())[:8],
             "signal_id": sig_id,
-            "signal_source": signal_source,  # 'V4' or 'PREPOSITION'
+            "signal_source": signal_source,
             "ticker": ticker, "direction": direction,
             "contract_symbol": symbol,
             "strike": float(contract.get('strike_price', 0)),
             "expiration": contract.get('expiration_date'),
             "qty": qty,
+            "remaining_qty": qty,  # decreases after partial close
             "entry_order_id": order.get('id'),
             "entry_order_status": order.get('status'),
-            "entry_price_estimate": snap['ask'],
+            "entry_price_estimate": entry_est,
             "entry_price_filled": None,
             "entry_time_utc": datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ'),
             "entry_signal_score": sig.get('Confidence'),
             "size_multiplier": size_mult,
-            "tp_premium_target": ep.get('TP_Premium_Target'),
+            "tp_premium_target": tp2,      # TP2 = full target
+            "tp1_premium_target": tp1,     # TP1 = halfway, partial exit level
+            "tp1_hit_at_utc": None,
+            "tp1_exit_order_id": None,
+            "tp1_exit_price_filled": None,
+            "tp1_qty_closed": 0,
+            "tp1_realized_pnl_usd": 0,
+            "partial_closed": False,
             "tp_pct_gain": ep.get('TP_Pct_Gain'),
             "sl_underlying": ep.get('SL'),
             "underlying_at_entry": spot,
@@ -445,29 +458,56 @@ def reconcile_pending_entries(positions):
 
 
 def evaluate_exits(positions):
-    """For OPEN positions, check exit conditions."""
+    """For OPEN positions, check TP1 partial + TP2 full + SL + time stop.
+    Partial-profit logic: at TP1 (halfway to TP2) close 50%, trail rest at breakeven."""
     for p in positions:
         if p.get('status') != 'OPEN': continue
 
-        # Pull current option price + underlying
         snap = get_option_snapshot(p['contract_symbol'])
         spot = get_underlying_price(p['ticker'])
         if not snap or not spot: continue
 
         current_premium = snap['mid']
         entry_premium = p.get('entry_price_filled') or p.get('entry_price_estimate')
+        remaining_qty = p.get('remaining_qty', p.get('qty', 0))
         p['current_premium'] = round(current_premium, 2)
         p['current_underlying'] = round(spot, 2)
         p['unrealized_pnl_pct'] = round((current_premium - entry_premium) / entry_premium * 100, 2) if entry_premium else None
 
+        if remaining_qty <= 0:
+            # Nothing left to sell — shouldn't happen but guard anyway
+            p['status'] = 'CLOSED'
+            continue
+
+        # ===== PARTIAL PROFIT TAKING =====
+        # Only if qty >= 2 (can't partial-close 1 contract) AND haven't already partial-closed
+        if not p.get('partial_closed') and p.get('qty', 0) >= 2 and p.get('tp1_exit_order_id') is None:
+            tp1 = p.get('tp1_premium_target')
+            if tp1 and current_premium >= float(tp1):
+                partial_qty = p['qty'] // 2  # close half (floor)
+                log(f"TP1 HIT {p['ticker']} {p['contract_symbol']}: premium ${entry_premium:.2f} → ${current_premium:.2f} "
+                    f"({p['unrealized_pnl_pct']:+.1f}%) | closing {partial_qty}/{p['qty']} contracts", "EXIT")
+                order = submit_order(p['contract_symbol'], partial_qty, 'sell', p['signal_id'] + '-TP1')
+                if order:
+                    p['tp1_exit_order_id'] = order.get('id')
+                    p['tp1_hit_at_utc'] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
+                    # Status stays OPEN until the partial fills; reconciler will reduce remaining_qty
+                continue  # don't also check other exits this cycle — let TP1 fill first
+
+        # ===== FULL EXIT CHECKS (for remaining contracts) =====
         exit_reason = None
 
-        # 1. Premium TP hit
+        # 1. TP2 full target
         tp_target = p.get('tp_premium_target')
         if tp_target and current_premium >= float(tp_target):
             exit_reason = 'tp_premium_hit'
 
-        # 2. Underlying SL hit
+        # 2. Trailing stop at breakeven — only active after partial close
+        if not exit_reason and p.get('partial_closed'):
+            if current_premium <= entry_premium:
+                exit_reason = 'trailing_breakeven'
+
+        # 3. Underlying SL (applies to both pre- and post-partial)
         if not exit_reason:
             sl_str = p.get('sl_underlying')
             try:
@@ -477,7 +517,7 @@ def evaluate_exits(positions):
                 if (p['direction'] == 'CALL' and spot < sl) or (p['direction'] == 'PUT' and spot > sl):
                     exit_reason = 'sl_underlying_hit'
 
-        # 3. Time stop (held > DTE * 0.4)
+        # 4. Time stop (held > DTE * 0.4)
         if not exit_reason:
             try:
                 entry_dt = datetime.strptime(p['entry_time_utc'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=UTC)
@@ -487,16 +527,17 @@ def evaluate_exits(positions):
                     exit_reason = 'time_stop'
             except Exception: pass
 
-        # 4. EOD close for short-dated (≤7 DTE)
+        # 5. EOD close for short-dated
         if not exit_reason and p.get('dte_at_entry', 99) <= 7:
             now_pt = datetime.now(PACIFIC)
-            if now_pt.hour == 12 and now_pt.minute >= 45:  # 12:45 PT = 15:45 ET, 15min before close
+            if now_pt.hour == 12 and now_pt.minute >= 45:
                 exit_reason = 'eod_short_dte'
 
         if exit_reason:
             log(f"EXIT trigger {p['ticker']} {p['contract_symbol']}: {exit_reason} | "
-                f"premium ${entry_premium:.2f} → ${current_premium:.2f} ({p['unrealized_pnl_pct']:+.1f}%)", "EXIT")
-            order = submit_order(p['contract_symbol'], p['qty'], 'sell', p['signal_id'])
+                f"premium ${entry_premium:.2f} → ${current_premium:.2f} ({p['unrealized_pnl_pct']:+.1f}%) "
+                f"| selling {remaining_qty} contracts", "EXIT")
+            order = submit_order(p['contract_symbol'], remaining_qty, 'sell', p['signal_id'])
             if order:
                 p['exit_order_id'] = order.get('id')
                 p['exit_reason'] = exit_reason
@@ -506,7 +547,35 @@ def evaluate_exits(positions):
     return positions
 
 
+def reconcile_pending_tp1(positions):
+    """Handle partial-exit order fills — mark position as partial_closed, reduce remaining_qty."""
+    for p in positions:
+        if p.get('status') != 'OPEN': continue
+        if not p.get('tp1_exit_order_id') or p.get('partial_closed'): continue
+        order = get_order_status(p['tp1_exit_order_id'])
+        if not order: continue
+        st = order.get('status')
+        if st == 'filled':
+            fill_px = float(order.get('filled_avg_price', 0))
+            partial_qty = int(order.get('filled_qty', 0))
+            entry_px = p.get('entry_price_filled') or p.get('entry_price_estimate', 0)
+            pnl = (fill_px - entry_px) * 100 * partial_qty
+            p['tp1_exit_price_filled'] = fill_px
+            p['tp1_qty_closed'] = partial_qty
+            p['tp1_realized_pnl_usd'] = round(pnl, 2)
+            p['remaining_qty'] = p.get('qty', 0) - partial_qty
+            p['partial_closed'] = True
+            log(f"TP1 FILL {p['ticker']}: {partial_qty} closed @ ${fill_px} | "
+                f"partial P&L ${pnl:+.2f} | {p['remaining_qty']} remain, trailing at breakeven", "FILL")
+        elif st in ('canceled', 'rejected', 'expired'):
+            log(f"TP1 exit {st}: {p['ticker']} — will retry next cycle", "WARN")
+            p['tp1_exit_order_id'] = None  # allow retry
+            p['tp1_hit_at_utc'] = None
+    return positions
+
+
 def reconcile_pending_exits(positions):
+    """Final exit fill — aggregates with any partial close to show total P&L."""
     for p in positions:
         if p.get('status') != 'PENDING_EXIT' or not p.get('exit_order_id'): continue
         order = get_order_status(p['exit_order_id'])
@@ -517,12 +586,21 @@ def reconcile_pending_exits(positions):
             p['exit_price_filled'] = exit_px
             p['exit_time_utc'] = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
             entry_px = p.get('entry_price_filled') or p.get('entry_price_estimate', 0)
-            pnl_per_contract = (exit_px - entry_px) * 100
-            p['realized_pnl_usd'] = round(pnl_per_contract * p['qty'], 2)
-            p['realized_pnl_pct'] = round((exit_px - entry_px) / entry_px * 100, 2) if entry_px else 0
+            final_qty = p.get('remaining_qty', p.get('qty', 0))
+            final_pnl = (exit_px - entry_px) * 100 * final_qty
+            # Add the TP1 partial P&L (if any) to get total realized
+            tp1_pnl = p.get('tp1_realized_pnl_usd', 0) or 0
+            total_pnl = round(final_pnl + tp1_pnl, 2)
+            # Effective combined pct (weighted by qty)
+            total_qty = p.get('qty', final_qty) or final_qty
+            effective_cost = entry_px * 100 * total_qty if entry_px else 0
+            total_pct = (total_pnl / effective_cost * 100) if effective_cost else 0
+            p['realized_pnl_usd'] = total_pnl
+            p['realized_pnl_pct'] = round(total_pct, 2)
             p['status'] = 'CLOSED'
-            log(f"CLOSED {p['ticker']} {p['contract_symbol']}: P&L ${p['realized_pnl_usd']} "
-                f"({p['realized_pnl_pct']:+.1f}%) reason={p['exit_reason']}", "FILL")
+            partial_note = f" (incl. ${tp1_pnl:+.0f} from TP1 partial)" if tp1_pnl else ""
+            log(f"CLOSED {p['ticker']} {p['contract_symbol']}: total P&L ${total_pnl} "
+                f"({total_pct:+.1f}%) reason={p['exit_reason']}{partial_note}", "FILL")
         elif st in ('canceled', 'rejected', 'expired'):
             p['status'] = 'EXIT_FAILED'
             log(f"exit {st}: {p['ticker']} — order {p['exit_order_id']}", "ERR")
@@ -554,9 +632,11 @@ def main_loop():
         positions = process_new_triggers(positions)
         # 2. Reconcile pending entries → mark filled
         positions = reconcile_pending_entries(positions)
-        # 3. Evaluate exits on open positions
+        # 3. Evaluate exits on open positions (TP1 partial, TP2 full, SL, time stop)
         positions = evaluate_exits(positions)
-        # 4. Reconcile pending exits → mark closed
+        # 4. Reconcile TP1 partial fills → mark position partial_closed, reduce remaining_qty
+        positions = reconcile_pending_tp1(positions)
+        # 5. Reconcile pending final exits → mark CLOSED with aggregated P&L
         positions = reconcile_pending_exits(positions)
 
         save_positions(positions)
