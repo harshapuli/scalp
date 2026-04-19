@@ -99,14 +99,8 @@ def evaluate(records, label):
                 gate_blocked = True
         except: pass
 
-        # IV term inversion — soft penalty (-15), not a block
-        if not gate_blocked:
-            try:
-                inv, msg = iv_term_inversion(t)
-                if inv:
-                    gate_msgs.append("IV-term penalty -15")
-                    score_delta -= 15
-            except: pass
+        # IV term inversion — DISABLED in production (backtest showed it killed CIFR winner)
+        # Leaving helper callable for forensics but not affecting score.
 
         # Squeeze score (additive — doesn't block, boosts/penalizes)
         try:
@@ -116,15 +110,7 @@ def evaluate(records, label):
                 score_delta += sq_pts
         except: pass
 
-        # Seasonality
-        try:
-            ts_str = e.get('Timestamp', '')
-            month = int(ts_str[5:7]) if len(ts_str) >= 7 else datetime.utcnow().month
-            seas_pts, seas_msg = seasonality_score(t, month)
-            if seas_pts:
-                gate_msgs.append(f"seas {seas_pts:+d}")
-                score_delta += seas_pts
-        except: pass
+        # Seasonality — DISABLED in production (uniform April penalty, no signal)
 
         # If score_delta drives original below threshold (40), the signal is effectively filtered.
         # Reconstruct: original Confidence + score_delta < 40 → would no longer trigger.

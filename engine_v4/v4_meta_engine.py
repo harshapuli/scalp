@@ -639,11 +639,12 @@ def run_v4_meta_engine():
             })
             continue
 
-        # IV term-structure inversion: applied as a SCORE PENALTY (-15), not a hard block.
-        # Hard-blocking removed the only big winner (CIFR +9.19%) in our backtest because
-        # volatile names carry permanently elevated short-DTE IV. Let the score gate decide.
-        iv_inverted, iv_term_msg = iv_term_inversion(ticker)
-        iv_term_penalty = 15 if iv_inverted else 0
+        # IV term-structure inversion: DISABLED after backtest (2026-04-18).
+        # Even as a soft -15 penalty, it single-handedly killed the CIFR +9.19% winner.
+        # Volatile names (crypto miners, small caps) carry permanently elevated short-DTE IV
+        # that reads as "inverted" without actually signaling event risk.
+        # Earnings halt below catches the real IV-crush risk; iv_term_inversion was redundant.
+        iv_term_penalty = 0  # was: 15 if iv_inverted else 0
 
         # OI-unwind filter: reject flow that's actually closing existing positions
         # (looks bullish on the print but is institutional exit, not entry)

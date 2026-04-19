@@ -591,12 +591,11 @@ def scan():
 
         direction = flow['direction']
 
-        # Phase 4a: Seasonality tiebreaker — penalize/reward based on month's historical positivity
-        try:
-            current_month = ref_dt.month
-            seas_pts, seas_msg = seasonality_score(t, current_month)
-        except Exception as e:
-            seas_pts, seas_msg = 0, f"seasonality err: {type(e).__name__}"
+        # Phase 4a: Seasonality — DISABLED after backtest (2026-04-18).
+        # Gave every April signal a uniform -5 shift (April is historically weak across
+        # most tech names), so it wasn't discriminating between good/bad trades — just
+        # lowering every score equally. Re-enable when we have year-round data.
+        seas_pts, seas_msg = 0, "seasonality disabled"
 
         # Phase 2b: Squeeze score — adds points for CALL setups on heavily-shorted names
         try:
