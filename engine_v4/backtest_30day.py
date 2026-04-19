@@ -49,8 +49,20 @@ from swing_trade_strategy.data_feed import fetch_alpaca_bars
 
 UTC = timezone.utc
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-RAW_PATH = os.path.join(BASE_DIR, 'backtest_30day_raw.json')
-SUMMARY_PATH = os.path.join(BASE_DIR, 'backtest_30day_summary.json')
+
+# Optional end-date override from CLI (YYYY-MM-DD) so we can run a prior window
+# alongside the main one without overwriting caches.
+_CLI_END = None
+_SUFFIX = ''
+for arg in sys.argv[1:]:
+    if arg.startswith('--end='):
+        _CLI_END = datetime.strptime(arg.split('=',1)[1], '%Y-%m-%d').replace(tzinfo=UTC)
+        _SUFFIX = '_' + arg.split('=',1)[1]
+    elif arg.startswith('--suffix='):
+        _SUFFIX = '_' + arg.split('=',1)[1]
+
+RAW_PATH = os.path.join(BASE_DIR, f'backtest_30day_raw{_SUFFIX}.json')
+SUMMARY_PATH = os.path.join(BASE_DIR, f'backtest_30day_summary{_SUFFIX}.json')
 
 LOOKBACK_DAYS = 30           # how many trading days back to test
 FWD_HORIZONS = [1, 3, 5]     # forward return horizons in trading days
@@ -188,8 +200,11 @@ def phase1_cache_data():
     print(f"Universe: {len(universe)} tickers ({len(TIER1_WATCHLIST)} mega + {len(tier2)} dynamic)")
 
     # Trading days (last 30 ending yesterday so forward returns are computable)
-    today = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
-    end = today - timedelta(days=8)  # buffer so we have 5d forward returns even for last day
+    if _CLI_END:
+        end = _CLI_END
+    else:
+        today = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        end = today - timedelta(days=8)  # buffer so we have 5d forward returns even for last day
     days = trading_days(end, LOOKBACK_DAYS)
     print(f"Date range: {days[0].strftime('%Y-%m-%d')} → {days[-1].strftime('%Y-%m-%d')}")
 

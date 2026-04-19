@@ -381,6 +381,9 @@ def run_daily_analysis():
             'SPY_Fwd_Ret': m['spy_fwd_ret'],
             'Excess_Ret': m['excess_ret'],
             'Data_Status': m['data_status'],
+            # Truth layer — propagate per-feature score breakdown for ablation analysis
+            'Score_Matrix': trade.get('Score_Matrix') or {},
+            'Screener_Logic': trade.get('Screener_Logic'),
         }
 
         if status in TRIGGER_STATUSES:
