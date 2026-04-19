@@ -75,6 +75,62 @@ MAX_POSITION_USD = 3000       # raised from 1500 so qty>=2 fits on ~$10-15 premi
 BASE_SIZE_USD = 1000
 MAX_OPTION_SPREAD_PCT = 0.08  # skip illiquid contracts
 
+# ---------- Exposure caps (Phase: portfolio risk control) ----------
+# Hidden-leverage protection. Without these, a 9-position book can be 100% the same
+# AI/tech/crypto narrative — single CPI shock takes the whole book down together.
+MAX_POSITIONS_PER_SECTOR = 2     # e.g., max 2 Tech, 2 Healthcare, etc.
+MAX_POSITIONS_PER_THEME  = 3     # e.g., max 3 AI-adjacent, 3 crypto-adjacent
+MAX_PORTFOLIO_DELTA      = 3.0   # absolute net delta in spy-equivalents (rough cap)
+
+# Theme tagging — coarse manual mapping, expand as needed.
+# A position adds to ALL themes its ticker maps to.
+TICKER_THEMES = {
+    # AI / mega-cap tech
+    'NVDA': ['ai', 'tech'], 'MSFT': ['ai', 'tech'], 'GOOGL': ['ai', 'tech'],
+    'GOOG': ['ai', 'tech'], 'META': ['ai', 'tech'], 'AMZN': ['ai', 'tech'],
+    'AAPL': ['tech'], 'AVGO': ['ai', 'semis'], 'AMD': ['ai', 'semis'],
+    'TSM': ['ai', 'semis'], 'ARM': ['ai', 'semis'], 'SMH': ['semis'],
+    'QQQ': ['tech'], 'TQQQ': ['tech'], 'PLTR': ['ai', 'tech'],
+    'NFLX': ['tech'], 'ORCL': ['tech'], 'NBIS': ['ai'], 'IGV': ['tech'],
+    # Crypto-adjacent
+    'COIN': ['crypto'], 'MSTR': ['crypto'], 'MARA': ['crypto'],
+    'CIFR': ['crypto'], 'IBIT': ['crypto'], 'TSLA': ['ai', 'crypto'],
+    # Bonds / rates
+    'TLT': ['rates'], 'IEF': ['rates'], 'SHY': ['rates'],
+    # China
+    'KWEB': ['china'], 'FXI': ['china'], 'BABA': ['china'],
+    # Index / broad
+    'SPY': ['broad'], 'IWM': ['broad'], 'DIA': ['broad'],
+    # Energy
+    'XOP': ['energy'], 'XLE': ['energy'], 'USO': ['energy'],
+    # Metals
+    'GLD': ['metals'], 'SLV': ['metals'], 'GDX': ['metals'],
+    # Banks / financials
+    'JPM': ['banks'], 'GS': ['banks'], 'KRE': ['banks'],
+    # Defense / aerospace
+    'LMT': ['defense'], 'BA': ['defense'], 'RTX': ['defense'],
+    # Healthcare
+    'UNH': ['healthcare'], 'LLY': ['healthcare'],
+}
+
+# Coarse sector — single bucket per ticker (different from themes which are multi-tag).
+TICKER_SECTOR = {
+    'NVDA': 'Tech', 'MSFT': 'Tech', 'GOOGL': 'Tech', 'GOOG': 'Tech', 'META': 'Tech',
+    'AMZN': 'Tech', 'AAPL': 'Tech', 'AVGO': 'Tech', 'AMD': 'Tech', 'TSM': 'Tech',
+    'NFLX': 'Tech', 'ORCL': 'Tech', 'PLTR': 'Tech', 'ARM': 'Tech', 'SMH': 'Tech',
+    'IGV': 'Tech', 'NBIS': 'Tech', 'TQQQ': 'Tech', 'QQQ': 'Tech',
+    'COIN': 'Crypto', 'MSTR': 'Crypto', 'MARA': 'Crypto', 'CIFR': 'Crypto', 'IBIT': 'Crypto',
+    'TSLA': 'Crypto',  # tag as crypto exposure for cap purposes
+    'TLT': 'Rates', 'IEF': 'Rates', 'SHY': 'Rates',
+    'KWEB': 'China', 'FXI': 'China', 'BABA': 'China',
+    'SPY': 'Broad', 'IWM': 'Broad', 'DIA': 'Broad',
+    'XOP': 'Energy', 'XLE': 'Energy', 'USO': 'Energy',
+    'GLD': 'Metals', 'SLV': 'Metals', 'GDX': 'Metals',
+    'JPM': 'Banks', 'GS': 'Banks', 'KRE': 'Banks',
+    'LMT': 'Defense', 'BA': 'Defense', 'RTX': 'Defense',
+    'UNH': 'Healthcare', 'LLY': 'Healthcare',
+}
+
 # Options market hours — Alpaca rejects market orders outside 9:30 AM – 4:00 PM ET
 # (V4 scan window runs pre-market too; trader must be tighter)
 WINDOW_START = (6, 30)   # 6:30 AM PT = 9:30 AM ET (options open)
@@ -267,6 +323,47 @@ def has_open_for(positions, ticker, direction):
                for p in positions)
 
 
+def exposure_check(positions, ticker, direction, contract_delta=None):
+    """Returns (allowed: bool, reason: str). Hidden-leverage guard:
+    blocks new entries if portfolio is already concentrated in same sector,
+    same theme cluster, or absolute net delta would exceed cap.
+
+    contract_delta: per-contract delta from option snapshot, signed for direction
+                    (positive for CALL, negative for PUT). Pass None to skip delta check."""
+    open_pos = [p for p in positions if p.get('status') in ('OPEN', 'PENDING_ENTRY')]
+
+    # Sector cap
+    sector = TICKER_SECTOR.get(ticker.upper())
+    if sector:
+        same_sector = sum(1 for p in open_pos if TICKER_SECTOR.get(p['ticker'].upper()) == sector)
+        if same_sector >= MAX_POSITIONS_PER_SECTOR:
+            return (False, f"sector cap: {sector} already has {same_sector} open (max {MAX_POSITIONS_PER_SECTOR})")
+
+    # Theme cap (any overlap counts)
+    new_themes = set(TICKER_THEMES.get(ticker.upper(), []))
+    if new_themes:
+        for theme in new_themes:
+            same_theme = sum(1 for p in open_pos if theme in TICKER_THEMES.get(p['ticker'].upper(), []))
+            if same_theme >= MAX_POSITIONS_PER_THEME:
+                return (False, f"theme cap: '{theme}' already has {same_theme} open (max {MAX_POSITIONS_PER_THEME})")
+
+    # Portfolio delta cap (rough — sums per-contract delta × qty; treats deltas as raw shares-equivalents)
+    if contract_delta is not None:
+        existing_delta = 0.0
+        for p in open_pos:
+            d = p.get('entry_delta')
+            q = p.get('qty', 0) or 0
+            if d is not None:
+                # Sign by direction (already encoded in entry_delta if stored signed)
+                existing_delta += float(d) * q
+        # Adding this trade — assume same qty intended (use 1 as conservative lower bound)
+        projected = abs(existing_delta + contract_delta)
+        if projected > MAX_PORTFOLIO_DELTA:
+            return (False, f"delta cap: projected net |delta|={projected:.2f} > {MAX_PORTFOLIO_DELTA}")
+
+    return (True, "ok")
+
+
 # ---------- Trading logic ----------
 def signal_id_for(sig):
     """Stable ID per signal (source+ticker+direction+date)."""
@@ -346,6 +443,11 @@ def process_new_triggers(positions):
         if open_count(positions) >= MAX_CONCURRENT_POSITIONS:
             log(f"skip {sig_id}: at MAX_CONCURRENT_POSITIONS={MAX_CONCURRENT_POSITIONS}", "WARN")
             continue
+        # Exposure cap (sector + theme; delta checked later once we have snapshot)
+        ok, reason = exposure_check(positions, ticker, direction)
+        if not ok:
+            log(f"skip {sig_id}: EXPOSURE — {reason}", "WARN")
+            continue
 
         ep = dict(sig.get('Exit_Protocol') or {})  # copy so we can enrich
         size_mult = float(ep.get('Size_Mult', sig.get('Size_Multiplier', 0.5)))
@@ -378,6 +480,17 @@ def process_new_triggers(positions):
         earn = earnings_within(ticker, days=3)
         if earn.get('within'):
             log(f"skip {sig_id}: earnings in {earn.get('days_until')}d ({earn.get('report_date')}) — IV crush risk", "WARN")
+            continue
+
+        # Delta-aware exposure recheck — now that we have the snapshot's delta,
+        # verify portfolio net |delta| won't blow the cap (sign by direction).
+        contract_delta_signed = None
+        if snap.get('delta') is not None:
+            raw_delta = float(snap['delta'])
+            contract_delta_signed = raw_delta if direction == 'CALL' else -abs(raw_delta)
+        ok, reason = exposure_check(positions, ticker, direction, contract_delta=contract_delta_signed)
+        if not ok:
+            log(f"skip {sig_id}: EXPOSURE (delta) — {reason}", "WARN")
             continue
 
         # Max-pain pin filter — only on weekly expiries (DTE <= 7), where pin risk is real
@@ -462,6 +575,7 @@ def process_new_triggers(positions):
             "tp1_exit_order_id": None,
             "gamma_wall_upper": gw_upper,  # underlying level above which dealer flow flips
             "gamma_wall_lower": gw_lower,
+            "entry_delta": contract_delta_signed,  # signed: +CALL / -PUT (for portfolio delta cap)
             "tp1_exit_price_filled": None,
             "tp1_qty_closed": 0,
             "tp1_realized_pnl_usd": 0,
