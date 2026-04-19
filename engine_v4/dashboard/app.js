@@ -6,6 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const dynamicContainer = document.getElementById("dynamic-container");
     const positionsContainer = document.getElementById("positions-container");
     const gapsContainer = document.getElementById("gaps-container");
+    const baselineContainer = document.getElementById("baseline-container");
     const regimeBadge = document.getElementById("macro-regime");
     const regimeText = document.getElementById("regime-text");
     const navConfirmed = document.getElementById("nav-count-confirmed");
@@ -15,6 +16,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const navDynamic = document.getElementById("nav-count-dynamic");
     const navPositions = document.getElementById("nav-count-positions");
     const navGaps = document.getElementById("nav-count-gaps");
+    const navBaseline = document.getElementById("nav-count-baseline");
     const metaConfirmed = document.getElementById("meta-confirmed");
     const metaWatching = document.getElementById("meta-watching");
     const metaExpired = document.getElementById("meta-expired");
@@ -22,13 +24,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const metaDynamic = document.getElementById("meta-dynamic");
     const metaPositions = document.getElementById("meta-positions");
     const metaGaps = document.getElementById("meta-gaps");
+    const metaBaseline = document.getElementById("meta-baseline");
 
     let lastUpdateStr = "";
     let targetTime = 0;
     let timerInterval = null;
 
     // ---------- ROUTING ----------
-    const VALID_PAGES = ["confirmed", "watching", "expired", "breakouts", "dynamic", "positions", "gaps"];
+    const VALID_PAGES = ["confirmed", "watching", "expired", "breakouts", "dynamic", "positions", "gaps", "baseline"];
 
     function pageFromHash() {
         const h = (location.hash || "").replace(/^#\/?/, "").toLowerCase();
@@ -909,13 +912,87 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    // ---------- BASELINE A/B (original strategy without Phase 1-5 enhancements) ----------
+    // Tracks counts of latest enhanced vs baseline signals so user can see what each engine
+    // would have triggered today. Both run in shadow mode each pipeline cycle.
+    let lastEnhancedCount = 0;
+    let lastBaselineCount = 0;
+
+    function renderBaselineCard(s) {
+        const dirCls = s.Type === 'CALL' ? 'dir-call' : (s.Type === 'PUT' ? 'dir-put' : '');
+        return `
+        <div class="signal-card baseline-card">
+            <div class="card-head">
+                <div>
+                    <span class="signal-ticker">${s.Ticker}</span>
+                    <span class="signal-direction ${dirCls}">${s.Type || '?'}</span>
+                    <span class="signal-status">${s.Status}</span>
+                </div>
+                <div class="signal-score">${s.Confidence || 0} pts</div>
+            </div>
+            <div class="card-body">
+                <div class="signal-narrative">${s.Screener_Logic || ''}</div>
+            </div>
+        </div>`;
+    }
+
+    async function fetchBaseline() {
+        try {
+            const r = await fetch('/api/v4/signals_baseline');
+            if (!r.ok) {
+                if (baselineContainer) baselineContainer.innerHTML = '<div class="empty-state"><p>Baseline engine has not run yet. First cycle Monday at 6 AM PT.</p></div>';
+                return;
+            }
+            const data = await r.json();
+            const sigs = data.signals || [];
+            // Show only WATCH/TRIGGER (actionable) — rejections live in the ledger
+            const actionable = sigs.filter(s => s.Status && (s.Status.startsWith('WATCH_') || s.Status.startsWith('TRIGGER_')));
+            lastBaselineCount = actionable.length;
+            if (navBaseline) navBaseline.innerText = lastBaselineCount;
+            if (metaBaseline) metaBaseline.innerText = lastBaselineCount;
+
+            // Update A/B comparison summary
+            const summary = document.getElementById('ab-counts');
+            if (summary) {
+                const delta = lastBaselineCount - lastEnhancedCount;
+                const arrow = delta > 0 ? `+${delta} more` : (delta < 0 ? `${delta} fewer` : 'same count');
+                summary.innerHTML = `<strong>Today's count:</strong> ENHANCED engine: <strong>${lastEnhancedCount}</strong> actionable signals · BASELINE engine: <strong>${lastBaselineCount}</strong> · Baseline shows ${arrow} signals than Enhanced`;
+            }
+
+            if (!baselineContainer) return;
+            if (actionable.length === 0) {
+                baselineContainer.innerHTML = '<div class="empty-state"><p>Baseline engine ran but emitted no actionable signals this cycle.</p></div>';
+                return;
+            }
+            baselineContainer.innerHTML = actionable.map(renderBaselineCard).join('');
+        } catch (e) {
+            // Silent fail — baseline output may not exist yet
+        }
+    }
+
+    // Hook enhanced count tracker into existing fetchSignals
+    const origFetchSignals = fetchSignals;
+    fetchSignals = async function() {
+        await origFetchSignals();
+        try {
+            const r = await fetch('/api/v4/signals');
+            if (r.ok) {
+                const data = await r.json();
+                const sigs = data.signals || [];
+                lastEnhancedCount = sigs.filter(s => s.Status && (s.Status.startsWith('WATCH_') || s.Status.startsWith('TRIGGER_'))).length;
+            }
+        } catch (e) {}
+    };
+
     setInterval(fetchSignals, 2000);
     setInterval(tickAllExpiries, 1000);
     setInterval(fetchBreakouts, 5000);
     setInterval(fetchPositions, 5000);  // live P&L on positions page
     setInterval(fetchGaps, 10000);      // gap scanner runs once per session, slow poll
+    setInterval(fetchBaseline, 8000);   // baseline runs once per cycle (5min); poll modest
     fetchSignals();
     fetchBreakouts();
     fetchPositions();
     fetchGaps();
+    fetchBaseline();
 });

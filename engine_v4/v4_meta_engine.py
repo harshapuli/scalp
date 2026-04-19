@@ -6,6 +6,11 @@ import sys
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
+# Baseline-comparison mode: when V4_BASELINE_MODE=1, the engine runs in original
+# Friday-close behavior (no Phase 1-5 gates / scoring components), and writes to
+# *_baseline.json output paths. Used for live A/B comparison vs the enhanced engine.
+BASELINE_MODE = os.getenv('V4_BASELINE_MODE', '0') == '1'
+
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from swing_trade_strategy.data_feed import fetch_alpaca_bars
 from swing_trade_strategy.smc_engine import detect_fvg
@@ -418,7 +423,8 @@ def evaluate_technical_structure(ticker: str, trade_type: str, spot: float) -> t
     except: pass
     return (0, False, 0, 0, False, 0, None, None)
 
-WATCHES_PATH = os.path.join(os.path.dirname(__file__), 'v4_watches.json')
+_OUT_SUFFIX = '_baseline' if BASELINE_MODE else ''
+WATCHES_PATH = os.path.join(os.path.dirname(__file__), f'v4_watches{_OUT_SUFFIX}.json')
 
 
 def atomic_write_json(path, data):
@@ -629,34 +635,46 @@ def run_v4_meta_engine():
         # Earnings halt: skip tickers with earnings in next 3 days (IV-crush avoidance).
         # Tightened from 5 to 3 days based on backtest — UNH (earnings in 2d) still
         # gained +0.44% so the 5-day window was over-restrictive.
-        earn = earnings_within(ticker, days=3)
-        if earn.get('within'):
-            signals.append({
-                "Ticker": ticker, "Type": flow['type'], "DTE": dte,
-                "Status": "REJECTED_EARNINGS_NEAR", "Confidence": "0.0",
-                "Screener_Logic": f"earnings in {earn.get('days_until')}d ({earn.get('report_date')}) — IV-crush risk. " + scr_logic,
-                "Earnings_Info": earn,
-            })
-            continue
+        # BASELINE_MODE: skipped (Phase 1b enhancement, not present pre-2026-04-18).
+        if not BASELINE_MODE:
+            earn = earnings_within(ticker, days=3)
+            if earn.get('within'):
+                signals.append({
+                    "Ticker": ticker, "Type": flow['type'], "DTE": dte,
+                    "Status": "REJECTED_EARNINGS_NEAR", "Confidence": "0.0",
+                    "Screener_Logic": f"earnings in {earn.get('days_until')}d ({earn.get('report_date')}) — IV-crush risk. " + scr_logic,
+                    "Earnings_Info": earn,
+                })
+                continue
+        else:
+            earn = {}
 
         # IV term-structure inversion: DISABLED after backtest (2026-04-18).
         # Even as a soft -15 penalty, it single-handedly killed the CIFR +9.19% winner.
         # Volatile names (crypto miners, small caps) carry permanently elevated short-DTE IV
         # that reads as "inverted" without actually signaling event risk.
         # Earnings halt below catches the real IV-crush risk; iv_term_inversion was redundant.
+        # iv_inverted/iv_term_msg only computed in enhanced mode for the truth-layer log;
+        # always present (with safe defaults) so downstream code doesn't break.
+        if not BASELINE_MODE:
+            iv_inverted, iv_term_msg = iv_term_inversion(ticker)
+        else:
+            iv_inverted, iv_term_msg = False, 'baseline_skipped'
         iv_term_penalty = 0  # was: 15 if iv_inverted else 0
 
         # OI-unwind filter: reject flow that's actually closing existing positions
-        # (looks bullish on the print but is institutional exit, not entry)
-        contract_sym = flow.get('contract_symbol') or flow.get('option_symbol')
-        oi_recs = oi_change(ticker)
-        if contract_sym and is_unwind(oi_recs, contract_sym):
-            signals.append({
-                "Ticker": ticker, "Type": flow['type'], "DTE": dte,
-                "Status": "REJECTED_OI_UNWIND", "Confidence": "0.0",
-                "Screener_Logic": f"flow detected but OI shrinking on {contract_sym} → closing trade. " + scr_logic,
-            })
-            continue
+        # (looks bullish on the print but is institutional exit, not entry).
+        # BASELINE_MODE: skipped (Phase 1a enhancement).
+        if not BASELINE_MODE:
+            contract_sym = flow.get('contract_symbol') or flow.get('option_symbol')
+            oi_recs = oi_change(ticker)
+            if contract_sym and is_unwind(oi_recs, contract_sym):
+                signals.append({
+                    "Ticker": ticker, "Type": flow['type'], "DTE": dte,
+                    "Status": "REJECTED_OI_UNWIND", "Confidence": "0.0",
+                    "Screener_Logic": f"flow detected but OI shrinking on {contract_sym} → closing trade. " + scr_logic,
+                })
+                continue
 
         base_score = 0
         tod_active = flow['tod_score']
@@ -696,26 +714,33 @@ def run_v4_meta_engine():
         dp_score = fetch_darkpool_confidence(ticker, flow['type'])
         base_score += dp_score
 
-        # Real DP block-trade confirmation (last 60min, premium-aligned with direction)
-        dp_real_pts, dp_real_msg = darkpool_score(ticker, flow.get('spot', 0), flow['type'])
-        base_score += dp_real_pts
+        # Phase 1-5 scoring components — skipped in BASELINE_MODE.
+        # Defaults set so truth-layer dict still has the keys.
+        dp_real_pts, dp_real_msg = 0, 'baseline_skipped'
+        sq_pts, sq_msg = 0, 'baseline_skipped'
+        ov = {}
+        has_cat, cat_msg = False, 'baseline_skipped'
+        if not BASELINE_MODE:
+            # Real DP block-trade confirmation (last 60min, premium-aligned with direction)
+            dp_real_pts, dp_real_msg = darkpool_score(ticker, flow.get('spot', 0), flow['type'])
+            base_score += dp_real_pts
 
-        # Squeeze setup: borrow fee + SI/float + FTDs. CALLs +bonus, PUTs -penalty.
-        sq_pts, sq_msg = squeeze_score(ticker, flow['type'])
-        base_score += sq_pts
+            # Squeeze setup: borrow fee + SI/float + FTDs. CALLs +bonus, PUTs -penalty.
+            sq_pts, sq_msg = squeeze_score(ticker, flow['type'])
+            base_score += sq_pts
 
-        # Today's options-volume directional confirmation (whole-day call/put balance)
-        ov = options_volume_today(ticker)
-        if ov:
-            cp_ratio = ov.get('cp_ratio', 1.0)
-            if flow['type'] == 'CALL' and cp_ratio < 0.6:    base_score += 5  # call-heavy day
-            elif flow['type'] == 'CALL' and cp_ratio > 1.5:  base_score -= 5  # put-heavy day vs CALL thesis
-            elif flow['type'] == 'PUT' and cp_ratio > 1.4:   base_score += 5  # put-heavy confirms PUT
-            elif flow['type'] == 'PUT' and cp_ratio < 0.5:   base_score -= 5
+            # Today's options-volume directional confirmation (whole-day call/put balance)
+            ov = options_volume_today(ticker)
+            if ov:
+                cp_ratio = ov.get('cp_ratio', 1.0)
+                if flow['type'] == 'CALL' and cp_ratio < 0.6:    base_score += 5
+                elif flow['type'] == 'CALL' and cp_ratio > 1.5:  base_score -= 5
+                elif flow['type'] == 'PUT' and cp_ratio > 1.4:   base_score += 5
+                elif flow['type'] == 'PUT' and cp_ratio < 0.5:   base_score -= 5
 
-        # Catalyst tag: recent major news for this ticker (informational, +3 if present)
-        has_cat, cat_msg = has_recent_catalyst(ticker, hours=4)
-        if has_cat: base_score += 3
+            # Catalyst tag: recent major news for this ticker (informational, +3 if present)
+            has_cat, cat_msg = has_recent_catalyst(ticker, hours=4)
+            if has_cat: base_score += 3
 
         # Gap + hold — EXTRACTED to standalone v4_gap_scanner.py with its own
         # dashboard tab. Gap plays are a distinct strategy (overnight catalyst
@@ -855,14 +880,15 @@ def run_v4_meta_engine():
         if sig['Status'].startswith("TRIGGER_") or sig['Status'].startswith("WATCH_"):
             pprint.pprint(sig, indent=2)
 
-    out_path = os.path.join(os.path.dirname(__file__), 'v4_signals.json')
+    out_path = os.path.join(os.path.dirname(__file__), f'v4_signals{_OUT_SUFFIX}.json')
     now = datetime.utcnow()
 
     # Persist surviving watches for next pipeline cycle
     save_watches(surviving_watches)
-    print(f"💾 Watches persisted: {len(surviving_watches)} active")
+    print(f"💾 Watches persisted: {len(surviving_watches)} active "
+          f"({'BASELINE' if BASELINE_MODE else 'ENHANCED'} mode)")
 
-    ledger_path = os.path.join(os.path.dirname(__file__), 'v4_ledger.json')
+    ledger_path = os.path.join(os.path.dirname(__file__), f'v4_ledger{_OUT_SUFFIX}.json')
     try:
         ledger = []
         if os.path.exists(ledger_path):

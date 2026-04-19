@@ -8,6 +8,7 @@ SIGNALS_FILE = os.path.join(os.path.dirname(__file__), "v4_signals.json")
 BREAKOUTS_FILE = os.path.join(os.path.dirname(__file__), "v4_preposition_watchlist.json")
 POSITIONS_FILE = os.path.join(os.path.dirname(__file__), "v4_paper_positions.json")
 GAPS_FILE = os.path.join(os.path.dirname(__file__), "v4_gap_watchlist.json")
+SIGNALS_BASELINE_FILE = os.path.join(os.path.dirname(__file__), "v4_signals_baseline.json")
 
 class V4DashboardServer(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -33,6 +34,10 @@ class V4DashboardServer(SimpleHTTPRequestHandler):
         if self.path == '/api/v4/gaps':
             self._serve_json(GAPS_FILE,
                              "v4_gap_watchlist.json not found yet — gap scanner hasn't run")
+            return
+        if self.path == '/api/v4/signals_baseline':
+            self._serve_json(SIGNALS_BASELINE_FILE,
+                             "v4_signals_baseline.json not found yet — baseline engine hasn't run")
             return
         super().do_GET()
 

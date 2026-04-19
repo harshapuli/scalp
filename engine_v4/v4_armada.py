@@ -61,10 +61,13 @@ def next_window_open(now_pt: datetime) -> datetime:
 
 QUALITY_ANALYSIS_PATH = os.path.join(BASE_DIR, 'quality_analysis.py')
 
-def run_step(name, path, timeout=600):
-    """Run a pipeline step with a timeout — never let one hang the whole daemon."""
+def run_step(name, path, timeout=600, env_extra=None):
+    """Run a pipeline step with a timeout — never let one hang the whole daemon.
+    env_extra: dict of additional env vars (for engine baseline-mode runs)."""
     try:
-        subprocess.run([sys.executable, path], timeout=timeout)
+        env = os.environ.copy()
+        if env_extra: env.update(env_extra)
+        subprocess.run([sys.executable, path], timeout=timeout, env=env)
     except subprocess.TimeoutExpired:
         log(f"⏱️  {name} exceeded {timeout}s timeout — killed. Continuing.", )
     except Exception as e:
@@ -98,8 +101,11 @@ def run_pipeline():
     log("Running Gap scanner (overnight gap + hold strategy)...")
     run_step("GapScanner", GAP_SCANNER_PATH, timeout=180)
 
-    log("Piping Watchlist into V4 Execution Engine...")
-    run_step("Engine", ENGINE_PATH, timeout=600)
+    log("Piping Watchlist into V4 Execution Engine (ENHANCED)...")
+    run_step("Engine-Enhanced", ENGINE_PATH, timeout=600)
+
+    log("Piping Watchlist into V4 Execution Engine (BASELINE — A/B comparison)...")
+    run_step("Engine-Baseline", ENGINE_PATH, timeout=600, env_extra={'V4_BASELINE_MODE': '1'})
 
     log("Deploying AI Forensics & Shadow Book Audit...")
     run_step("Analyzer", ARTIFACT_ANALYZER_PATH, timeout=300)
