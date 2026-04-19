@@ -767,8 +767,21 @@ def run_v4_meta_engine():
                     # Contract suggestion — what smart money was actually buying
                     "Strike": strike, "Expiration": expiry, "Contract_Symbol": contract_sym,
                 }
-                # Build score_matrix early so we can persist it on the watch dict
-                breakout_metrics = { "persistence": round(prem_score, 1), "smc": smc_score, "dp": round(dp_score, 1), "greek": g_score, "iv": round(iv_penalty, 1), "open_conf": 10 if flow['confirmed_opening'] else 0, "tod": tod_active, "ask_dom": round(flow.get('ask_dominance', 0), 2) }
+                # Build score_matrix early — full feature breakdown so post-trade ablation
+                # can answer "which components actually contributed to winners vs losers".
+                breakout_metrics = {
+                    "persistence": round(prem_score, 1), "smc": smc_score, "dp": round(dp_score, 1),
+                    "greek": g_score, "iv": round(iv_penalty, 1),
+                    "open_conf": 10 if flow['confirmed_opening'] else 0,
+                    "tod": tod_active, "ask_dom": round(flow.get('ask_dominance', 0), 2),
+                    # Phase 1-5 features (truth layer):
+                    "dp_real_pts": dp_real_pts, "dp_real_msg": dp_real_msg,
+                    "squeeze_pts": sq_pts, "squeeze_msg": sq_msg,
+                    "options_volume": ov if ov else None,
+                    "catalyst": has_cat, "catalyst_msg": cat_msg,
+                    "iv_term_inverted": iv_inverted, "iv_term_msg": iv_term_msg,
+                    "earnings_info": earn,  # earnings days_until / report_date
+                }
                 surviving_watches.append({
                     "ticker": ticker, "type": flow['type'], "path": "BREAKOUT", "dte": dte,
                     "zone_low": zone_low, "zone_high": zone_high,
@@ -793,7 +806,19 @@ def run_v4_meta_engine():
                     "Spot_At_Watch": round(flow['spot'], 2),
                     "Strike": strike, "Expiration": expiry, "Contract_Symbol": contract_sym,
                 }
-                pullback_metrics = { "persistence": round(prem_score, 1), "smc": smc_score, "dp": round(dp_score, 1), "greek": g_score, "iv": round(iv_penalty, 1), "open_conf": 10 if flow['confirmed_opening'] else 0, "tod": tod_active, "ask_dom": round(flow.get('ask_dominance', 0), 2) }
+                pullback_metrics = {
+                    "persistence": round(prem_score, 1), "smc": smc_score, "dp": round(dp_score, 1),
+                    "greek": g_score, "iv": round(iv_penalty, 1),
+                    "open_conf": 10 if flow['confirmed_opening'] else 0,
+                    "tod": tod_active, "ask_dom": round(flow.get('ask_dominance', 0), 2),
+                    # Phase 1-5 features (truth layer):
+                    "dp_real_pts": dp_real_pts, "dp_real_msg": dp_real_msg,
+                    "squeeze_pts": sq_pts, "squeeze_msg": sq_msg,
+                    "options_volume": ov if ov else None,
+                    "catalyst": has_cat, "catalyst_msg": cat_msg,
+                    "iv_term_inverted": iv_inverted, "iv_term_msg": iv_term_msg,
+                    "earnings_info": earn,
+                }
                 surviving_watches.append({
                     "ticker": ticker, "type": flow['type'], "path": "PULLBACK", "dte": dte,
                     "zone_low": pb_zone[0], "zone_high": pb_zone[1],
