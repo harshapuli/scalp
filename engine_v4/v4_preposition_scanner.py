@@ -36,6 +36,9 @@ from collections import defaultdict
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from swing_trade_strategy.data_feed import fetch_alpaca_bars
 
+# UW endpoint helpers (Phase 2b/4a/4c): squeeze, seasonality, sector ETF batch
+from v4_uw_helpers import squeeze_score, seasonality_score, sector_etf_strength
+
 from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', 'swing_trade_strategy', '.env'))
 
@@ -542,6 +545,21 @@ def scan():
     spy_5d = get_spy_5d_return(datetime.combine(ref_date, datetime.min.time()))
     print(f"SPY 5d return: {spy_5d*100:+.2f}%\n")
 
+    # Phase 4c: Snapshot sector ETFs (one UW call, all 11 sectors). Used as
+    # macro context for the dashboard and future sector-RS refinements.
+    try:
+        sector_snapshot = sector_etf_strength()
+        leaders = sorted(sector_snapshot.items(), key=lambda kv: -kv[1].get('pct_change', 0))[:3]
+        laggards = sorted(sector_snapshot.items(), key=lambda kv: kv[1].get('pct_change', 0))[:3]
+        if leaders:
+            lead_str = ', '.join(f"{t} {d['pct_change']:+.2f}%" for t, d in leaders)
+            lag_str = ', '.join(f"{t} {d['pct_change']:+.2f}%" for t, d in laggards)
+            print(f"Sector leaders today: {lead_str}")
+            print(f"Sector laggards today: {lag_str}\n")
+    except Exception as e:
+        sector_snapshot = {}
+        print(f"sector ETF snapshot unavailable: {type(e).__name__}\n")
+
     # Build combined scan universe, tagged by source
     universe = [(t, 1, None) for t in TIER1_WATCHLIST]
     universe += [(r['ticker'], 2, r.get('tier2_net_premium')) for r in tier2_records]
@@ -568,12 +586,29 @@ def scan():
             print(f"  🚫 {t:>5} | skip — {flow.get('direction','?')} but spot ${trend.get('spot')} vs 200 SMA ${trend.get('sma_200')} ({trend.get('regime')})")
             continue
 
-        total = comp['score'] + flow['score'] + dp['score'] + sector['score'] + gex['score'] + skew['score']
         direction = flow['direction']
 
+        # Phase 4a: Seasonality tiebreaker — penalize/reward based on month's historical positivity
+        try:
+            current_month = ref_dt.month
+            seas_pts, seas_msg = seasonality_score(t, current_month)
+        except Exception as e:
+            seas_pts, seas_msg = 0, f"seasonality err: {type(e).__name__}"
+
+        # Phase 2b: Squeeze score — adds points for CALL setups on heavily-shorted names
+        try:
+            sq_pts, sq_msg = squeeze_score(t, direction)
+        except Exception as e:
+            sq_pts, sq_msg = 0, f"squeeze err: {type(e).__name__}"
+
+        total = (comp['score'] + flow['score'] + dp['score'] + sector['score']
+                 + gex['score'] + skew['score'] + seas_pts + sq_pts)
+
         narrative = build_narrative(t, comp, flow, dp, sector)
+        if seas_pts:    narrative += f" | seas {seas_pts:+d} ({seas_msg})"
+        if sq_pts:      narrative += f" | {sq_msg} ({sq_pts:+d})"
         tag = "🟢" if total >= SCORE_THRESHOLD else "·"
-        print(f"  {tag} score={total:>3} | comp={comp['score']:>2} flow={flow['score']:>2} dp={dp['score']:>2} sector={sector['score']:>2} | {narrative}")
+        print(f"  {tag} score={total:>3} | comp={comp['score']:>2} flow={flow['score']:>2} dp={dp['score']:>2} sector={sector['score']:>2} seas={seas_pts:+d} sq={sq_pts:+d} | {narrative}")
 
         if total >= SCORE_THRESHOLD:
             candidates.append({
@@ -592,6 +627,8 @@ def scan():
                     "gamma_flip_distance_pct": gex.get('distance_pct'),
                     "skew_flat": skew,
                     "trend_regime_200sma": trend,  # hard-gate result + context
+                    "seasonality": {"score": seas_pts, "msg": seas_msg},
+                    "squeeze": {"score": sq_pts, "msg": sq_msg},
                 },
                 "narrative": narrative,
                 "key_levels": {
@@ -622,6 +659,7 @@ def scan():
             "tier2_passed": len(tier2_candidates),
             "uw_calls_used": _uw_calls,
             "spy_5d_return_pct": round(spy_5d * 100, 2),
+            "sector_etf_snapshot": sector_snapshot,
             "_schema_doc": "Pre-position scanner output. Each candidate tagged with tier: 1 (mega-cap anchor) or 2 (dynamic/flow-ranked). Dashboard splits by tier.",
         },
         "candidates": candidates,

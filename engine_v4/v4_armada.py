@@ -70,7 +70,27 @@ def run_step(name, path, timeout=600):
         log(f"❌ {name} crashed: {type(e).__name__}: {str(e)[:120]} — continuing")
 
 
+def check_macro_halt():
+    """Returns (halt: bool, reason: str). True if a high-impact macro event lands
+    in the next 24h — we freeze new entries to avoid CPI/FOMC whipsaw."""
+    try:
+        from v4_uw_helpers import economic_events_within
+        events = economic_events_within(hours=24)
+        if events:
+            ev = events[0]
+            return (True, f"{ev['event']} in {ev['hours_until']:.1f}h")
+        return (False, "no high-impact macro events in 24h")
+    except Exception as e:
+        log(f"macro-halt check failed: {e} — proceeding without halt")
+        return (False, "macro check unavailable")
+
+
 def run_pipeline():
+    halt, reason = check_macro_halt()
+    if halt:
+        log(f"⏸  MACRO HALT — {reason}. Skipping pipeline cycle, paper trader will not see new signals.")
+        return
+
     log("Spinning up active Screener...")
     run_step("Scanner", SCANNER_PATH, timeout=300)
 
