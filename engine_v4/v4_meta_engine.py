@@ -717,11 +717,13 @@ def run_v4_meta_engine():
         has_cat, cat_msg = has_recent_catalyst(ticker, hours=4)
         if has_cat: base_score += 3
 
-        # Gap + hold bonus: catches gap-up-and-holds (classic institutional setup).
-        # Awards 5-15 pts when direction-aligned gap is holding with volume.
-        gap_info = check_gap_hold(ticker, flow['type'])
-        gap_bonus = gap_info.get('bonus_pts', 0)
-        base_score += gap_bonus
+        # Gap + hold — EXTRACTED to standalone v4_gap_scanner.py with its own
+        # dashboard tab. Gap plays are a distinct strategy (overnight catalyst
+        # driven), not a confirmation signal for flow-based entries. Scoring
+        # them alongside flow inflated scores without improving discrimination.
+        # Helper check_gap_hold() remains callable for forensics.
+        gap_info = {"bonus_pts": 0, "note": "gap scoring moved to v4_gap_scanner"}
+        gap_bonus = 0
 
         # Dual-Execution Node Fork
         smc_score, is_pb, smc_sl, brk_score, is_brk, brk_sl, pb_zone, brk_level = evaluate_technical_structure(ticker, flow['type'], flow['spot'])

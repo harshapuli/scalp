@@ -16,6 +16,7 @@ ENGINE_PATH = os.path.join(BASE_DIR, 'v4_meta_engine.py')
 SERVER_PATH = os.path.join(BASE_DIR, 'v4_server.py')
 ARTIFACT_ANALYZER_PATH = os.path.join(BASE_DIR, 'v4_ai_analyzer.py')
 PATROL_PATH = os.path.join(BASE_DIR, 'v4_patrol_engine.py')
+GAP_SCANNER_PATH = os.path.join(BASE_DIR, 'v4_gap_scanner.py')
 
 # Subprocess log paths (kept separate so daemon log stays clean)
 SERVER_LOG = '/tmp/v4_server.log'
@@ -93,6 +94,9 @@ def run_pipeline():
 
     log("Spinning up active Screener...")
     run_step("Scanner", SCANNER_PATH, timeout=300)
+
+    log("Running Gap scanner (overnight gap + hold strategy)...")
+    run_step("GapScanner", GAP_SCANNER_PATH, timeout=180)
 
     log("Piping Watchlist into V4 Execution Engine...")
     run_step("Engine", ENGINE_PATH, timeout=600)

@@ -43,6 +43,11 @@
                     <span class="nav-label">Dynamic</span>
                     <span class="nav-count" id="nav-count-dynamic">0</span>
                 </a>
+                <a href="#/gaps" data-page="gaps">
+                    <i data-lucide="zap-off"></i>
+                    <span class="nav-label">Gaps</span>
+                    <span class="nav-count" id="nav-count-gaps">0</span>
+                </a>
                 <a href="#/positions" data-page="positions">
                     <i data-lucide="briefcase"></i>
                     <span class="nav-label">Positions</span>
@@ -147,6 +152,25 @@
                 <div class="signals-container" id="dynamic-container">
                     <div class="empty-state empty-dynamic">
                         <p>No dynamic candidates yet. Next scan (after market close) will pull the flow-ranked universe and score it against the same 6 signals as the Mega Cap page.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- GAPS — standalone gap-up / gap-down strategy -->
+            <section class="page-view" id="page-gaps" data-page="gaps">
+                <header class="page-header">
+                    <div class="page-titles">
+                        <h1><span class="page-icon">⚡</span> Gap Plays</h1>
+                        <p>Standalone strategy · overnight gap + hold into current session · CALLs for gap-up, PUTs for gap-down</p>
+                    </div>
+                    <div class="page-meta">
+                        <span class="meta-count" id="meta-gaps">0</span>
+                        <span class="meta-label">candidates</span>
+                    </div>
+                </header>
+                <div class="signals-container" id="gaps-container">
+                    <div class="empty-state">
+                        <p>No gap setups right now. The gap scanner runs daily and flags names that gapped overnight AND are still holding the gap during the session.</p>
                     </div>
                 </div>
             </section>

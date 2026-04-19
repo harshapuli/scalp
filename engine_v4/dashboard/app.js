@@ -5,6 +5,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const breakoutsContainer = document.getElementById("breakouts-container");
     const dynamicContainer = document.getElementById("dynamic-container");
     const positionsContainer = document.getElementById("positions-container");
+    const gapsContainer = document.getElementById("gaps-container");
     const regimeBadge = document.getElementById("macro-regime");
     const regimeText = document.getElementById("regime-text");
     const navConfirmed = document.getElementById("nav-count-confirmed");
@@ -13,19 +14,21 @@ document.addEventListener("DOMContentLoaded", () => {
     const navBreakouts = document.getElementById("nav-count-breakouts");
     const navDynamic = document.getElementById("nav-count-dynamic");
     const navPositions = document.getElementById("nav-count-positions");
+    const navGaps = document.getElementById("nav-count-gaps");
     const metaConfirmed = document.getElementById("meta-confirmed");
     const metaWatching = document.getElementById("meta-watching");
     const metaExpired = document.getElementById("meta-expired");
     const metaBreakouts = document.getElementById("meta-breakouts");
     const metaDynamic = document.getElementById("meta-dynamic");
     const metaPositions = document.getElementById("meta-positions");
+    const metaGaps = document.getElementById("meta-gaps");
 
     let lastUpdateStr = "";
     let targetTime = 0;
     let timerInterval = null;
 
     // ---------- ROUTING ----------
-    const VALID_PAGES = ["confirmed", "watching", "expired", "breakouts", "dynamic", "positions"];
+    const VALID_PAGES = ["confirmed", "watching", "expired", "breakouts", "dynamic", "positions", "gaps"];
 
     function pageFromHash() {
         const h = (location.hash || "").replace(/^#\/?/, "").toLowerCase();
@@ -850,11 +853,69 @@ document.addEventListener("DOMContentLoaded", () => {
             : expired.map(renderExpiredCard).join("");
     }
 
+    // ---------- GAPS (standalone gap-up / gap-down strategy) ----------
+    function renderGapCard(g) {
+        const dirCls = g.direction === 'CALL' ? 'gap-call' : 'gap-put';
+        const arrow = g.direction === 'CALL' ? '📈' : '📉';
+        const sourceTag = g.source === 'mega_cap' ? 'MEGA' : 'DYN';
+        const sign = g.gap_pct >= 0 ? '+' : '';
+        return `
+        <div class="signal-card ${dirCls}">
+            <div class="card-head">
+                <div>
+                    <span class="signal-ticker">${arrow} ${g.ticker}</span>
+                    <span class="signal-direction ${g.direction === 'CALL' ? 'dir-call' : 'dir-put'}">${g.direction}</span>
+                    <span class="signal-tier">${sourceTag}</span>
+                </div>
+                <div class="signal-score">${g.score} pts</div>
+            </div>
+            <div class="card-body">
+                <div class="kvrow"><span>Gap</span><strong>${sign}${g.gap_pct.toFixed(2)}%</strong></div>
+                <div class="kvrow"><span>Spot vs open</span><strong>${g.vs_gap_pct >= 0 ? '+' : ''}${g.vs_gap_pct.toFixed(2)}%</strong></div>
+                <div class="kvrow"><span>Volume</span><strong>${g.vol_ratio.toFixed(1)}× avg</strong></div>
+                <div class="kvrow"><span>Suggested DTE</span><strong>${g.suggested_dte_min}-${g.suggested_dte_max}</strong></div>
+                <div class="signal-narrative">${g.narrative}</div>
+            </div>
+        </div>`;
+    }
+
+    async function fetchGaps() {
+        try {
+            const r = await fetch('/api/v4/gaps');
+            if (!r.ok) return;
+            const data = await r.json();
+            const calls = data.gap_calls || [];
+            const puts = data.gap_puts || [];
+            const total = calls.length + puts.length;
+            if (navGaps) navGaps.innerText = total;
+            if (metaGaps) metaGaps.innerText = total;
+            if (!gapsContainer) return;
+            if (total === 0) {
+                gapsContainer.innerHTML = '<div class="empty-state"><p>No gap setups right now. The gap scanner runs daily and flags names that gapped overnight AND are still holding the gap during the session.</p></div>';
+                return;
+            }
+            let html = '';
+            if (calls.length) {
+                html += `<h2 class="section-heading">📈 Gap Up — ${calls.length} CALL setups</h2>`;
+                html += calls.map(renderGapCard).join('');
+            }
+            if (puts.length) {
+                html += `<h2 class="section-heading">📉 Gap Down — ${puts.length} PUT setups</h2>`;
+                html += puts.map(renderGapCard).join('');
+            }
+            gapsContainer.innerHTML = html;
+        } catch (e) {
+            // Gap scanner output may not exist yet — fail silently
+        }
+    }
+
     setInterval(fetchSignals, 2000);
     setInterval(tickAllExpiries, 1000);
     setInterval(fetchBreakouts, 5000);
     setInterval(fetchPositions, 5000);  // live P&L on positions page
+    setInterval(fetchGaps, 10000);      // gap scanner runs once per session, slow poll
     fetchSignals();
     fetchBreakouts();
     fetchPositions();
+    fetchGaps();
 });
