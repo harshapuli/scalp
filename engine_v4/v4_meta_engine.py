@@ -10,6 +10,13 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from swing_trade_strategy.data_feed import fetch_alpaca_bars
 from swing_trade_strategy.smc_engine import detect_fvg
 
+# UW endpoint helpers (Phase 1-4): oi-change, earnings, darkpool, squeeze, etc.
+from v4_uw_helpers import (
+    oi_change, is_unwind, earnings_within,
+    darkpool_score, squeeze_score, has_recent_catalyst,
+    options_volume_today, iv_term_inversion,
+)
+
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', 'swing_trade_strategy', '.env'))
 
 # Pipeline cadence (must match v4_armada.py's sleep interval).
@@ -619,6 +626,39 @@ def run_v4_meta_engine():
             })
             continue
 
+        # Earnings halt: skip tickers with earnings in next 5 days (IV-crush avoidance)
+        earn = earnings_within(ticker, days=5)
+        if earn.get('within'):
+            signals.append({
+                "Ticker": ticker, "Type": flow['type'], "DTE": dte,
+                "Status": "REJECTED_EARNINGS_NEAR", "Confidence": "0.0",
+                "Screener_Logic": f"earnings in {earn.get('days_until')}d ({earn.get('report_date')}) — IV-crush risk. " + scr_logic,
+                "Earnings_Info": earn,
+            })
+            continue
+
+        # IV term-structure inversion check: front-week IV >> medium IV = event risk priced in
+        iv_inverted, iv_term_msg = iv_term_inversion(ticker)
+        if iv_inverted:
+            signals.append({
+                "Ticker": ticker, "Type": flow['type'], "DTE": dte,
+                "Status": "REJECTED_IV_TERM_INVERTED", "Confidence": "0.0",
+                "Screener_Logic": iv_term_msg + " " + scr_logic,
+            })
+            continue
+
+        # OI-unwind filter: reject flow that's actually closing existing positions
+        # (looks bullish on the print but is institutional exit, not entry)
+        contract_sym = flow.get('contract_symbol') or flow.get('option_symbol')
+        oi_recs = oi_change(ticker)
+        if contract_sym and is_unwind(oi_recs, contract_sym):
+            signals.append({
+                "Ticker": ticker, "Type": flow['type'], "DTE": dte,
+                "Status": "REJECTED_OI_UNWIND", "Confidence": "0.0",
+                "Screener_Logic": f"flow detected but OI shrinking on {contract_sym} → closing trade. " + scr_logic,
+            })
+            continue
+
         base_score = 0
         tod_active = flow['tod_score']
         if dte >= 3 and tod_active < 0: tod_active = 0
@@ -655,6 +695,27 @@ def run_v4_meta_engine():
         base_score -= iv_penalty
         dp_score = fetch_darkpool_confidence(ticker, flow['type'])
         base_score += dp_score
+
+        # Real DP block-trade confirmation (last 60min, premium-aligned with direction)
+        dp_real_pts, dp_real_msg = darkpool_score(ticker, flow.get('spot', 0), flow['type'])
+        base_score += dp_real_pts
+
+        # Squeeze setup: borrow fee + SI/float + FTDs. CALLs +bonus, PUTs -penalty.
+        sq_pts, sq_msg = squeeze_score(ticker, flow['type'])
+        base_score += sq_pts
+
+        # Today's options-volume directional confirmation (whole-day call/put balance)
+        ov = options_volume_today(ticker)
+        if ov:
+            cp_ratio = ov.get('cp_ratio', 1.0)
+            if flow['type'] == 'CALL' and cp_ratio < 0.6:    base_score += 5  # call-heavy day
+            elif flow['type'] == 'CALL' and cp_ratio > 1.5:  base_score -= 5  # put-heavy day vs CALL thesis
+            elif flow['type'] == 'PUT' and cp_ratio > 1.4:   base_score += 5  # put-heavy confirms PUT
+            elif flow['type'] == 'PUT' and cp_ratio < 0.5:   base_score -= 5
+
+        # Catalyst tag: recent major news for this ticker (informational, +3 if present)
+        has_cat, cat_msg = has_recent_catalyst(ticker, hours=4)
+        if has_cat: base_score += 3
 
         # Gap + hold bonus: catches gap-up-and-holds (classic institutional setup).
         # Awards 5-15 pts when direction-aligned gap is holding with volume.
