@@ -321,7 +321,10 @@ def score_sector_strength(ticker, ref_date, spy_5d_return=None):
     )
     if df is None or df.empty or len(df) < 2:
         return {"score": 0, "ticker_return_pct": 0, "spy_return_pct": spy_5d_return, "outperformance_pct": 0}
-    ticker_ret = (float(df['Close'].iloc[-1]) - float(df['Close'].iloc[0])) / float(df['Close'].iloc[0])
+    base_close = float(df['Close'].iloc[0])
+    if base_close <= 0:  # guard against zero/negative open price (penny-stock edge case)
+        return {"score": 0, "ticker_return_pct": 0, "spy_return_pct": spy_5d_return, "outperformance_pct": 0}
+    ticker_ret = (float(df['Close'].iloc[-1]) - base_close) / base_close
 
     if spy_5d_return is None:
         spy_5d_return = 0

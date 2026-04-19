@@ -39,14 +39,27 @@ TIMEOUT = 10
 UTC = timezone.utc
 
 
+_LOG_NON_200 = os.getenv("UW_HELPERS_DEBUG", "").lower() in ("1", "true", "yes")
+
 def _get(path: str, params: dict = None) -> dict:
-    """Returns parsed JSON or None. Never raises."""
+    """Returns parsed JSON or None. Never raises.
+    Logs failure type (timeout vs 5xx vs JSON parse) when UW_HELPERS_DEBUG is set,
+    so ops can distinguish 'API down' from 'no data' without re-running."""
     try:
         r = requests.get(f"{BASE}{path}", headers=HEADERS, params=params or {}, timeout=TIMEOUT)
         if r.status_code == 200:
             return r.json()
-    except Exception:
-        pass
+        if _LOG_NON_200:
+            print(f"[uw_helpers] {path} HTTP {r.status_code}: {r.text[:120]}")
+    except requests.Timeout:
+        if _LOG_NON_200: print(f"[uw_helpers] {path} TIMEOUT after {TIMEOUT}s")
+    except requests.RequestException as e:
+        if _LOG_NON_200: print(f"[uw_helpers] {path} {type(e).__name__}: {str(e)[:120]}")
+    except ValueError as e:
+        if _LOG_NON_200: print(f"[uw_helpers] {path} JSON parse error: {str(e)[:120]}")
+    except Exception as e:
+        # Catch-all so callers never crash, but always log so we can see anomalies
+        print(f"[uw_helpers] {path} UNEXPECTED {type(e).__name__}: {str(e)[:120]}")
     return None
 
 
@@ -103,6 +116,8 @@ def darkpool_recent(ticker: str, minutes: int = 60, min_premium: float = 100_000
 def darkpool_score(ticker: str, current_price: float, direction: str) -> tuple:
     """Returns (bonus_pts, summary_str). Looks at last 60min DP prints near current price.
     +10 if >$5M total in directionally-aligned prints (above mid for CALL, below for PUT)."""
+    if not current_price or current_price <= 0:
+        return (0, "no current price for DP comparison")
     prints = darkpool_recent(ticker, minutes=60, min_premium=100_000)
     if not prints: return (0, "no recent DP prints")
     aligned = []

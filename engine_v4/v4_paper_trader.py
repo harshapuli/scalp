@@ -373,8 +373,9 @@ def process_new_triggers(positions):
             log(f"skip {sig_id}: spread {snap['spread_pct']*100:.1f}% > {MAX_OPTION_SPREAD_PCT*100:.0f}%", "WARN")
             continue
 
-        # Earnings safety net (also gated upstream in meta_engine; defense in depth)
-        earn = earnings_within(ticker, days=5)
+        # Earnings safety net (also gated upstream in meta_engine; defense in depth).
+        # Window kept in sync with meta_engine (3 days).
+        earn = earnings_within(ticker, days=3)
         if earn.get('within'):
             log(f"skip {sig_id}: earnings in {earn.get('days_until')}d ({earn.get('report_date')}) — IV crush risk", "WARN")
             continue
@@ -420,7 +421,13 @@ def process_new_triggers(positions):
         # Compute TP1 (halfway between entry and TP2 — for partial profit taking)
         entry_est = snap['ask']
         tp2 = ep.get('TP_Premium_Target')
-        tp1 = round(entry_est + (float(tp2) - entry_est) * 0.5, 2) if tp2 else None
+        # Defensive: guard against malformed tp2 (empty string, None, non-numeric)
+        try:
+            tp2_num = float(tp2) if tp2 not in (None, '', 'null') else None
+        except (TypeError, ValueError):
+            tp2_num = None
+        tp1 = round(entry_est + (tp2_num - entry_est) * 0.5, 2) if tp2_num else None
+        tp2 = tp2_num  # normalize for downstream
 
         # Gamma-wall context — record the underlying levels where dealer hedging flips.
         # Used by Patrol to manage exits: if underlying breaks the upper gamma wall,
@@ -568,40 +575,37 @@ def evaluate_exits(positions):
             if now_pt.hour == 12 and now_pt.minute >= 45:
                 exit_reason = 'eod_short_dte'
 
-        # 6. Phase 5 — gamma-wall smart exit:
-        #    a) For CALL: if spot rejected at upper wall (touched then closed below 3+ cycles), early exit
-        #    b) For CALL: if spot broke above upper wall AND in profit, tighten trail to current_premium*0.85
-        #    c) For PUT (mirror): rejected at lower wall = early exit; broke below = tighten trail
-        if not exit_reason and p.get('gamma_wall_upper') and p.get('gamma_wall_lower'):
+        # 6. Phase 5 — gamma-wall smart exit (sticky-touch model).
+        # Once spot gets within 1% of the directional wall, mark it touched (sticky bool).
+        # Later, if spot drops 3% back from that wall while position is still in profit,
+        # treat as a failed-breakout rejection and lock the gain.
+        # Also: defensive exit if spot reaches the *opposite* wall while position is in loss.
+        if not exit_reason and entry_premium and entry_premium > 0 \
+                and p.get('gamma_wall_upper') and p.get('gamma_wall_lower'):
             try:
                 gw_up = float(p['gamma_wall_upper'])
                 gw_lo = float(p['gamma_wall_lower'])
-                touched_count = int(p.get('gw_touched_count', 0))
 
                 if p['direction'] == 'CALL':
-                    # Touched upper wall but closed below it — record rejection
-                    if spot >= gw_up * 0.998 and current_premium > entry_premium * 1.05:
-                        # touched the wall while up; check if it's holding above
-                        if spot < gw_up:  # touched but currently below
-                            p['gw_touched_count'] = touched_count + 1
-                            if p['gw_touched_count'] >= 3:
-                                exit_reason = 'gamma_wall_rejection'
-                        else:  # broke through and holding
-                            p['gw_touched_count'] = 0
-                    # Defensive: spot near lower wall while in loss
+                    # Sticky touch: mark when spot first hits within 1% of upper wall
+                    if spot >= gw_up * 0.99:
+                        p['gw_upper_touched'] = True
+                    # Failed breakout: touched then fell 3% back while still profitable
+                    if p.get('gw_upper_touched') and spot < gw_up * 0.97 \
+                            and current_premium > entry_premium * 1.05:
+                        exit_reason = 'gamma_wall_rejection'
+                    # Defensive: hit lower wall while in loss
                     elif spot <= gw_lo * 1.005 and current_premium < entry_premium * 0.85:
                         exit_reason = 'gamma_wall_breakdown'
                 elif p['direction'] == 'PUT':
-                    if spot <= gw_lo * 1.002 and current_premium > entry_premium * 1.05:
-                        if spot > gw_lo:
-                            p['gw_touched_count'] = touched_count + 1
-                            if p['gw_touched_count'] >= 3:
-                                exit_reason = 'gamma_wall_rejection'
-                        else:
-                            p['gw_touched_count'] = 0
+                    if spot <= gw_lo * 1.01:
+                        p['gw_lower_touched'] = True
+                    if p.get('gw_lower_touched') and spot > gw_lo * 1.03 \
+                            and current_premium > entry_premium * 1.05:
+                        exit_reason = 'gamma_wall_rejection'
                     elif spot >= gw_up * 0.995 and current_premium < entry_premium * 0.85:
                         exit_reason = 'gamma_wall_breakdown'
-            except Exception:
+            except (TypeError, ValueError):
                 pass
 
         if exit_reason:
