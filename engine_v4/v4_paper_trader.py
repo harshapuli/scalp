@@ -46,6 +46,9 @@ except ImportError:
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from swing_trade_strategy.data_feed import fetch_alpaca_bars
 
+# UW endpoint helpers (Phase 1b/3a/3b): earnings, max-pain, gamma walls
+from v4_uw_helpers import earnings_within, max_pain, gamma_walls
+
 from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', 'swing_trade_strategy', '.env'))
 
@@ -370,6 +373,21 @@ def process_new_triggers(positions):
             log(f"skip {sig_id}: spread {snap['spread_pct']*100:.1f}% > {MAX_OPTION_SPREAD_PCT*100:.0f}%", "WARN")
             continue
 
+        # Earnings safety net (also gated upstream in meta_engine; defense in depth)
+        earn = earnings_within(ticker, days=5)
+        if earn.get('within'):
+            log(f"skip {sig_id}: earnings in {earn.get('days_until')}d ({earn.get('report_date')}) — IV crush risk", "WARN")
+            continue
+
+        # Max-pain pin filter — only on weekly expiries (DTE <= 7), where pin risk is real
+        contract_strike = float(contract.get('strike_price', 0))
+        contract_exp = contract.get('expiration_date', '')
+        if target_dte <= 7 and contract_exp:
+            mp = max_pain(ticker, contract_exp)
+            if mp and abs(contract_strike - mp.get('max_pain', 0)) < 1.0:
+                log(f"skip {sig_id}: strike ${contract_strike} within $1 of max pain ${mp['max_pain']} on {contract_exp}", "WARN")
+                continue
+
         # If TP_Premium_Target missing (pre-position signals), compute now from live ask
         if not ep.get('TP_Premium_Target'):
             try:
@@ -404,6 +422,15 @@ def process_new_triggers(positions):
         tp2 = ep.get('TP_Premium_Target')
         tp1 = round(entry_est + (float(tp2) - entry_est) * 0.5, 2) if tp2 else None
 
+        # Gamma-wall context — record the underlying levels where dealer hedging flips.
+        # Used by Patrol to manage exits: if underlying breaks the upper gamma wall,
+        # consider trailing stop tighter; if it can't pierce, suggest scale-out.
+        walls = gamma_walls(ticker, spot)
+        gw_upper = walls.get('upper_wall', {}).get('strike') if walls else None
+        gw_lower = walls.get('lower_wall', {}).get('strike') if walls else None
+        if walls.get('upper_wall') or walls.get('lower_wall'):
+            log(f"  gamma walls for {ticker}: upper=${gw_upper}, lower=${gw_lower} (vs spot ${spot:.2f})")
+
         # Record position as PENDING_ENTRY
         positions.append({
             "id": str(uuid.uuid4())[:8],
@@ -426,6 +453,8 @@ def process_new_triggers(positions):
             "tp1_premium_target": tp1,     # TP1 = halfway, partial exit level
             "tp1_hit_at_utc": None,
             "tp1_exit_order_id": None,
+            "gamma_wall_upper": gw_upper,  # underlying level above which dealer flow flips
+            "gamma_wall_lower": gw_lower,
             "tp1_exit_price_filled": None,
             "tp1_qty_closed": 0,
             "tp1_realized_pnl_usd": 0,
