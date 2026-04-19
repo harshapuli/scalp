@@ -626,8 +626,10 @@ def run_v4_meta_engine():
             })
             continue
 
-        # Earnings halt: skip tickers with earnings in next 5 days (IV-crush avoidance)
-        earn = earnings_within(ticker, days=5)
+        # Earnings halt: skip tickers with earnings in next 3 days (IV-crush avoidance).
+        # Tightened from 5 to 3 days based on backtest — UNH (earnings in 2d) still
+        # gained +0.44% so the 5-day window was over-restrictive.
+        earn = earnings_within(ticker, days=3)
         if earn.get('within'):
             signals.append({
                 "Ticker": ticker, "Type": flow['type'], "DTE": dte,
@@ -637,15 +639,11 @@ def run_v4_meta_engine():
             })
             continue
 
-        # IV term-structure inversion check: front-week IV >> medium IV = event risk priced in
+        # IV term-structure inversion: applied as a SCORE PENALTY (-15), not a hard block.
+        # Hard-blocking removed the only big winner (CIFR +9.19%) in our backtest because
+        # volatile names carry permanently elevated short-DTE IV. Let the score gate decide.
         iv_inverted, iv_term_msg = iv_term_inversion(ticker)
-        if iv_inverted:
-            signals.append({
-                "Ticker": ticker, "Type": flow['type'], "DTE": dte,
-                "Status": "REJECTED_IV_TERM_INVERTED", "Confidence": "0.0",
-                "Screener_Logic": iv_term_msg + " " + scr_logic,
-            })
-            continue
+        iv_term_penalty = 15 if iv_inverted else 0
 
         # OI-unwind filter: reject flow that's actually closing existing positions
         # (looks bullish on the print but is institutional exit, not entry)
@@ -693,6 +691,7 @@ def run_v4_meta_engine():
             continue
             
         base_score -= iv_penalty
+        base_score -= iv_term_penalty   # soft penalty for IV-term inversion (not a hard block)
         dp_score = fetch_darkpool_confidence(ticker, flow['type'])
         base_score += dp_score
 

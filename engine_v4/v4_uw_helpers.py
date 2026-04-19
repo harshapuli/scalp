@@ -425,16 +425,20 @@ def interpolated_iv_term(ticker: str) -> list:
 
 
 def iv_term_inversion(ticker: str) -> tuple:
-    """Returns (is_inverted, summary). Front-week IV >> longer IV = event risk → IV crush imminent."""
+    """Returns (is_inverted, summary). Front-week IV >> longer IV = event risk → IV crush imminent.
+    Tuned: requires 2.0x median-to-median ratio (true event-risk pricing), not 1.3x peak-to-trough.
+    Original 1.3x was too sensitive — normal day-to-day IV variation easily clears it."""
     term = interpolated_iv_term(ticker)
     if len(term) < 3: return (False, "insufficient term-structure data")
-    # Compare short (<= 7 days) to medium (14-30 days)
     short = [r['volatility'] for r in term if r['days'] <= 7]
     medium = [r['volatility'] for r in term if 14 <= r['days'] <= 30]
     if not (short and medium): return (False, "no comparable buckets")
-    short_iv = max(short); med_iv = min(medium)
-    if short_iv > med_iv * 1.3:  # >30% inversion
-        return (True, f"IV term inverted: short {short_iv:.2f} > medium {med_iv:.2f} → event risk")
+    # Median vs median is more stable than max/min — earnings IV is usually 2-5x medium
+    import statistics as _stats
+    short_iv = _stats.median(short)
+    med_iv = _stats.median(medium)
+    if short_iv > med_iv * 2.0:  # require 2x to call it event risk
+        return (True, f"IV term inverted: short {short_iv:.2f} > 2x medium {med_iv:.2f} → event risk")
     return (False, f"IV term normal: short {short_iv:.2f} vs medium {med_iv:.2f}")
 
 

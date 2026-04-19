@@ -568,6 +568,42 @@ def evaluate_exits(positions):
             if now_pt.hour == 12 and now_pt.minute >= 45:
                 exit_reason = 'eod_short_dte'
 
+        # 6. Phase 5 — gamma-wall smart exit:
+        #    a) For CALL: if spot rejected at upper wall (touched then closed below 3+ cycles), early exit
+        #    b) For CALL: if spot broke above upper wall AND in profit, tighten trail to current_premium*0.85
+        #    c) For PUT (mirror): rejected at lower wall = early exit; broke below = tighten trail
+        if not exit_reason and p.get('gamma_wall_upper') and p.get('gamma_wall_lower'):
+            try:
+                gw_up = float(p['gamma_wall_upper'])
+                gw_lo = float(p['gamma_wall_lower'])
+                touched_count = int(p.get('gw_touched_count', 0))
+
+                if p['direction'] == 'CALL':
+                    # Touched upper wall but closed below it — record rejection
+                    if spot >= gw_up * 0.998 and current_premium > entry_premium * 1.05:
+                        # touched the wall while up; check if it's holding above
+                        if spot < gw_up:  # touched but currently below
+                            p['gw_touched_count'] = touched_count + 1
+                            if p['gw_touched_count'] >= 3:
+                                exit_reason = 'gamma_wall_rejection'
+                        else:  # broke through and holding
+                            p['gw_touched_count'] = 0
+                    # Defensive: spot near lower wall while in loss
+                    elif spot <= gw_lo * 1.005 and current_premium < entry_premium * 0.85:
+                        exit_reason = 'gamma_wall_breakdown'
+                elif p['direction'] == 'PUT':
+                    if spot <= gw_lo * 1.002 and current_premium > entry_premium * 1.05:
+                        if spot > gw_lo:
+                            p['gw_touched_count'] = touched_count + 1
+                            if p['gw_touched_count'] >= 3:
+                                exit_reason = 'gamma_wall_rejection'
+                        else:
+                            p['gw_touched_count'] = 0
+                    elif spot >= gw_up * 0.995 and current_premium < entry_premium * 0.85:
+                        exit_reason = 'gamma_wall_breakdown'
+            except Exception:
+                pass
+
         if exit_reason:
             log(f"EXIT trigger {p['ticker']} {p['contract_symbol']}: {exit_reason} | "
                 f"premium ${entry_premium:.2f} → ${current_premium:.2f} ({p['unrealized_pnl_pct']:+.1f}%) "
