@@ -14,7 +14,11 @@
         <nav class="sidebar">
             <div class="brand">
                 <i data-lucide="activity" class="brand-icon"></i>
-                <span>ELITE V4</span>
+                <span id="brand-label">ELITE V4</span>
+            </div>
+            <div id="mode-switcher" style="padding:8px 12px;font-size:11px;display:flex;gap:6px;border-bottom:1px solid #1f2937;">
+                <a href="/v2/" id="mode-v2" style="flex:1;padding:6px 8px;border-radius:4px;text-align:center;text-decoration:none;color:#fff;background:#10b981;font-weight:600;">v2 ENHANCED</a>
+                <a href="/v1/" id="mode-v1" style="flex:1;padding:6px 8px;border-radius:4px;text-align:center;text-decoration:none;color:#fff;background:#475569;">v1 BASELINE</a>
             </div>
 
             <div class="nav-links" id="page-nav">
@@ -47,11 +51,6 @@
                     <i data-lucide="zap-off"></i>
                     <span class="nav-label">Gaps</span>
                     <span class="nav-count" id="nav-count-gaps">0</span>
-                </a>
-                <a href="#/baseline" data-page="baseline">
-                    <i data-lucide="git-compare"></i>
-                    <span class="nav-label">Baseline (A/B)</span>
-                    <span class="nav-count" id="nav-count-baseline">0</span>
                 </a>
                 <a href="#/positions" data-page="positions">
                     <i data-lucide="briefcase"></i>
@@ -157,28 +156,6 @@
                 <div class="signals-container" id="dynamic-container">
                     <div class="empty-state empty-dynamic">
                         <p>No dynamic candidates yet. Next scan (after market close) will pull the flow-ranked universe and score it against the same 6 signals as the Mega Cap page.</p>
-                    </div>
-                </div>
-            </section>
-
-            <!-- BASELINE A/B — original strategy (no Phase 1-5 enhancements) for comparison -->
-            <section class="page-view" id="page-baseline" data-page="baseline">
-                <header class="page-header">
-                    <div class="page-titles">
-                        <h1><span class="page-icon">🔬</span> Baseline (A/B Comparison)</h1>
-                        <p>Original Friday-close logic · no Phase 1-5 gates · runs in shadow alongside enhanced engine · compare what each WOULD have triggered</p>
-                    </div>
-                    <div class="page-meta">
-                        <span class="meta-count" id="meta-baseline">0</span>
-                        <span class="meta-label">baseline signals</span>
-                    </div>
-                </header>
-                <div class="ab-summary" id="ab-summary" style="padding:8px 12px;background:#1a2332;border-radius:6px;margin:0 0 12px 0;font-size:13px;">
-                    <span id="ab-counts">Comparison loading…</span>
-                </div>
-                <div class="signals-container" id="baseline-container">
-                    <div class="empty-state">
-                        <p>Baseline engine runs alongside the enhanced engine each pipeline cycle. Signals here would have triggered under the OLD logic (no earnings halt, no OI-unwind filter, no squeeze score, etc.).</p>
                     </div>
                 </div>
             </section>

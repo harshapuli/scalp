@@ -1,4 +1,21 @@
 document.addEventListener("DOMContentLoaded", () => {
+    // Detect URL prefix — /v1/ = baseline strategy, /v2/ = enhanced (current).
+    // All API fetches use API_BASE so the same code base works for both modes.
+    const PATH_PREFIX = window.location.pathname.startsWith('/v1/') ? '/v1' :
+                        window.location.pathname.startsWith('/v2/') ? '/v2' : '/v2';
+    const API_BASE = PATH_PREFIX;
+    const STRATEGY_MODE = PATH_PREFIX === '/v1' ? 'BASELINE' : 'ENHANCED';
+    document.title = `V4 ${STRATEGY_MODE} Dashboard`;
+    document.body.setAttribute('data-strategy-mode', STRATEGY_MODE.toLowerCase());
+    // Update brand label + mode switcher highlight
+    const brandLabel = document.getElementById('brand-label');
+    if (brandLabel) brandLabel.innerText = STRATEGY_MODE === 'BASELINE' ? 'ELITE V4 — BASELINE' : 'ELITE V4 — ENHANCED';
+    if (STRATEGY_MODE === 'BASELINE') {
+        const v1 = document.getElementById('mode-v1');
+        const v2 = document.getElementById('mode-v2');
+        if (v1) v1.style.background = '#f59e0b';
+        if (v2) v2.style.background = '#475569';
+    }
     const confirmedContainer = document.getElementById("confirmed-container");
     const watchingContainer = document.getElementById("watching-container");
     const expiredContainer = document.getElementById("expired-container");
@@ -31,7 +48,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let timerInterval = null;
 
     // ---------- ROUTING ----------
-    const VALID_PAGES = ["confirmed", "watching", "expired", "breakouts", "dynamic", "positions", "gaps", "baseline"];
+    const VALID_PAGES = ["confirmed", "watching", "expired", "breakouts", "dynamic", "positions", "gaps"];
 
     function pageFromHash() {
         const h = (location.hash || "").replace(/^#\/?/, "").toLowerCase();
@@ -246,7 +263,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     async function fetchPositions() {
         try {
-            const res = await fetch("/api/v4/positions");
+            const res = await fetch(API_BASE + "/api/v4/positions");
             if (!res.ok) return;
             const data = await res.json();
             const positions = data.positions || [];
@@ -273,7 +290,7 @@ document.addEventListener("DOMContentLoaded", () => {
     async function fetchBreakouts() {
         try {
             // Try the API endpoint first; fall back to direct file fetch
-            let res = await fetch("/api/v4/breakouts");
+            let res = await fetch(API_BASE + "/api/v4/breakouts");
             if (!res.ok) {
                 // Fall back: direct fetch of the JSON file (server serves the dashboard dir, not parent)
                 res = await fetch("/v4_preposition_watchlist.json");
@@ -387,7 +404,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     async function fetchSignals() {
         try {
-            const res = await fetch("/api/v4/signals");
+            const res = await fetch(API_BASE + "/api/v4/signals");
             if (!res.ok) return;
             const data = await res.json();
             const md = data.metadata || {};
@@ -884,7 +901,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     async function fetchGaps() {
         try {
-            const r = await fetch('/api/v4/gaps');
+            const r = await fetch(API_BASE + '/api/v4/gaps');
             if (!r.ok) return;
             const data = await r.json();
             const calls = data.gap_calls || [];
@@ -912,87 +929,13 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    // ---------- BASELINE A/B (original strategy without Phase 1-5 enhancements) ----------
-    // Tracks counts of latest enhanced vs baseline signals so user can see what each engine
-    // would have triggered today. Both run in shadow mode each pipeline cycle.
-    let lastEnhancedCount = 0;
-    let lastBaselineCount = 0;
-
-    function renderBaselineCard(s) {
-        const dirCls = s.Type === 'CALL' ? 'dir-call' : (s.Type === 'PUT' ? 'dir-put' : '');
-        return `
-        <div class="signal-card baseline-card">
-            <div class="card-head">
-                <div>
-                    <span class="signal-ticker">${s.Ticker}</span>
-                    <span class="signal-direction ${dirCls}">${s.Type || '?'}</span>
-                    <span class="signal-status">${s.Status}</span>
-                </div>
-                <div class="signal-score">${s.Confidence || 0} pts</div>
-            </div>
-            <div class="card-body">
-                <div class="signal-narrative">${s.Screener_Logic || ''}</div>
-            </div>
-        </div>`;
-    }
-
-    async function fetchBaseline() {
-        try {
-            const r = await fetch('/api/v4/signals_baseline');
-            if (!r.ok) {
-                if (baselineContainer) baselineContainer.innerHTML = '<div class="empty-state"><p>Baseline engine has not run yet. First cycle Monday at 6 AM PT.</p></div>';
-                return;
-            }
-            const data = await r.json();
-            const sigs = data.signals || [];
-            // Show only WATCH/TRIGGER (actionable) — rejections live in the ledger
-            const actionable = sigs.filter(s => s.Status && (s.Status.startsWith('WATCH_') || s.Status.startsWith('TRIGGER_')));
-            lastBaselineCount = actionable.length;
-            if (navBaseline) navBaseline.innerText = lastBaselineCount;
-            if (metaBaseline) metaBaseline.innerText = lastBaselineCount;
-
-            // Update A/B comparison summary
-            const summary = document.getElementById('ab-counts');
-            if (summary) {
-                const delta = lastBaselineCount - lastEnhancedCount;
-                const arrow = delta > 0 ? `+${delta} more` : (delta < 0 ? `${delta} fewer` : 'same count');
-                summary.innerHTML = `<strong>Today's count:</strong> ENHANCED engine: <strong>${lastEnhancedCount}</strong> actionable signals · BASELINE engine: <strong>${lastBaselineCount}</strong> · Baseline shows ${arrow} signals than Enhanced`;
-            }
-
-            if (!baselineContainer) return;
-            if (actionable.length === 0) {
-                baselineContainer.innerHTML = '<div class="empty-state"><p>Baseline engine ran but emitted no actionable signals this cycle.</p></div>';
-                return;
-            }
-            baselineContainer.innerHTML = actionable.map(renderBaselineCard).join('');
-        } catch (e) {
-            // Silent fail — baseline output may not exist yet
-        }
-    }
-
-    // Hook enhanced count tracker into existing fetchSignals
-    const origFetchSignals = fetchSignals;
-    fetchSignals = async function() {
-        await origFetchSignals();
-        try {
-            const r = await fetch('/api/v4/signals');
-            if (r.ok) {
-                const data = await r.json();
-                const sigs = data.signals || [];
-                lastEnhancedCount = sigs.filter(s => s.Status && (s.Status.startsWith('WATCH_') || s.Status.startsWith('TRIGGER_'))).length;
-            }
-        } catch (e) {}
-    };
-
     setInterval(fetchSignals, 2000);
     setInterval(tickAllExpiries, 1000);
     setInterval(fetchBreakouts, 5000);
     setInterval(fetchPositions, 5000);  // live P&L on positions page
     setInterval(fetchGaps, 10000);      // gap scanner runs once per session, slow poll
-    setInterval(fetchBaseline, 8000);   // baseline runs once per cycle (5min); poll modest
     fetchSignals();
     fetchBreakouts();
     fetchPositions();
     fetchGaps();
-    fetchBaseline();
 });
