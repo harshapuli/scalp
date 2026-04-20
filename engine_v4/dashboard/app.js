@@ -539,23 +539,39 @@ document.addEventListener("DOMContentLoaded", () => {
                 ` : strikeBlock(suggestedStrike, suggestedDte, sig.Type)}
 
                 ${(() => {
-                    // Concrete order ticket — what to actually click in your broker.
-                    const entryEst = ep.Entry_Premium_Estimate;
+                    // STOCK-PRICE order ticket — tells you the underlying level to act on.
+                    // User looks up the actual option contract in their broker themselves.
+                    const path = ep.Path || (sig.Status.includes('BREAKOUT') ? 'BREAKOUT' : 'PULLBACK');
                     const spotAt = ep.Spot_At_Watch;
-                    if (!entryEst) return '';
-                    const limitPrice = (entryEst * 1.05).toFixed(2);  // +5% buffer to ensure fill
-                    const maxChasePrice = (entryEst * 1.15).toFixed(2);  // don't chase beyond +15%
+                    const zoneLow = ep.Watch_Zone_Low;
+                    const zoneHigh = ep.Watch_Zone_High;
+                    const isCallSide = sig.Type === 'CALL';
+
+                    let entryRule, dontChaseRule;
+                    if (path === 'BREAKOUT' && zoneHigh !== undefined) {
+                        // Breakout: stock crossed the level. Enter ASAP if still close.
+                        entryRule = `Buy when stock <strong>≥ $${zoneLow.toFixed(2)}</strong>`;
+                        dontChaseRule = `Skip if stock already above <strong>$${(zoneHigh * 1.01).toFixed(2)}</strong>`;
+                    } else if (path === 'PULLBACK' && zoneLow !== undefined && zoneHigh !== undefined) {
+                        // Pullback: stock should be IN the zone right now (FVG retest)
+                        entryRule = `Buy when stock is in <strong>$${zoneLow.toFixed(2)} – $${zoneHigh.toFixed(2)}</strong>`;
+                        dontChaseRule = isCallSide
+                            ? `Skip if stock above <strong>$${(zoneHigh * 1.005).toFixed(2)}</strong> (zone already left)`
+                            : `Skip if stock below <strong>$${(zoneLow * 0.995).toFixed(2)}</strong>`;
+                    } else if (spotAt) {
+                        entryRule = `Buy near stock price <strong>$${spotAt.toFixed(2)}</strong> (trigger price)`;
+                        dontChaseRule = `Skip if stock has moved >1% from $${spotAt.toFixed(2)}`;
+                    } else {
+                        return '';
+                    }
+
                     return `
                     <div class="order-ticket" style="margin:10px 0;padding:10px 12px;background:#0f1729;border:1px solid #1e3a5f;border-radius:6px;">
-                        <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">📋 Order Ticket</div>
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">
-                            <div><span style="color:#94a3b8;">Limit price (suggested):</span><br><strong style="color:#10b981;font-size:16px;">$${limitPrice}</strong></div>
-                            <div><span style="color:#94a3b8;">Don't chase above:</span><br><strong style="color:#f59e0b;font-size:16px;">$${maxChasePrice}</strong></div>
-                            <div><span style="color:#94a3b8;">At-signal premium:</span><br><strong>$${entryEst.toFixed(2)}</strong></div>
-                            ${spotAt ? `<div><span style="color:#94a3b8;">Underlying @ signal:</span><br><strong>$${spotAt.toFixed(2)}</strong></div>` : ''}
-                        </div>
-                        <div style="margin-top:8px;font-size:11px;color:#64748b;">
-                            Place a LIMIT BUY at $${limitPrice} (signal price + 5% buffer for fill). If option is trading above $${maxChasePrice}, skip — the move already happened.
+                        <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">📋 Stock Entry Level</div>
+                        <div style="font-size:14px;line-height:1.6;">
+                            <div style="color:#10b981;">${entryRule}</div>
+                            <div style="color:#f59e0b;font-size:12px;margin-top:4px;">${dontChaseRule}</div>
+                            ${spotAt ? `<div style="color:#94a3b8;font-size:11px;margin-top:6px;">Stock was $${spotAt.toFixed(2)} when signal fired. Look up the option contract in your broker by its OCC symbol above.</div>` : ''}
                         </div>
                     </div>`;
                 })()}
@@ -622,14 +638,18 @@ document.addEventListener("DOMContentLoaded", () => {
                 ` : ''}
 
                 ${(() => {
-                    const entryEst = ep.Entry_Premium_Estimate;
-                    if (!entryEst) return '';
-                    const limitPrice = (entryEst * 1.05).toFixed(2);
+                    // Stock-level entry hint for Watching state
+                    const isBreakout = (ep.Path === 'BREAKOUT') || sig.Status.includes('BREAKOUT');
+                    if (ep.Watch_Zone_Low === undefined || ep.Watch_Zone_High === undefined) return '';
+                    const zoneLow = ep.Watch_Zone_Low;
+                    const zoneHigh = ep.Watch_Zone_High;
+                    const ruleText = isBreakout
+                        ? `wait for stock to break above <strong>$${zoneLow.toFixed(2)}</strong> with confirmation`
+                        : `wait for stock to retest <strong>$${zoneLow.toFixed(2)} – $${zoneHigh.toFixed(2)}</strong> zone`;
                     return `
                     <div class="order-ticket" style="margin:10px 0;padding:8px 12px;background:#0f1729;border:1px solid #1e3a5f;border-radius:6px;font-size:12px;">
-                        <span style="color:#94a3b8;">When triggered, set LIMIT order at:</span>
-                        <strong style="color:#10b981;font-size:14px;margin-left:6px;">$${limitPrice}</strong>
-                        <span style="color:#64748b;margin-left:6px;">(estimated entry $${entryEst.toFixed(2)} + 5% buffer)</span>
+                        <span style="color:#94a3b8;">📋 Stock entry trigger:</span>
+                        <span style="color:#10b981;margin-left:6px;">${ruleText}</span>
                     </div>`;
                 })()}
 
