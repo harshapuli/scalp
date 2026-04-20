@@ -48,7 +48,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let timerInterval = null;
 
     // ---------- ROUTING ----------
-    const VALID_PAGES = ["confirmed", "watching", "expired", "breakouts", "dynamic", "positions", "gaps", "missed"];
+    const VALID_PAGES = ["confirmed", "watching", "expired", "breakouts", "dynamic", "positions", "gaps", "missed", "live-account"];
 
     function pageFromHash() {
         const h = (location.hash || "").replace(/^#\/?/, "").toLowerCase();
@@ -1054,15 +1054,98 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    // ---------- LIVE ACCOUNT (full Alpaca paper book) ----------
+    function fmtMoney(x, sign=true) {
+        if (x === null || x === undefined) return '—';
+        const v = Math.abs(x).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0});
+        const s = sign ? (x >= 0 ? '+' : '−') : '';
+        return `${s}$${v}`;
+    }
+
+    function renderLivePositionRow(p) {
+        const isOurs = p.origin === 'claude_v4';
+        const tag = isOurs
+            ? '<span style="background:#10b981;color:#fff;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:600;">CLAUDE</span>'
+            : '<span style="background:#6366f1;color:#fff;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:600;">CHATGPT</span>';
+        const pnlColor = p.unrealized_pl > 0 ? '#10b981' : p.unrealized_pl < 0 ? '#ef4444' : '#94a3b8';
+        const pnlPct = (p.unrealized_plpc * 100).toFixed(1);
+        return `
+        <div class="signal-card" style="padding:10px 14px;border-left:3px solid ${isOurs ? '#10b981' : '#6366f1'};">
+            <div style="display:grid;grid-template-columns:auto 1fr auto auto;gap:12px;align-items:center;">
+                <div>${tag}</div>
+                <div>
+                    <div style="font-family:monospace;font-size:13px;font-weight:600;">${p.symbol}</div>
+                    <div style="font-size:11px;color:#94a3b8;margin-top:2px;">qty ${p.qty} · entry $${p.avg_entry_price.toFixed(2)} · now $${p.current_price.toFixed(2)}</div>
+                </div>
+                <div style="text-align:right;">
+                    <div style="font-size:11px;color:#94a3b8;">market value</div>
+                    <div style="font-size:14px;font-weight:600;">$${p.market_value.toLocaleString(undefined,{maximumFractionDigits:0})}</div>
+                </div>
+                <div style="text-align:right;min-width:110px;">
+                    <div style="font-size:11px;color:#94a3b8;">unrealized</div>
+                    <div style="font-size:15px;font-weight:700;color:${pnlColor};">${fmtMoney(p.unrealized_pl)}<br><span style="font-size:11px;font-weight:500;">${pnlPct >= 0 ? '+' : ''}${pnlPct}%</span></div>
+                </div>
+            </div>
+        </div>`;
+    }
+
+    async function fetchLiveAccount() {
+        try {
+            const r = await fetch(API_BASE + '/api/v4/live_account');
+            if (!r.ok) return;
+            const data = await r.json();
+            const positions = data.positions || [];
+            const summary = data.summary || {};
+            const account = data.account || {};
+
+            const navLA = document.getElementById('nav-count-live-account');
+            const metaLA = document.getElementById('meta-live-account');
+            if (navLA) navLA.innerText = positions.length;
+            if (metaLA) metaLA.innerText = positions.length;
+
+            const summaryEl = document.getElementById('account-summary');
+            if (summaryEl) {
+                const totalPnL = summary.total_unrealized_pl || 0;
+                const ourPnL = summary.claude_v4_unrealized_pl || 0;
+                const otherPnL = summary.other_bot_unrealized_pl || 0;
+                const totalColor = totalPnL >= 0 ? '#10b981' : '#ef4444';
+                summaryEl.innerHTML = `
+                    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+                        <div><div style="font-size:11px;color:#94a3b8;">Account equity</div><strong style="font-size:16px;">$${(account.equity||0).toLocaleString(undefined,{maximumFractionDigits:0})}</strong></div>
+                        <div><div style="font-size:11px;color:#94a3b8;">Cash / Options BP</div><strong style="font-size:16px;">$${(account.options_buying_power||0).toLocaleString(undefined,{maximumFractionDigits:0})}</strong></div>
+                        <div><div style="font-size:11px;color:#94a3b8;">Total unrealized</div><strong style="font-size:16px;color:${totalColor};">${fmtMoney(totalPnL)}</strong></div>
+                        <div><div style="font-size:11px;color:#94a3b8;">Positions</div><strong style="font-size:16px;">${summary.total_positions} <span style="font-size:11px;color:#94a3b8;">(${summary.claude_v4_positions} Claude · ${summary.other_bot_positions} ChatGPT)</span></strong></div>
+                    </div>
+                    <div style="margin-top:8px;padding-top:8px;border-top:1px solid #2d3748;font-size:12px;color:#94a3b8;">
+                        Claude bot P&L: <strong style="color:${ourPnL>=0?'#10b981':'#ef4444'};">${fmtMoney(ourPnL)}</strong> ·
+                        ChatGPT bot P&L: <strong style="color:${otherPnL>=0?'#10b981':'#ef4444'};">${fmtMoney(otherPnL)}</strong>
+                    </div>
+                `;
+            }
+
+            const container = document.getElementById('live-account-container');
+            if (!container) return;
+            if (positions.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>No open positions on the Alpaca account.</p></div>';
+                return;
+            }
+            container.innerHTML = positions.map(renderLivePositionRow).join('');
+        } catch (e) {
+            // silent fail
+        }
+    }
+
     setInterval(fetchSignals, 2000);
     setInterval(tickAllExpiries, 1000);
     setInterval(fetchBreakouts, 5000);
     setInterval(fetchPositions, 5000);  // live P&L on positions page
     setInterval(fetchGaps, 10000);      // gap scanner runs once per session, slow poll
     setInterval(fetchMissed, 30000);    // missed trades update only when tracker re-runs
+    setInterval(fetchLiveAccount, 10000);  // live Alpaca account snapshot
     fetchSignals();
     fetchBreakouts();
     fetchPositions();
     fetchGaps();
     fetchMissed();
+    fetchLiveAccount();
 });

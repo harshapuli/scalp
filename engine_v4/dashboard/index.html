@@ -57,6 +57,11 @@
                     <span class="nav-label">Missed (Watch)</span>
                     <span class="nav-count" id="nav-count-missed">0</span>
                 </a>
+                <a href="#/live-account" data-page="live-account">
+                    <i data-lucide="wallet"></i>
+                    <span class="nav-label">Live Account</span>
+                    <span class="nav-count" id="nav-count-live-account">0</span>
+                </a>
                 <a href="#/positions" data-page="positions">
                     <i data-lucide="briefcase"></i>
                     <span class="nav-label">Positions</span>
@@ -162,6 +167,26 @@
                     <div class="empty-state empty-dynamic">
                         <p>No dynamic candidates yet. Next scan (after market close) will pull the flow-ranked universe and score it against the same 6 signals as the Mega Cap page.</p>
                     </div>
+                </div>
+            </section>
+
+            <!-- LIVE ACCOUNT — fresh Alpaca read of full paper book (both bots' positions) -->
+            <section class="page-view" id="page-live-account" data-page="live-account">
+                <header class="page-header">
+                    <div class="page-titles">
+                        <h1><span class="page-icon">💼</span> Live Account (Alpaca)</h1>
+                        <p>Live read from Alpaca — every open position on the paper account, both Claude bot AND ChatGPT bot. Refreshes every 10s.</p>
+                    </div>
+                    <div class="page-meta">
+                        <span class="meta-count" id="meta-live-account">0</span>
+                        <span class="meta-label">total positions</span>
+                    </div>
+                </header>
+                <div id="account-summary" style="padding:12px 16px;background:#1a2332;border-radius:8px;margin:0 0 12px 0;font-size:13px;line-height:1.6;">
+                    Loading account snapshot…
+                </div>
+                <div class="signals-container" id="live-account-container">
+                    <div class="empty-state"><p>Fetching live positions from Alpaca…</p></div>
                 </div>
             </section>
 
