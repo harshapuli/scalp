@@ -48,7 +48,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let timerInterval = null;
 
     // ---------- ROUTING ----------
-    const VALID_PAGES = ["confirmed", "watching", "expired", "breakouts", "dynamic", "missed", "live-account", "accumulation"];
+    const VALID_PAGES = ["confirmed", "expired", "breakouts", "dynamic", "missed", "live-account", "accumulation"];
 
     function pageFromHash() {
         const h = (location.hash || "").replace(/^#\/?/, "").toLowerCase();

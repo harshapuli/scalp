@@ -27,11 +27,6 @@
                     <span class="nav-label">Confirmed</span>
                     <span class="nav-count" id="nav-count-confirmed">0</span>
                 </a>
-                <a href="#/watching" data-page="watching">
-                    <i data-lucide="eye"></i>
-                    <span class="nav-label">Watching</span>
-                    <span class="nav-count" id="nav-count-watching">0</span>
-                </a>
                 <a href="#/expired" data-page="expired">
                     <i data-lucide="clock"></i>
                     <span class="nav-label">Expired</span>
@@ -82,38 +77,32 @@
             <section class="page-view active-page" id="page-confirmed" data-page="confirmed">
                 <header class="page-header">
                     <div class="page-titles">
-                        <h1><span class="page-icon">⚡</span> Ready to Enter</h1>
-                        <p>SMC retest fired · execute these now</p>
+                        <h1><span class="page-icon">⚡</span> Entries</h1>
+                        <p>Triggered now + queued watches in one view · ⚡ fired = execute · 👁️ queued = awaiting retest</p>
                     </div>
                     <div class="page-meta">
-                        <span class="meta-count" id="meta-confirmed">0</span>
-                        <span class="meta-label">live entries</span>
+                        <span class="meta-count"><span id="meta-confirmed">0</span> / <span id="meta-watching">0</span></span>
+                        <span class="meta-label">fired / queued</span>
                     </div>
                 </header>
 
-                <div class="signals-container" id="confirmed-container">
-                    <div class="empty-state empty-confirmed">
-                        <p>No confirmed entries. Engine fires when watched tickers retest their FVG/OB zone with a rejection wick.</p>
+                <!-- Confirmed (ready now) -->
+                <div id="confirmed-section">
+                    <h2 class="section-heading" style="margin:0 0 10px 0;color:#10b981;font-size:14px;">⚡ FIRED — ready to enter</h2>
+                    <div class="signals-container" id="confirmed-container">
+                        <div class="empty-state empty-confirmed">
+                            <p>No fired triggers right now. Will populate when watched tickers retest their FVG/OB zone with a rejection wick.</p>
+                        </div>
                     </div>
                 </div>
-            </section>
 
-            <!-- PAGE 2 — WATCHING -->
-            <section class="page-view" id="page-watching" data-page="watching">
-                <header class="page-header">
-                    <div class="page-titles">
-                        <h1><span class="page-icon">👁️</span> Watching</h1>
-                        <p>Scored ≥ 40 · awaiting SMC retest in the watch zone</p>
-                    </div>
-                    <div class="page-meta">
-                        <span class="meta-count" id="meta-watching">0</span>
-                        <span class="meta-label">queued</span>
-                    </div>
-                </header>
-
-                <div class="signals-container" id="watching-container">
-                    <div class="empty-state empty-watching">
-                        <p>No active watches. Engine queues tickers when flow + structure align above threshold.</p>
+                <!-- Watching (queued below) -->
+                <div id="watching-section" style="margin-top:28px;">
+                    <h2 class="section-heading" style="margin:0 0 10px 0;color:#f59e0b;font-size:14px;">👁️ QUEUED — awaiting trigger</h2>
+                    <div class="signals-container" id="watching-container">
+                        <div class="empty-state empty-watching">
+                            <p>No active watches. Engine queues tickers when flow + structure align above threshold.</p>
+                        </div>
                     </div>
                 </div>
             </section>
