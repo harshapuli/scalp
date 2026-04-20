@@ -47,11 +47,6 @@
                     <span class="nav-label">Dynamic</span>
                     <span class="nav-count" id="nav-count-dynamic">0</span>
                 </a>
-                <a href="#/gaps" data-page="gaps">
-                    <i data-lucide="zap-off"></i>
-                    <span class="nav-label">Gaps</span>
-                    <span class="nav-count" id="nav-count-gaps">0</span>
-                </a>
                 <a href="#/accumulation" data-page="accumulation">
                     <i data-lucide="target"></i>
                     <span class="nav-label">Accumulation Scout</span>
@@ -66,11 +61,6 @@
                     <i data-lucide="wallet"></i>
                     <span class="nav-label">Live Account</span>
                     <span class="nav-count" id="nav-count-live-account">0</span>
-                </a>
-                <a href="#/positions" data-page="positions">
-                    <i data-lucide="briefcase"></i>
-                    <span class="nav-label">Positions</span>
-                    <span class="nav-count" id="nav-count-positions">0</span>
                 </a>
             </div>
 
@@ -241,44 +231,6 @@
                 </div>
             </section>
 
-            <!-- GAPS — standalone gap-up / gap-down strategy -->
-            <section class="page-view" id="page-gaps" data-page="gaps">
-                <header class="page-header">
-                    <div class="page-titles">
-                        <h1><span class="page-icon">⚡</span> Gap Plays</h1>
-                        <p>Standalone strategy · overnight gap + hold into current session · CALLs for gap-up, PUTs for gap-down</p>
-                    </div>
-                    <div class="page-meta">
-                        <span class="meta-count" id="meta-gaps">0</span>
-                        <span class="meta-label">candidates</span>
-                    </div>
-                </header>
-                <div class="signals-container" id="gaps-container">
-                    <div class="empty-state">
-                        <p>No gap setups right now. The gap scanner runs daily and flags names that gapped overnight AND are still holding the gap during the session.</p>
-                    </div>
-                </div>
-            </section>
-
-            <!-- PAGE 5 — POSITIONS (live paper trades with contract details) -->
-            <section class="page-view" id="page-positions" data-page="positions">
-                <header class="page-header">
-                    <div class="page-titles">
-                        <h1><span class="page-icon">💼</span> Paper Positions</h1>
-                        <p>Live paper account · actual contracts + live P&L · auto-managed by the paper trader</p>
-                    </div>
-                    <div class="page-meta">
-                        <span class="meta-count" id="meta-positions">0</span>
-                        <span class="meta-label">positions</span>
-                    </div>
-                </header>
-
-                <div class="signals-container" id="positions-container">
-                    <div class="empty-state">
-                        <p>No positions yet. The paper trader auto-enters on confirmed triggers during market hours.</p>
-                    </div>
-                </div>
-            </section>
 
             <!-- PAGE 4 — MEGA CAPS (multi-day pre-position scanner on fixed mega-cap universe) -->
             <section class="page-view" id="page-breakouts" data-page="breakouts">
