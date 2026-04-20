@@ -1237,6 +1237,14 @@ body {
     gap: 8px;
     margin-bottom: 20px;
     flex-wrap: wrap;
+    /* Sticky so filter stays visible while scrolling through candidates */
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--bg, #ffffff);
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-soft);
+    margin-top: -4px;  /* tuck against page header */
 }
 .status-filters .filter-btn {
     background: var(--surface-1);
