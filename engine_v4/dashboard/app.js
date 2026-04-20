@@ -525,11 +525,28 @@ document.addEventListener("DOMContentLoaded", () => {
                     ${fmtScore(sig.Confidence)}
                 </div>
 
-                <div class="entry-banner">
+                ${(() => {
+                    // Prefer Fired_At_UTC (precise timestamp from engine); fall back to _age_minutes heuristic.
+                    let ageMin = sig._age_minutes;
+                    let firedTimeStr = '';
+                    if (sig.Fired_At_UTC) {
+                        const firedMs = new Date(sig.Fired_At_UTC).getTime();
+                        ageMin = Math.max(0, Math.floor((Date.now() - firedMs) / 60000));
+                        const d = new Date(sig.Fired_At_UTC);
+                        firedTimeStr = d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit', timeZoneName:'short'});
+                    }
+                    const ageStr = ageMin !== undefined
+                        ? (ageMin < 1 ? 'JUST FIRED' : `FIRED ${ageMin} MIN AGO`)
+                        : 'EXECUTE NOW';
+                    const freshCls = (ageMin !== undefined && ageMin < 5) ? 'entry-banner-fresh' : '';
+                    return `
+                <div class="entry-banner ${freshCls}">
                     <span class="entry-icon">⚡</span>
-                    <span class="entry-action">${sig._age_minutes !== undefined ? 'FIRED ' + sig._age_minutes + ' MIN AGO' : 'EXECUTE NOW'}</span>
+                    <span class="entry-action">${ageStr}</span>
+                    ${firedTimeStr ? `<span class="entry-detail" style="font-family:monospace;">${firedTimeStr}</span>` : ''}
                     ${sig.Entry_Reason ? `<span class="entry-detail">${sig.Entry_Reason}</span>` : ""}
-                </div>
+                </div>`;
+                })()}
 
                 ${hasContract ? `
                 <div class="contract-suggest">
@@ -877,6 +894,14 @@ document.addEventListener("DOMContentLoaded", () => {
     function renderExpiredCard(sig) {
         const ep = sig.Exit_Protocol || {};
         const path = ep.Path || (sig.Status.includes("BREAKOUT") ? "BREAKOUT" : "PULLBACK");
+        const firedEod = sig.Status && sig.Status.endsWith('_EXPIRED_EOD');
+        let subLine = 'expired · no retest';
+        if (firedEod && sig.Fired_At_UTC) {
+            const d = new Date(sig.Fired_At_UTC);
+            const t = d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', timeZoneName:'short'});
+            const dateStr = d.toLocaleDateString([], {month:'short', day:'numeric'});
+            subLine = `🎯 fired ${dateStr} ${t}`;
+        }
         return `
             <div class="signal-card expired-card">
                 <div class="card-header compact">
@@ -887,7 +912,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     </div>
                     <div class="expired-meta">
                         <span class="score-mini">${parseFloat(sig.Confidence).toFixed(1)}</span>
-                        <span class="expired-tag">expired · no retest</span>
+                        <span class="expired-tag">${subLine}</span>
                     </div>
                 </div>
             </div>`;
@@ -897,9 +922,21 @@ document.addEventListener("DOMContentLoaded", () => {
     function renderDashboard(data) {
         setRegime(data.metadata && data.metadata.regime);
         const signals = data.signals || [];
-        const confirmed = signals.filter(s => s.Status && s.Status.startsWith("TRIGGER_"));
+        // CONFIRMED = live triggers that are still actionable (not EOD-expired ones)
+        // sorted by Fired_At_UTC (most recent firing first); fresh ones stay on top.
+        const confirmed = signals
+            .filter(s => s.Status && s.Status.startsWith("TRIGGER_") && !s.Status.endsWith("_EXPIRED_EOD"))
+            .sort((a, b) => {
+                const ta = a.Fired_At_UTC ? new Date(a.Fired_At_UTC).getTime() : 0;
+                const tb = b.Fired_At_UTC ? new Date(b.Fired_At_UTC).getTime() : 0;
+                return tb - ta;  // most recent first
+            });
         const watching = signals.filter(s => s.Status === "WATCH_PULLBACK" || s.Status === "WATCH_BREAKOUT");
-        const expired = signals.filter(s => s.Status === "WATCH_EXPIRED");
+        // EXPIRED = unfired watches that timed out OR fired triggers past EOD
+        const expired = signals.filter(s =>
+            s.Status === "WATCH_EXPIRED" ||
+            (s.Status && s.Status.endsWith("_EXPIRED_EOD"))
+        );
 
         // Counts in nav + page meta
         navConfirmed.innerText = confirmed.length;

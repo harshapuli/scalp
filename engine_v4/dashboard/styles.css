@@ -659,6 +659,15 @@ body {
     border: 1px solid rgba(5, 150, 105, 0.25);
     color: var(--bullish);
 }
+.entry-banner-fresh {
+    background: linear-gradient(90deg, rgba(5, 150, 105, 0.28), rgba(5, 150, 105, 0.10));
+    border: 2px solid rgba(5, 150, 105, 0.7);
+    animation: pulse-fresh 1.5s ease-in-out infinite;
+}
+@keyframes pulse-fresh {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.35); }
+    50% { box-shadow: 0 0 8px 3px rgba(5, 150, 105, 0.0); }
+}
 .watch-banner {
     background: linear-gradient(90deg, rgba(217, 119, 6, 0.10), rgba(217, 119, 6, 0.03));
     border: 1px solid rgba(217, 119, 6, 0.25);

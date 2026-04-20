@@ -5,6 +5,11 @@ import math
 import sys
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from backports.zoneinfo import ZoneInfo
+PACIFIC = ZoneInfo("America/Los_Angeles")
 
 # Baseline-comparison mode: when V4_BASELINE_MODE=1, the engine runs in original
 # Friday-close behavior (no Phase 1-5 gates / scoring components), and writes to
@@ -571,9 +576,50 @@ def run_v4_meta_engine():
     signals = []
 
     # === STAGE 0: Process existing watches first ===
+    # Triggers that fire are kept alive (as "fired_at" watches) until EOD so the
+    # user can still see them later in the day instead of losing them 5 min later.
+    # At EOD (Pacific >= 13:00), fired triggers convert to TRIGGER_*_EXPIRED_EOD.
+    now_pt = datetime.now(PACIFIC)
+    IS_EOD = now_pt.hour >= 13  # after 1pm PT = options market close
     existing_watches = load_watches()
     surviving_watches = []
     for w in existing_watches:
+        # Case 1: watch already fired earlier today, keep it alive for dashboard
+        if w.get('fired_at_utc'):
+            if IS_EOD:
+                # End of day — convert to expired-but-fired; stop re-emitting
+                trig_status = f"TRIGGER_{w.get('path', 'PULLBACK')}_EXPIRED_EOD"
+                signals.append({
+                    "Ticker": w['ticker'], "Type": w['type'], "DTE": w.get('dte', 0),
+                    "Status": trig_status, "Confidence": f"{w.get('score', 0):.1f}",
+                    "Entry_Reason": w.get('fired_reason', ''),
+                    "Fired_At_UTC": w['fired_at_utc'],
+                    "Exit_Protocol": w.get('exit_protocol', {}),
+                    "Strike": w.get('strike'), "Expiration": w.get('expiry'),
+                    "Contract_Symbol": w.get('contract_symbol'),
+                    "Score_Matrix": w.get('score_matrix', {}),
+                    "Screener_Logic": w.get('screener_logic', '')
+                })
+                # Don't re-add to surviving_watches → removed from state
+                continue
+            # Still during trading hours: keep showing as CONFIRMED with Fired_At_UTC
+            trig_status = f"TRIGGER_{w.get('path', 'PULLBACK')}_CONFIRMED"
+            signals.append({
+                "Ticker": w['ticker'], "Type": w['type'], "DTE": w.get('dte', 0),
+                "Status": trig_status, "Confidence": f"{w.get('score', 0):.1f}",
+                "Entry_Reason": w.get('fired_reason', ''),
+                "Fired_At_UTC": w['fired_at_utc'],
+                "Size_Multiplier": w.get('fired_size_mult', 0.5),
+                "Exit_Protocol": w.get('exit_protocol', {}),
+                "Strike": w.get('strike'), "Expiration": w.get('expiry'),
+                "Contract_Symbol": w.get('contract_symbol'),
+                "Score_Matrix": w.get('score_matrix', {}),
+                "Screener_Logic": w.get('screener_logic', '')
+            })
+            surviving_watches.append(w)  # keep in state so next cycle also shows it
+            continue
+
+        # Case 2: unfired watch — check if it expired via time
         if watch_expired(w):
             signals.append({
                 "Ticker": w['ticker'], "Type": w['type'], "DTE": w.get('dte', 0),
@@ -581,23 +627,29 @@ def run_v4_meta_engine():
                 "Screener_Logic": w.get('screener_logic', 'Watch timed out before retest confirmation.')
             })
             continue
+        # Case 3: unfired and not expired — check if SMC retest confirms now
         confirmed, reason = confirm_smc_retest(w['ticker'], w)
         if confirmed:
             trig_status = f"TRIGGER_{w.get('path', 'PULLBACK')}_CONFIRMED"
             size_mult = min(1.0, max(0.25, (w.get('score', 40) - 40) / 60.0))
+            fired_at = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+            # Mark the watch as fired — but keep it alive in state for re-emission
+            w['fired_at_utc'] = fired_at
+            w['fired_reason'] = reason
+            w['fired_size_mult'] = round(size_mult, 2)
+            surviving_watches.append(w)
             signals.append({
                 "Ticker": w['ticker'], "Type": w['type'], "DTE": w.get('dte', 0),
                 "Status": trig_status, "Confidence": f"{w.get('score', 0):.1f}",
                 "Entry_Reason": reason, "Size_Multiplier": round(size_mult, 2),
+                "Fired_At_UTC": fired_at,
                 "Exit_Protocol": w.get('exit_protocol', {}),
-                # Surface contract details on the signal itself for the dashboard
                 "Strike": w.get('strike'), "Expiration": w.get('expiry'),
                 "Contract_Symbol": w.get('contract_symbol'),
-                # Preserve the score_matrix from the watch — needed for quality_analysis
                 "Score_Matrix": w.get('score_matrix', {}),
                 "Screener_Logic": w.get('screener_logic', '')
             })
-            print(f"🚀 {w['ticker']} -> {trig_status} | {reason} | size={size_mult:.2f}x")
+            print(f"🚀 {w['ticker']} -> {trig_status} | {reason} | size={size_mult:.2f}x @ {fired_at}")
         else:
             surviving_watches.append(w)
             watch_status = f"WATCH_{w.get('path', 'PULLBACK')}"
