@@ -938,18 +938,20 @@ document.addEventListener("DOMContentLoaded", () => {
             (s.Status && s.Status.endsWith("_EXPIRED_EOD"))
         );
 
-        // Counts in nav + page meta
-        navConfirmed.innerText = confirmed.length;
-        navWatching.innerText = watching.length;
-        navExpired.innerText = expired.length;
-        metaConfirmed.innerText = confirmed.length;
-        metaWatching.innerText = watching.length;
-        metaExpired.innerText = expired.length;
+        // Counts in nav + page meta — guarded because some nav elements were
+        // removed (Watching merged into Confirmed tab). Null refs would crash.
+        const setText = (el, val) => { if (el) el.innerText = val; };
+        const setClass = (el, cls, on) => { if (el) el.classList.toggle(cls, on); };
+        setText(navConfirmed, confirmed.length);
+        setText(navWatching, watching.length);  // element removed from HTML but keep ref safe
+        setText(navExpired, expired.length);
+        setText(metaConfirmed, confirmed.length);
+        setText(metaWatching, watching.length);
+        setText(metaExpired, expired.length);
 
-        // Visual emphasis when items exist
-        navConfirmed.classList.toggle("has-items", confirmed.length > 0);
-        navWatching.classList.toggle("has-items", watching.length > 0);
-        navExpired.classList.toggle("has-items", expired.length > 0);
+        setClass(navConfirmed, "has-items", confirmed.length > 0);
+        setClass(navWatching, "has-items", watching.length > 0);
+        setClass(navExpired, "has-items", expired.length > 0);
 
         confirmedContainer.innerHTML = confirmed.length === 0
             ? `<div class="empty-state empty-confirmed"><p>No confirmed entries. Engine fires when watched tickers retest their FVG/OB zone with a rejection wick.</p></div>`
