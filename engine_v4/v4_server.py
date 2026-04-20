@@ -29,6 +29,9 @@ SIGNALS_BASELINE_FILE = os.path.join(BASE_DIR, "v4_signals_baseline.json")
 WATCHES_BASELINE_FILE = os.path.join(BASE_DIR, "v4_watches_baseline.json")
 LEDGER_BASELINE_FILE = os.path.join(BASE_DIR, "v4_ledger_baseline.json")
 
+# Shared (no v1/v2 fork — same data)
+MISSED_TRADES_FILE = os.path.join(BASE_DIR, "v4_missed_trades.json")
+
 
 class V4DashboardServer(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -59,6 +62,9 @@ class V4DashboardServer(SimpleHTTPRequestHandler):
             self._serve_positions(POSITIONS_FILE); return
         if path in ('/api/v4/gaps', '/v2/api/v4/gaps'):
             self._serve_json(GAPS_FILE, "v4_gap_watchlist.json not found yet"); return
+        if path in ('/api/v4/missed', '/v2/api/v4/missed', '/v1/api/v4/missed'):
+            self._serve_json(MISSED_TRADES_FILE,
+                "v4_missed_trades.json not found yet — run v4_missed_trades_tracker.py"); return
 
         # ===== v1 BASELINE API endpoints =====
         if path == '/v1/api/v4/signals':

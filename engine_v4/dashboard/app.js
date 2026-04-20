@@ -48,7 +48,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let timerInterval = null;
 
     // ---------- ROUTING ----------
-    const VALID_PAGES = ["confirmed", "watching", "expired", "breakouts", "dynamic", "positions", "gaps"];
+    const VALID_PAGES = ["confirmed", "watching", "expired", "breakouts", "dynamic", "positions", "gaps", "missed"];
 
     function pageFromHash() {
         const h = (location.hash || "").replace(/^#\/?/, "").toLowerCase();
@@ -983,13 +983,86 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    // ---------- MISSED TRADES (preposition CONFIRMED but meta vetoed) ----------
+    function fmtPct(x) {
+        if (x === null || x === undefined) return '<span style="color:#64748b;">—</span>';
+        const cls = x > 0.005 ? 'color:#10b981;' : x < -0.005 ? 'color:#ef4444;' : 'color:#94a3b8;';
+        return `<span style="${cls}font-weight:600;">${x >= 0 ? '+' : ''}${(x*100).toFixed(2)}%</span>`;
+    }
+
+    function renderMissedCard(m) {
+        const fwd = m.fwd_returns_signed || {};
+        const dirCls = m.direction === 'CALL' ? 'dir-call' : 'dir-put';
+        const reasons = (m.rejection_reasons || []).filter((v,i,a) => a.indexOf(v)===i);
+        return `
+        <div class="signal-card missed-card" style="border-left:3px solid #f59e0b;">
+            <div class="card-head">
+                <div>
+                    <span class="signal-ticker">${m.ticker}</span>
+                    <span class="signal-direction ${dirCls}">${m.direction}</span>
+                    <span class="signal-status">VETOED ${m.rejection_count}× on ${m.date}</span>
+                </div>
+                <div style="font-size:13px;color:#94a3b8;">spot @ confirm: $${(m.spot_at_confirm || 0).toFixed(2)}</div>
+            </div>
+            <div class="card-body" style="padding:12px;">
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px;">
+                    <div><div style="font-size:11px;color:#94a3b8;">+1D</div>${fmtPct(fwd['1D'])}</div>
+                    <div><div style="font-size:11px;color:#94a3b8;">+3D</div>${fmtPct(fwd['3D'])}</div>
+                    <div><div style="font-size:11px;color:#94a3b8;">+5D</div>${fmtPct(fwd['5D'])}</div>
+                </div>
+                <div style="font-size:12px;color:#94a3b8;">Vetoed by: <strong>${reasons.join(', ')}</strong></div>
+                <div style="font-size:11px;color:#64748b;margin-top:4px;">${m.last_rejection_logic || ''}</div>
+            </div>
+        </div>`;
+    }
+
+    async function fetchMissed() {
+        try {
+            const r = await fetch(API_BASE + '/api/v4/missed');
+            if (!r.ok) return;
+            const data = await r.json();
+            const records = data.records || [];
+            const navMissed = document.getElementById('nav-count-missed');
+            const metaMissed = document.getElementById('meta-missed');
+            const missedContainer = document.getElementById('missed-container');
+            const missedCounts = document.getElementById('missed-counts');
+            if (navMissed) navMissed.innerText = records.length;
+            if (metaMissed) metaMissed.innerText = records.length;
+
+            // Aggregate verdict
+            const rets5 = records.map(r => r.fwd_returns_signed?.['5D']).filter(v => v !== null && v !== undefined);
+            if (rets5.length > 0 && missedCounts) {
+                const wins = rets5.filter(r => r > 0.005).length;
+                const losses = rets5.filter(r => r < -0.005).length;
+                const avg = rets5.reduce((a,b) => a+b, 0) / rets5.length;
+                let verdict = '⚪ collecting data';
+                if (wins > losses * 1.5) verdict = '🟠 vetoes are skipping winners — may be over-restrictive';
+                else if (losses > wins * 1.5) verdict = '🟢 vetoes are correctly avoiding losers';
+                missedCounts.innerHTML = `<strong>${rets5.length} resolved (5D)</strong> · ${wins}W / ${losses}L · avg ${avg >= 0 ? '+' : ''}${(avg*100).toFixed(2)}% · ${verdict}`;
+            } else if (missedCounts) {
+                missedCounts.innerHTML = `${records.length} setups logged · forward returns will populate as bars become available`;
+            }
+
+            if (!missedContainer) return;
+            if (records.length === 0) {
+                missedContainer.innerHTML = '<div class="empty-state"><p>No missed setups yet. Run nightly: <code>python3 engine_v4/v4_missed_trades_tracker.py</code></p></div>';
+                return;
+            }
+            missedContainer.innerHTML = records.map(renderMissedCard).join('');
+        } catch (e) {
+            // silent fail
+        }
+    }
+
     setInterval(fetchSignals, 2000);
     setInterval(tickAllExpiries, 1000);
     setInterval(fetchBreakouts, 5000);
     setInterval(fetchPositions, 5000);  // live P&L on positions page
     setInterval(fetchGaps, 10000);      // gap scanner runs once per session, slow poll
+    setInterval(fetchMissed, 30000);    // missed trades update only when tracker re-runs
     fetchSignals();
     fetchBreakouts();
     fetchPositions();
     fetchGaps();
+    fetchMissed();
 });

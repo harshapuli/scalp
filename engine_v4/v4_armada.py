@@ -17,6 +17,7 @@ SERVER_PATH = os.path.join(BASE_DIR, 'v4_server.py')
 ARTIFACT_ANALYZER_PATH = os.path.join(BASE_DIR, 'v4_ai_analyzer.py')
 PATROL_PATH = os.path.join(BASE_DIR, 'v4_patrol_engine.py')
 GAP_SCANNER_PATH = os.path.join(BASE_DIR, 'v4_gap_scanner.py')
+MISSED_TRACKER_PATH = os.path.join(BASE_DIR, 'v4_missed_trades_tracker.py')
 
 # Subprocess log paths (kept separate so daemon log stays clean)
 SERVER_LOG = '/tmp/v4_server.log'
@@ -112,6 +113,9 @@ def run_pipeline():
 
     log("Capturing quality bucket distribution...")
     run_step("Quality", QUALITY_ANALYSIS_PATH, timeout=120)
+
+    log("Tracking missed trades (preposition CONFIRMED but vetoed)...")
+    run_step("MissedTracker", MISSED_TRACKER_PATH, timeout=300)
 
     log(f"Pipeline cycle complete. Next scan in {SLEEP_INSIDE_WINDOW}s.")
 

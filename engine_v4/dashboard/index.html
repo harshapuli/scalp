@@ -52,6 +52,11 @@
                     <span class="nav-label">Gaps</span>
                     <span class="nav-count" id="nav-count-gaps">0</span>
                 </a>
+                <a href="#/missed" data-page="missed">
+                    <i data-lucide="eye-off"></i>
+                    <span class="nav-label">Missed (Watch)</span>
+                    <span class="nav-count" id="nav-count-missed">0</span>
+                </a>
                 <a href="#/positions" data-page="positions">
                     <i data-lucide="briefcase"></i>
                     <span class="nav-label">Positions</span>
@@ -156,6 +161,28 @@
                 <div class="signals-container" id="dynamic-container">
                     <div class="empty-state empty-dynamic">
                         <p>No dynamic candidates yet. Next scan (after market close) will pull the flow-ranked universe and score it against the same 6 signals as the Mega Cap page.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- MISSED — preposition CONFIRMED but meta-engine vetoed; track outcomes -->
+            <section class="page-view" id="page-missed" data-page="missed">
+                <header class="page-header">
+                    <div class="page-titles">
+                        <h1><span class="page-icon">👁️‍🗨️</span> Missed (Watching the Vetoes)</h1>
+                        <p>Setups where preposition scanner CONFIRMED breakout but meta engine vetoed (REJECTED_BID_SIDE, etc) · forward returns shown · use this to learn whether the gates are over-restrictive over time</p>
+                    </div>
+                    <div class="page-meta">
+                        <span class="meta-count" id="meta-missed">0</span>
+                        <span class="meta-label">vetoed setups</span>
+                    </div>
+                </header>
+                <div id="missed-summary" style="padding:8px 12px;background:#1a2332;border-radius:6px;margin:0 0 12px 0;font-size:13px;">
+                    <span id="missed-counts">Loading…</span>
+                </div>
+                <div class="signals-container" id="missed-container">
+                    <div class="empty-state">
+                        <p>No missed setups yet. Re-run <code>python3 engine_v4/v4_missed_trades_tracker.py</code> nightly to refresh forward returns.</p>
                     </div>
                 </div>
             </section>
