@@ -491,7 +491,13 @@ def process_new_triggers(positions):
         ep = dict(sig.get('Exit_Protocol') or {})  # copy so we can enrich
         size_mult = float(ep.get('Size_Mult', sig.get('Size_Multiplier', 0.5)))
         target_dte = int(sig.get('DTE', 14))
-        signal_source = 'PREPOSITION' if sig.get('Status', '').startswith('TRIGGER_PREPOSITION') else 'V4'
+        status_str = sig.get('Status', '')
+        if status_str.startswith('TRIGGER_ACCUMULATION'):
+            signal_source = 'ACCUMULATION'
+        elif status_str.startswith('TRIGGER_PREPOSITION'):
+            signal_source = 'PREPOSITION'
+        else:
+            signal_source = 'V4'
 
         # Get spot
         spot = get_underlying_price(ticker)

@@ -1266,7 +1266,46 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>`;
     }
 
+    async function fetchAccumulationSuccess() {
+        try {
+            const r = await fetch(API_BASE + '/api/v4/accumulation_success');
+            if (!r.ok) return;
+            const data = await r.json();
+            const s = data.summary || {};
+            const body = document.getElementById('accum-success-body');
+            if (!body) return;
+            const wrColor = (s.resolved_win_rate ?? 0) >= 0.5 ? '#10b981' : '#f59e0b';
+            const pnlColor = (s.realized_pnl_usd ?? 0) >= 0 ? '#10b981' : '#ef4444';
+            const unrlColor = (s.avg_open_unrealized_pct ?? 0) >= 0 ? '#10b981' : '#ef4444';
+            body.innerHTML = `
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+                    <div><div style="font-size:11px;color:#94a3b8;">Total scouts</div>
+                         <strong style="font-size:18px;">${s.total_scouts || 0}</strong></div>
+                    <div><div style="font-size:11px;color:#94a3b8;">Hit target / Hit stop</div>
+                         <strong style="font-size:16px;"><span style="color:#10b981;">${s.hit_target || 0}W</span> / <span style="color:#ef4444;">${s.hit_stop || 0}L</span></strong>
+                         <span style="color:#94a3b8;font-size:11px;"> · ${s.open || 0} open</span></div>
+                    <div><div style="font-size:11px;color:#94a3b8;">Resolved win rate</div>
+                         <strong style="font-size:18px;color:${wrColor};">${((s.resolved_win_rate || 0) * 100).toFixed(0)}%</strong></div>
+                    <div><div style="font-size:11px;color:#94a3b8;">Paper-traded</div>
+                         <strong style="font-size:16px;">${s.paper_positions_opened || 0}</strong>
+                         <span style="color:#94a3b8;font-size:11px;"> · ${s.paper_open || 0} open · ${s.paper_closed || 0} closed</span></div>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:10px;padding-top:10px;border-top:1px solid #2d3748;">
+                    <div><div style="font-size:11px;color:#94a3b8;">Realized option P&L</div>
+                         <strong style="font-size:16px;color:${pnlColor};">${s.realized_pnl_usd >= 0 ? '+' : ''}$${Math.abs(s.realized_pnl_usd || 0).toFixed(0)}</strong></div>
+                    <div><div style="font-size:11px;color:#94a3b8;">Avg open unrealized</div>
+                         <strong style="font-size:16px;color:${unrlColor};">${(s.avg_open_unrealized_pct || 0) >= 0 ? '+' : ''}${(s.avg_open_unrealized_pct || 0).toFixed(1)}%</strong></div>
+                </div>
+                <div style="margin-top:8px;font-size:11px;color:#64748b;">
+                    Last updated: ${data.generated_utc ? new Date(data.generated_utc).toLocaleTimeString() : 'never'}
+                </div>
+            `;
+        } catch (e) { /* silent */ }
+    }
+
     async function fetchAccumulation() {
+        // Refresh the track-record panel alongside the live scouts
+        fetchAccumulationSuccess();
         try {
             const r = await fetch(API_BASE + '/api/v4/accumulation');
             if (!r.ok) return;

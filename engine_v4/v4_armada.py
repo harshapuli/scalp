@@ -20,6 +20,7 @@ GAP_SCANNER_PATH = os.path.join(BASE_DIR, 'v4_gap_scanner.py')
 MISSED_TRACKER_PATH = os.path.join(BASE_DIR, 'v4_missed_trades_tracker.py')
 PREPOSITION_PATH = os.path.join(BASE_DIR, 'v4_preposition_scanner.py')
 PREPOSITION_WATCHLIST = os.path.join(BASE_DIR, 'v4_preposition_watchlist.json')
+ACCUMULATION_TRACKER_PATH = os.path.join(BASE_DIR, 'v4_accumulation_tracker.py')
 
 # Subprocess log paths (kept separate so daemon log stays clean)
 SERVER_LOG = '/tmp/v4_server.log'
@@ -135,6 +136,9 @@ def run_pipeline():
 
     log("Tracking missed trades (preposition CONFIRMED but vetoed)...")
     run_step("MissedTracker", MISSED_TRACKER_PATH, timeout=300)
+
+    log("Tracking accumulation scout outcomes (Strategy B1)...")
+    run_step("AccumulationTracker", ACCUMULATION_TRACKER_PATH, timeout=300)
 
     log(f"Pipeline cycle complete. Next scan in {SLEEP_INSIDE_WINDOW}s.")
 

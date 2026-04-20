@@ -45,6 +45,7 @@ LEDGER_BASELINE_FILE = os.path.join(BASE_DIR, "v4_ledger_baseline.json")
 # Shared (no v1/v2 fork — same data)
 MISSED_TRADES_FILE = os.path.join(BASE_DIR, "v4_missed_trades.json")
 ACCUMULATION_FILE = os.path.join(BASE_DIR, "v4_accumulation_signals.json")
+ACCUMULATION_SUCCESS_FILE = os.path.join(BASE_DIR, "v4_accumulation_success.json")
 
 
 class V4DashboardServer(SimpleHTTPRequestHandler):
@@ -86,6 +87,9 @@ class V4DashboardServer(SimpleHTTPRequestHandler):
         if path in ('/api/v4/accumulation', '/v2/api/v4/accumulation', '/v1/api/v4/accumulation'):
             self._serve_json(ACCUMULATION_FILE,
                 "v4_accumulation_signals.json not found yet — preposition scanner hasn't run with B1 yet"); return
+        if path in ('/api/v4/accumulation_success', '/v2/api/v4/accumulation_success', '/v1/api/v4/accumulation_success'):
+            self._serve_json(ACCUMULATION_SUCCESS_FILE,
+                "v4_accumulation_success.json not found yet — run v4_accumulation_tracker.py"); return
 
         # ===== v1 BASELINE API endpoints =====
         if path == '/v1/api/v4/signals':
