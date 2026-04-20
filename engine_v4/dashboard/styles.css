@@ -1240,11 +1240,13 @@ body {
     /* Sticky so filter stays visible while scrolling through candidates */
     position: sticky;
     top: 0;
-    z-index: 10;
-    background: var(--bg, #ffffff);
-    padding: 10px 0;
+    z-index: 20;
+    background: var(--bg-base);
+    padding: 12px 4px;
+    box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.08);
     border-bottom: 1px solid var(--border-soft);
-    margin-top: -4px;  /* tuck against page header */
+    margin-left: -4px;
+    margin-right: -4px;
 }
 .status-filters .filter-btn {
     background: var(--surface-1);
