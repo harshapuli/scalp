@@ -538,8 +538,30 @@ document.addEventListener("DOMContentLoaded", () => {
                 </div>
                 ` : strikeBlock(suggestedStrike, suggestedDte, sig.Type)}
 
+                ${(() => {
+                    // Concrete order ticket — what to actually click in your broker.
+                    const entryEst = ep.Entry_Premium_Estimate;
+                    const spotAt = ep.Spot_At_Watch;
+                    if (!entryEst) return '';
+                    const limitPrice = (entryEst * 1.05).toFixed(2);  // +5% buffer to ensure fill
+                    const maxChasePrice = (entryEst * 1.15).toFixed(2);  // don't chase beyond +15%
+                    return `
+                    <div class="order-ticket" style="margin:10px 0;padding:10px 12px;background:#0f1729;border:1px solid #1e3a5f;border-radius:6px;">
+                        <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">📋 Order Ticket</div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">
+                            <div><span style="color:#94a3b8;">Limit price (suggested):</span><br><strong style="color:#10b981;font-size:16px;">$${limitPrice}</strong></div>
+                            <div><span style="color:#94a3b8;">Don't chase above:</span><br><strong style="color:#f59e0b;font-size:16px;">$${maxChasePrice}</strong></div>
+                            <div><span style="color:#94a3b8;">At-signal premium:</span><br><strong>$${entryEst.toFixed(2)}</strong></div>
+                            ${spotAt ? `<div><span style="color:#94a3b8;">Underlying @ signal:</span><br><strong>$${spotAt.toFixed(2)}</strong></div>` : ''}
+                        </div>
+                        <div style="margin-top:8px;font-size:11px;color:#64748b;">
+                            Place a LIMIT BUY at $${limitPrice} (signal price + 5% buffer for fill). If option is trading above $${maxChasePrice}, skip — the move already happened.
+                        </div>
+                    </div>`;
+                })()}
+
                 <div class="trade-grid">
-                    <div class="trade-cell"><span class="cell-label">Stop Loss</span><span class="cell-value">${ep.SL || "—"}</span></div>
+                    <div class="trade-cell"><span class="cell-label">Stop Loss (underlying)</span><span class="cell-value">${ep.SL || "—"}</span></div>
                     <div class="trade-cell"><span class="cell-label">Take Profit</span><span class="cell-value">${ep.TP || "—"}</span></div>
                     <div class="trade-cell"><span class="cell-label">Time Stop</span><span class="cell-value">${ep.TIME_STOP || "—"}</span></div>
                     <div class="trade-cell"><span class="cell-label">Size</span><span class="cell-value size-value">${sizePct}%</span></div>
@@ -598,6 +620,18 @@ document.addEventListener("DOMContentLoaded", () => {
                     ${contractSym ? `<div class="contract-occ">${contractSym}</div>` : ''}
                 </div>
                 ` : ''}
+
+                ${(() => {
+                    const entryEst = ep.Entry_Premium_Estimate;
+                    if (!entryEst) return '';
+                    const limitPrice = (entryEst * 1.05).toFixed(2);
+                    return `
+                    <div class="order-ticket" style="margin:10px 0;padding:8px 12px;background:#0f1729;border:1px solid #1e3a5f;border-radius:6px;font-size:12px;">
+                        <span style="color:#94a3b8;">When triggered, set LIMIT order at:</span>
+                        <strong style="color:#10b981;font-size:14px;margin-left:6px;">$${limitPrice}</strong>
+                        <span style="color:#64748b;margin-left:6px;">(estimated entry $${entryEst.toFixed(2)} + 5% buffer)</span>
+                    </div>`;
+                })()}
 
                 <div class="trade-grid">
                     <div class="trade-cell"><span class="cell-label">Watch Zone</span><span class="cell-value">${zoneStr}</span></div>
