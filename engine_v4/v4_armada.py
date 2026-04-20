@@ -18,6 +18,8 @@ ARTIFACT_ANALYZER_PATH = os.path.join(BASE_DIR, 'v4_ai_analyzer.py')
 PATROL_PATH = os.path.join(BASE_DIR, 'v4_patrol_engine.py')
 GAP_SCANNER_PATH = os.path.join(BASE_DIR, 'v4_gap_scanner.py')
 MISSED_TRACKER_PATH = os.path.join(BASE_DIR, 'v4_missed_trades_tracker.py')
+PREPOSITION_PATH = os.path.join(BASE_DIR, 'v4_preposition_scanner.py')
+PREPOSITION_WATCHLIST = os.path.join(BASE_DIR, 'v4_preposition_watchlist.json')
 
 # Subprocess log paths (kept separate so daemon log stays clean)
 SERVER_LOG = '/tmp/v4_server.log'
@@ -98,6 +100,23 @@ def run_pipeline():
 
     log("Spinning up active Screener...")
     run_step("Scanner", SCANNER_PATH, timeout=300)
+
+    # Preposition scanner — heavy (500+ UW calls). Run ONCE per day, before first
+    # engine cycle. Checks the age of v4_preposition_watchlist.json to decide.
+    needs_prep = True
+    if os.path.exists(PREPOSITION_WATCHLIST):
+        try:
+            mtime = datetime.fromtimestamp(os.path.getmtime(PREPOSITION_WATCHLIST), tz=PACIFIC)
+            now_pt = datetime.now(PACIFIC)
+            # Refresh if last scan was on a prior day OR if it's more than 14h old
+            if mtime.date() == now_pt.date() and (now_pt - mtime).total_seconds() < 50400:
+                needs_prep = False
+                log(f"Preposition watchlist fresh (last scan {mtime.strftime('%H:%M %p PT')}) — skipping refresh")
+        except Exception:
+            needs_prep = True
+    if needs_prep:
+        log("Running Preposition scanner (multi-day buildup, once/day)...")
+        run_step("Preposition", PREPOSITION_PATH, timeout=900)
 
     log("Running Gap scanner (overnight gap + hold strategy)...")
     run_step("GapScanner", GAP_SCANNER_PATH, timeout=180)
