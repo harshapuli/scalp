@@ -80,6 +80,8 @@ class V4DashboardServer(SimpleHTTPRequestHandler):
                 "v4_missed_trades.json not found yet — run v4_missed_trades_tracker.py"); return
         if path in ('/api/v4/live_account', '/v2/api/v4/live_account', '/v1/api/v4/live_account'):
             self._serve_live_alpaca(); return
+        if path in ('/api/v4/preposition_history', '/v2/api/v4/preposition_history', '/v1/api/v4/preposition_history'):
+            self._serve_preposition_history(); return
 
         # ===== v1 BASELINE API endpoints =====
         if path == '/v1/api/v4/signals':
@@ -126,6 +128,58 @@ class V4DashboardServer(SimpleHTTPRequestHandler):
         self.send_header("Content-type", "application/json")
         self.end_headers()
         self.wfile.write(_json.dumps(payload).encode())
+
+    def _serve_preposition_history(self):
+        """Returns triggered preposition setups across today + archive.
+        Format: {triggered_today: [...], triggered_past: [...]}
+        Each record: {ticker, direction, score, trigger_level, triggered_at_utc, date, tier}"""
+        import json as _json, glob
+        out = {'triggered_today': [], 'triggered_past': []}
+
+        # Today's watchlist
+        today_path = os.path.join(BASE_DIR, 'v4_preposition_watchlist.json')
+        if os.path.exists(today_path):
+            try:
+                with open(today_path) as f: data = _json.load(f)
+                for c in data.get('candidates', []):
+                    if c.get('triggered_at_utc'):
+                        out['triggered_today'].append({
+                            'ticker': c.get('ticker'),
+                            'direction': c.get('direction'),
+                            'score': c.get('score'),
+                            'tier': c.get('tier'),
+                            'trigger_level': (c.get('key_levels') or {}).get('trigger_above'),
+                            'triggered_at_utc': c.get('triggered_at_utc'),
+                            'narrative': c.get('narrative', '')[:200],
+                            'date': (data.get('metadata', {}).get('scan_completed_utc') or '')[:10],
+                        })
+            except Exception: pass
+
+        # Archived days
+        archive_dir = os.path.join(BASE_DIR, 'v4_preposition_archive')
+        if os.path.isdir(archive_dir):
+            for p in sorted(glob.glob(os.path.join(archive_dir, '*.json')), reverse=True):
+                try:
+                    with open(p) as f: data = _json.load(f)
+                    scan_date = (data.get('metadata', {}).get('scan_completed_utc') or '')[:10]
+                    for c in data.get('candidates', []):
+                        if c.get('triggered_at_utc'):
+                            out['triggered_past'].append({
+                                'ticker': c.get('ticker'),
+                                'direction': c.get('direction'),
+                                'score': c.get('score'),
+                                'tier': c.get('tier'),
+                                'trigger_level': (c.get('key_levels') or {}).get('trigger_above'),
+                                'triggered_at_utc': c.get('triggered_at_utc'),
+                                'narrative': c.get('narrative', '')[:200],
+                                'date': scan_date,
+                            })
+                except Exception: continue
+
+        self.send_response(200)
+        self.send_header("Content-type", "application/json")
+        self.end_headers()
+        self.wfile.write(_json.dumps(out).encode())
 
     def _serve_live_alpaca(self):
         """Live snapshot of the entire Alpaca paper account — both bots' positions.

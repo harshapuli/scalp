@@ -667,6 +667,27 @@ def scan():
         "candidates": candidates,
     }
 
+    # Before overwriting the watchlist, archive the PREVIOUS day's file if it
+    # exists. Otherwise yesterday's triggered setups are lost forever when
+    # today's scan runs. Archive goes to v4_preposition_archive/YYYY-MM-DD.json
+    # keyed off the PREVIOUS scan's date (not today's) so the archive reflects
+    # the day those triggers actually fired.
+    if os.path.exists(OUT_PATH):
+        try:
+            with open(OUT_PATH) as f: prev = json.load(f)
+            prev_date = (prev.get('metadata', {}).get('scan_completed_utc') or '')[:10]
+            if prev_date:
+                archive_dir = os.path.join(os.path.dirname(__file__), 'v4_preposition_archive')
+                os.makedirs(archive_dir, exist_ok=True)
+                archive_path = os.path.join(archive_dir, f'{prev_date}.json')
+                # Only archive if there's actually triggered content worth keeping
+                triggered_count = sum(1 for c in prev.get('candidates', []) if c.get('triggered_at_utc'))
+                if triggered_count > 0 or not os.path.exists(archive_path):
+                    with open(archive_path, 'w') as f: json.dump(prev, f, indent=2, default=str)
+                    print(f"📦 Archived previous watchlist → {archive_path} ({triggered_count} triggered)")
+        except Exception as e:
+            print(f"⚠️  Archive of previous watchlist failed: {e} — continuing with new write")
+
     # Atomic write — patrol writes to this same file; non-atomic risks partial-read corruption
     import tempfile
     dir_path = os.path.dirname(OUT_PATH) or '.'

@@ -960,8 +960,65 @@ document.addEventListener("DOMContentLoaded", () => {
             : watching.map(renderWatchingCard).join("");
 
         expiredContainer.innerHTML = expired.length === 0
-            ? `<div class="empty-state"><p>No expired watches yet.</p></div>`
+            ? `<div class="empty-state"><p>No expired watches yet. Triggered preposition setups will appear here (see below) + engine WATCH_EXPIRED.</p></div>`
             : expired.map(renderExpiredCard).join("");
+        // Also append triggered preposition setups (cross-strategy view)
+        appendPrepositionHistoryToExpired();
+    }
+
+    async function appendPrepositionHistoryToExpired() {
+        try {
+            const r = await fetch(API_BASE + '/api/v4/preposition_history');
+            if (!r.ok) return;
+            const data = await r.json();
+            const today = data.triggered_today || [];
+            const past = data.triggered_past || [];
+            const all = [...today, ...past];
+            if (all.length === 0) return;
+
+            const navExpired = document.getElementById('nav-count-expired');
+            if (navExpired) navExpired.innerText = (parseInt(navExpired.innerText || 0) + all.length);
+
+            const heading = today.length > 0
+                ? `<h2 class="section-heading" style="margin:24px 0 12px 0;">🎯 Preposition Triggers Today (${today.length}) — fired but not yet expired</h2>`
+                : '';
+            const pastHeading = past.length > 0
+                ? `<h2 class="section-heading" style="margin:24px 0 12px 0;">📚 Preposition Triggers Archive (${past.length})</h2>`
+                : '';
+
+            function renderPrepHistoryCard(c, isToday) {
+                const d = c.triggered_at_utc ? new Date(c.triggered_at_utc) : null;
+                const timeStr = d ? d.toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', timeZoneName:'short'}) : '—';
+                const dirCls = c.direction === 'CALL' ? 'dir-call' : 'dir-put';
+                const tierTag = c.tier === 1 ? 'MEGA' : 'DYN';
+                const borderColor = isToday ? '#10b981' : '#64748b';
+                return `
+                <div class="signal-card" style="padding:12px 14px;border-left:3px solid ${borderColor};margin-bottom:8px;">
+                    <div style="display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;">
+                        <div>
+                            <div class="ticker-badge">${c.ticker}</div>
+                        </div>
+                        <div>
+                            <div><span class="signal-direction ${dirCls}">${c.direction}</span>
+                                 <span style="background:#475569;color:#fff;padding:2px 6px;border-radius:3px;font-size:10px;">${tierTag}</span>
+                                 <span style="color:#94a3b8;margin-left:6px;font-size:12px;">score ${c.score}</span></div>
+                            <div style="font-size:12px;color:#64748b;margin-top:4px;">${c.narrative}</div>
+                        </div>
+                        <div style="text-align:right;min-width:180px;">
+                            <div style="font-size:11px;color:#94a3b8;">triggered at</div>
+                            <div style="font-family:monospace;font-size:13px;">${timeStr}</div>
+                            ${c.trigger_level ? `<div style="font-size:11px;color:#64748b;">trigger $${c.trigger_level}</div>` : ''}
+                        </div>
+                    </div>
+                </div>`;
+            }
+
+            const html = heading + today.map(c => renderPrepHistoryCard(c, true)).join('') +
+                         pastHeading + past.map(c => renderPrepHistoryCard(c, false)).join('');
+            expiredContainer.insertAdjacentHTML('beforeend', html);
+        } catch (e) {
+            // silent fail
+        }
     }
 
     // ---------- GAPS (standalone gap-up / gap-down strategy) ----------
