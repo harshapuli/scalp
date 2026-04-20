@@ -70,7 +70,11 @@ KILL_FILE = os.path.join(BASE_DIR, 'v4_paper_trader_kill')
 
 # ---------- Risk parameters ----------
 TRADER_CADENCE = 30           # seconds between cycles
-MAX_CONCURRENT_POSITIONS = 3  # conservative first-day cap (raise to 5 after validating behavior)
+# MAX_CONCURRENT_POSITIONS removed as the binding constraint — the real risk
+# control is exposure caps below (per-sector, per-theme, per-delta). Set high
+# enough to be non-binding in practice; if it ever hits, something upstream
+# is generating too many signals and we should investigate, not block.
+MAX_CONCURRENT_POSITIONS = 50
 MAX_POSITION_USD = 3000       # raised from 1500 so qty>=2 fits on ~$10-15 premium contracts (enables partial TP)
 BASE_SIZE_USD = 1000
 MAX_OPTION_SPREAD_PCT = 0.08  # skip illiquid contracts
