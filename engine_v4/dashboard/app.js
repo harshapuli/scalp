@@ -375,9 +375,44 @@ document.addEventListener("DOMContentLoaded", () => {
             ? `No dynamic candidates from last scan (${md.scan_date}). Flow-ranked universe was pulled but nothing passed ≥40.`
             : `No dynamic candidates yet. Next scan (after close) will pull top ~35 tickers by net options premium and score them.`;
         renderTierPage('dynamic', dynamic, dynamicContainer, navDynamic, metaDynamic, dynamicEmpty);
+        // Update the tier filter count pills + re-apply visibility in case of tier switch
+        updateTierCounts();
+        applyTierVisibility();
     }
 
-    // Filter button click handlers — re-render from cached data
+    // Tier filter state — controls which of the two sections is visible (Mega/Dynamic/Both)
+    let activeTier = 'all';  // 'all' | 'mega' | 'dynamic'
+
+    function applyTierVisibility() {
+        const megaSec = document.getElementById('breakouts-section');
+        const dynSec = document.getElementById('dynamic-section');
+        if (!megaSec || !dynSec) return;
+        megaSec.style.display = (activeTier === 'dynamic') ? 'none' : '';
+        dynSec.style.display = (activeTier === 'mega') ? 'none' : '';
+    }
+
+    function updateTierCounts() {
+        const megaCount = (latestSplit && latestSplit.megaCap) ? latestSplit.megaCap.length : 0;
+        const dynCount = (latestSplit && latestSplit.dynamic) ? latestSplit.dynamic.length : 0;
+        const all = document.getElementById('tier-count-all');
+        const mega = document.getElementById('tier-count-mega');
+        const dyn = document.getElementById('tier-count-dynamic');
+        if (all) all.innerText = megaCount + dynCount;
+        if (mega) mega.innerText = megaCount;
+        if (dyn) dyn.innerText = dynCount;
+    }
+
+    // Hook tier filter buttons
+    document.querySelectorAll('.tier-filters .filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            activeTier = btn.getAttribute('data-tier') || 'all';
+            document.querySelectorAll('.tier-filters .filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            applyTierVisibility();
+        });
+    });
+
+    // Status filter button click handlers — re-render from cached data
     document.querySelectorAll('.status-filters').forEach(group => {
         const pageKey = group.getAttribute('data-page-target');
         group.querySelectorAll('.filter-btn').forEach(btn => {
@@ -387,17 +422,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 // Toggle active class within this group only
                 group.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
-                // Re-render the affected page from cached data
-                if (pageKey === 'breakouts') {
-                    const empty = latestSplit.md.scan_date
-                        ? `No mega-cap candidates from last scan.`
-                        : `No mega-cap candidates yet.`;
-                    renderTierPage('breakouts', latestSplit.megaCap, breakoutsContainer, navBreakouts, metaBreakouts, empty);
-                } else if (pageKey === 'dynamic') {
-                    const empty = latestSplit.md.scan_date
-                        ? `No dynamic candidates from last scan.`
-                        : `No dynamic candidates yet.`;
-                    renderTierPage('dynamic', latestSplit.dynamic, dynamicContainer, navDynamic, metaDynamic, empty);
+                // Re-render both sections when any status filter changes
+                if (latestSplit) {
+                    renderTierPage('breakouts', latestSplit.megaCap, breakoutsContainer, navBreakouts, metaBreakouts,
+                        `No mega-cap candidates from last scan.`);
+                    renderTierPage('dynamic', latestSplit.dynamic, dynamicContainer, navDynamic, metaDynamic,
+                        `No dynamic candidates from last scan.`);
                 }
             });
         });

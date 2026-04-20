@@ -135,11 +135,18 @@
                     </div>
                 </header>
 
-                <div class="status-filters" data-page-target="dynamic">
-                    <button class="filter-btn active" data-filter="all">All <span class="filter-count" id="filter-count-dynamic-all">0</span></button>
-                    <button class="filter-btn" data-filter="buy">🟢 Buy <span class="filter-count" id="filter-count-dynamic-buy">0</span></button>
-                    <button class="filter-btn" data-filter="approaching">🟡 Approaching <span class="filter-count" id="filter-count-dynamic-approaching">0</span></button>
-                    <button class="filter-btn" data-filter="waiting">⏳ Waiting <span class="filter-count" id="filter-count-dynamic-waiting">0</span></button>
+                <div class="sticky-filter-wrap">
+                    <div class="tier-filters" data-page-target="dynamic">
+                        <button class="filter-btn active" data-tier="all">All <span class="filter-count" id="tier-count-all">0</span></button>
+                        <button class="filter-btn" data-tier="mega">📈 Mega <span class="filter-count" id="tier-count-mega">0</span></button>
+                        <button class="filter-btn" data-tier="dynamic">⚡ Dynamic <span class="filter-count" id="tier-count-dynamic">0</span></button>
+                    </div>
+                    <div class="status-filters" data-page-target="dynamic">
+                        <button class="filter-btn active" data-filter="all">All <span class="filter-count" id="filter-count-dynamic-all">0</span></button>
+                        <button class="filter-btn" data-filter="buy">🟢 Buy <span class="filter-count" id="filter-count-dynamic-buy">0</span></button>
+                        <button class="filter-btn" data-filter="approaching">🟡 Approaching <span class="filter-count" id="filter-count-dynamic-approaching">0</span></button>
+                        <button class="filter-btn" data-filter="waiting">⏳ Waiting <span class="filter-count" id="filter-count-dynamic-waiting">0</span></button>
+                    </div>
                 </div>
 
                 <!-- Mega Caps section (Tier 1) -->
