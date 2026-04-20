@@ -102,21 +102,26 @@ def run_pipeline():
     log("Spinning up active Screener...")
     run_step("Scanner", SCANNER_PATH, timeout=300)
 
-    # Preposition scanner — heavy (500+ UW calls). Run ONCE per day, before first
-    # engine cycle. Checks the age of v4_preposition_watchlist.json to decide.
+    # Preposition scanner — heavy (~500 UW calls). Refresh every 3 HOURS during
+    # market hours so accumulation scouts reflect live intraday conditions
+    # (prices move, sector strength changes, flow accumulates). Previously was
+    # once/day — user directive: run morning 6:30 AM → 1 PM PT every ~3 hours.
+    # 3 runs per session × ~500 calls = 1500 UW calls/day, well under 20k budget.
     needs_prep = True
+    REFRESH_EVERY_SEC = 3 * 60 * 60  # 3 hours
     if os.path.exists(PREPOSITION_WATCHLIST):
         try:
             mtime = datetime.fromtimestamp(os.path.getmtime(PREPOSITION_WATCHLIST), tz=PACIFIC)
             now_pt = datetime.now(PACIFIC)
-            # Refresh if last scan was on a prior day OR if it's more than 14h old
-            if mtime.date() == now_pt.date() and (now_pt - mtime).total_seconds() < 50400:
+            age_sec = (now_pt - mtime).total_seconds()
+            if age_sec < REFRESH_EVERY_SEC:
                 needs_prep = False
-                log(f"Preposition watchlist fresh (last scan {mtime.strftime('%H:%M %p PT')}) — skipping refresh")
+                mins = int(age_sec / 60)
+                log(f"Preposition watchlist fresh ({mins} min old, refreshes every 3h) — skipping")
         except Exception:
             needs_prep = True
     if needs_prep:
-        log("Running Preposition scanner (multi-day buildup, once/day)...")
+        log("Running Preposition scanner (3-hour refresh)...")
         run_step("Preposition", PREPOSITION_PATH, timeout=900)
 
     log("Running Gap scanner (overnight gap + hold strategy)...")
