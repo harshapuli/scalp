@@ -58,26 +58,13 @@ TIER1_WATCHLIST = [
     'AMD', 'NFLX', 'PLTR', 'COIN', 'MSTR', 'QQQ', 'SPY',
 ]
 
-# Tier 3 = PUT-bias watchlist. Names that are structurally prone to downside
-# setups: rate-sensitive ETFs, consumer-weak ETFs, cyclicals, and a few
-# individual names that periodically dip below their 200 SMA. Including these
-# guarantees PUT coverage even when top-net-impact is dominated by call-heavy
-# tech in a bull tape. Scored through the same pipeline — PUT direction only
-# fires if persistent_flow.direction == 'PUT' AND spot < 200 SMA.
-TIER3_WEAK_WATCH = [
-    'KRE',   # regional banks — rate-sensitive
-    'XLF',   # financials
-    'HYG',   # high-yield credit
-    'TLT',   # bonds
-    'IWM',   # small caps — breaks before SPX
-    'XRT',   # retail consumer weakness
-    'XHB',   # homebuilders — rate-sensitive
-    'XLU',   # utilities
-    'XBI',   # biotech volatility
-    'ARKK',  # growth/speculation unwind
-    'FXI',   # China weakness
-    'CVS', 'WBA', 'INTC', 'BA', 'XOM',  # individual names prone to PUT setups
-]
+# Tier 3 = PUT-bias universe, pulled DYNAMICALLY from UW (no hardcoded tickers).
+# Strategy: the top-net-impact endpoint returns tickers sorted by absolute net
+# option premium; the ones with NEGATIVE net_premium (call-ask < put-ask) are
+# names where institutions are net BUYING PUTS — that's exactly our PUT-scout
+# universe. Per-day ranking updates automatically as flow shifts.
+TIER3_FETCH_LIMIT = 150  # pull a deep slice; the negative-premium tail is what we want
+TIER3_MAX_EVALUATED = 20  # cap after dedup
 
 # Tier 2 = dynamic universe derived from UW's /top-net-impact ranking.
 # Names change daily based on real options premium flow. No hardcoding.
@@ -87,7 +74,7 @@ TIER2_MAX_EVALUATED = 35     # cap on how many we actually score (after dedup)
 
 def fetch_tier2_universe():
     """Dynamic Tier 2 universe from UW's net-premium ranking (top tickers by flow today).
-    Dedupes against Tier 1 mega caps so we don't double-score the same names."""
+    Takes POSITIVE net_premium (call-heavy names). Dedupes against Tier 1."""
     j = _uw_get(f"{BASE_URL}/api/market/top-net-impact?limit={TIER2_FETCH_LIMIT}")
     if isinstance(j, dict): j = j.get('data', [])
     if not isinstance(j, list): return []
@@ -97,13 +84,37 @@ def fetch_tier2_universe():
         if not isinstance(r, dict): continue
         t = r.get('ticker', '').strip().upper()
         if not t or t in tier1_set: continue
-        # Stash the ranking premium so we can report it in the output
         try:
             net_prem = float(r.get('net_premium', 0))
         except: net_prem = 0
+        # Tier 2 = call-biased (positive net premium)
+        if net_prem <= 0: continue
         out.append({'ticker': t, 'tier2_net_premium': net_prem})
         if len(out) >= TIER2_MAX_EVALUATED: break
     return out
+
+
+def fetch_tier3_universe(exclude_tickers=None):
+    """Dynamic Tier 3 universe — PUT-biased names from same UW endpoint.
+    Takes the NEGATIVE net_premium tail (put-heavy flow). Dedupes vs exclude_tickers.
+    Returns [{'ticker':..., 'tier3_net_premium':...}]."""
+    exclude = set(exclude_tickers or [])
+    j = _uw_get(f"{BASE_URL}/api/market/top-net-impact?limit={TIER3_FETCH_LIMIT}")
+    if isinstance(j, dict): j = j.get('data', [])
+    if not isinstance(j, list): return []
+    # Sort by most negative first (heaviest PUT flow)
+    neg = []
+    for r in j:
+        if not isinstance(r, dict): continue
+        t = r.get('ticker', '').strip().upper()
+        if not t or t in exclude: continue
+        try:
+            net_prem = float(r.get('net_premium', 0))
+        except: net_prem = 0
+        if net_prem >= 0: continue  # only put-heavy
+        neg.append({'ticker': t, 'tier3_net_premium': net_prem})
+    neg.sort(key=lambda x: x['tier3_net_premium'])  # most negative first
+    return neg[:TIER3_MAX_EVALUATED]
 
 LOOKBACK_DAYS = 5
 COMPRESSION_DAYS = 10
@@ -587,15 +598,18 @@ def scan():
     # Build combined scan universe, tagged by source
     universe = [(t, 1, None) for t in TIER1_WATCHLIST]
     universe += [(r['ticker'], 2, r.get('tier2_net_premium')) for r in tier2_records]
-    # Tier 3 — PUT-bias watchlist (dedupe against T1/T2)
     tier1_set = set(TIER1_WATCHLIST)
     t2_set = {r['ticker'] for r in tier2_records}
-    tier3_added = 0
-    for t in TIER3_WEAK_WATCH:
-        if t in tier1_set or t in t2_set: continue
-        universe.append((t, 3, None))
-        tier3_added += 1
-    print(f"Tier 3 (weak watch for PUT setups): {tier3_added} tickers added to universe")
+
+    # Tier 3 — dynamically pulled PUT-bias universe (negative net-premium tail)
+    try:
+        tier3_records = fetch_tier3_universe(exclude_tickers=list(tier1_set) + list(t2_set))
+    except Exception as e:
+        print(f"  tier 3 fetch failed: {e} — continuing without PUT universe")
+        tier3_records = []
+    universe += [(r['ticker'], 3, r.get('tier3_net_premium')) for r in tier3_records]
+    print(f"Tier 3 (dynamic PUT-bias): {len(tier3_records)} tickers — sample: "
+          f"{[r['ticker'] for r in tier3_records[:5]]}")
 
     candidates = []
     for t, tier, t2_prem in universe:
