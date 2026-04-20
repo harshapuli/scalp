@@ -48,7 +48,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let timerInterval = null;
 
     // ---------- ROUTING ----------
-    const VALID_PAGES = ["confirmed", "expired", "dynamic", "missed", "live-account", "accumulation"];
+    const VALID_PAGES = ["confirmed", "expired", "dynamic", "live-account", "accumulation"];
 
     function pageFromHash() {
         const h = (location.hash || "").replace(/^#\/?/, "").toLowerCase();
@@ -402,15 +402,41 @@ document.addEventListener("DOMContentLoaded", () => {
         if (dyn) dyn.innerText = dynCount;
     }
 
-    // Hook tier filter buttons
-    document.querySelectorAll('.tier-filters .filter-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            activeTier = btn.getAttribute('data-tier') || 'all';
-            document.querySelectorAll('.tier-filters .filter-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            applyTierVisibility();
+    // Hook tier filter buttons — scoped per parent (Dynamic vs Expired pages)
+    document.querySelectorAll('.tier-filters').forEach(group => {
+        const pageTarget = group.getAttribute('data-page-target') || 'dynamic';
+        group.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tier = btn.getAttribute('data-tier') || 'all';
+                // Update active class within this group only
+                group.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                if (pageTarget === 'dynamic') {
+                    activeTier = tier;
+                    applyTierVisibility();
+                } else if (pageTarget === 'expired') {
+                    applyExpiredTierVisibility(tier);
+                }
+            });
         });
     });
+
+    function applyExpiredTierVisibility(tier) {
+        const engineSec = document.getElementById('expired-engine-section');
+        const missedSec = document.getElementById('expired-missed-section');
+        if (!engineSec || !missedSec) return;
+        engineSec.style.display = (tier === 'missed') ? 'none' : '';
+        missedSec.style.display = (tier === 'engine-expired') ? 'none' : '';
+    }
+
+    function updateExpiredTierCounts(expiredCount, missedCount) {
+        const all = document.getElementById('tier-count-expired-all');
+        const eng = document.getElementById('tier-count-expired-engine');
+        const mis = document.getElementById('tier-count-expired-missed');
+        if (all) all.innerText = expiredCount + missedCount;
+        if (eng) eng.innerText = expiredCount;
+        if (mis) mis.innerText = missedCount;
+    }
 
     // Status filter button click handlers — re-render from cached data
     document.querySelectorAll('.status-filters').forEach(group => {
@@ -983,6 +1009,10 @@ document.addEventListener("DOMContentLoaded", () => {
         setClass(navConfirmed, "has-items", confirmed.length > 0);
         setClass(navWatching, "has-items", watching.length > 0);
         setClass(navExpired, "has-items", expired.length > 0);
+        // Expired tier-filter total needs engine count (missed count patched in by fetchMissed)
+        const misEl = document.getElementById('meta-missed');
+        const missedCount = misEl ? parseInt(misEl.innerText) || 0 : 0;
+        updateExpiredTierCounts(expired.length, missedCount);
 
         confirmedContainer.innerHTML = confirmed.length === 0
             ? `<div class="empty-state empty-confirmed"><p>No confirmed entries. Engine fires when watched tickers retest their FVG/OB zone with a rejection wick.</p></div>`
@@ -1155,6 +1185,10 @@ document.addEventListener("DOMContentLoaded", () => {
             const missedCounts = document.getElementById('missed-counts');
             if (navMissed) navMissed.innerText = records.length;
             if (metaMissed) metaMissed.innerText = records.length;
+            // Refresh merged Expired-page tier counts
+            const metaExpEl = document.getElementById('meta-expired');
+            const expCount = metaExpEl ? parseInt(metaExpEl.innerText) || 0 : 0;
+            updateExpiredTierCounts(expCount, records.length);
 
             // Aggregate verdict
             const rets5 = records.map(r => r.fwd_returns_signed?.['5D']).filter(v => v !== null && v !== undefined);

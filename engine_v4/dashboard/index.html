@@ -42,11 +42,6 @@
                     <span class="nav-label">Accumulation Scout</span>
                     <span class="nav-count" id="nav-count-accumulation">0</span>
                 </a>
-                <a href="#/missed" data-page="missed">
-                    <i data-lucide="eye-off"></i>
-                    <span class="nav-label">Missed (Watch)</span>
-                    <span class="nav-count" id="nav-count-missed">0</span>
-                </a>
                 <a href="#/live-account" data-page="live-account">
                     <i data-lucide="wallet"></i>
                     <span class="nav-label">Live Account</span>
@@ -102,22 +97,43 @@
                 </div>
             </section>
 
-            <!-- PAGE 3 — EXPIRED (diagnostic view) -->
+            <!-- EXPIRED (merged: engine expires + preposition triggers + missed vetoes) -->
             <section class="page-view" id="page-expired" data-page="expired">
                 <header class="page-header">
                     <div class="page-titles">
-                        <h1><span class="page-icon">⏳</span> Recently Expired</h1>
-                        <p>Scored ≥ 40 but no SMC retest before timeout — diagnostic view for tuning</p>
+                        <h1><span class="page-icon">⏳</span> Diagnostic / History</h1>
+                        <p>Expired watches + fired-then-expired triggers + preposition history + missed setups (vetoed by meta) — all in one view</p>
                     </div>
                     <div class="page-meta">
-                        <span class="meta-count" id="meta-expired">0</span>
-                        <span class="meta-label">expired</span>
+                        <span class="meta-count"><span id="meta-expired">0</span> / <span id="meta-missed">0</span></span>
+                        <span class="meta-label">expired / missed</span>
                     </div>
                 </header>
 
-                <div class="signals-container compact" id="expired-container">
-                    <div class="empty-state">
-                        <p>No expired watches yet.</p>
+                <div class="sticky-filter-wrap">
+                    <div class="tier-filters" data-page-target="expired">
+                        <button class="filter-btn active" data-tier="all">All <span class="filter-count" id="tier-count-expired-all">0</span></button>
+                        <button class="filter-btn" data-tier="engine-expired">⏳ Expired <span class="filter-count" id="tier-count-expired-engine">0</span></button>
+                        <button class="filter-btn" data-tier="missed">👁️‍🗨️ Missed <span class="filter-count" id="tier-count-expired-missed">0</span></button>
+                    </div>
+                </div>
+
+                <!-- Section A: engine-side expired watches + fired-past-EOD triggers -->
+                <div id="expired-engine-section" style="margin-bottom:24px;">
+                    <h2 class="section-heading" style="margin:0 0 10px 0;color:#94a3b8;font-size:14px;">⏳ EXPIRED — watches that timed out (or fired past EOD)</h2>
+                    <div class="signals-container compact" id="expired-container">
+                        <div class="empty-state"><p>No expired watches yet.</p></div>
+                    </div>
+                </div>
+
+                <!-- Section B: missed vetoes (preposition confirmed but meta engine rejected) -->
+                <div id="expired-missed-section">
+                    <h2 class="section-heading" style="margin:0 0 10px 0;color:#f59e0b;font-size:14px;">👁️‍🗨️ MISSED — preposition CONFIRMED but meta-engine vetoed</h2>
+                    <div id="missed-summary" style="padding:8px 12px;background:#1a2332;border-radius:6px;margin:0 0 12px 0;font-size:13px;color:#cbd5e1;">
+                        <span id="missed-counts">Loading…</span>
+                    </div>
+                    <div class="signals-container" id="missed-container">
+                        <div class="empty-state"><p>No missed setups yet. Re-run <code>v4_missed_trades_tracker.py</code> nightly to refresh forward returns.</p></div>
                     </div>
                 </div>
             </section>
@@ -213,29 +229,6 @@
                     <div class="empty-state"><p>No active scouts yet. Next preposition scan will populate this tab.</p></div>
                 </div>
             </section>
-
-            <!-- MISSED — preposition CONFIRMED but meta-engine vetoed; track outcomes -->
-            <section class="page-view" id="page-missed" data-page="missed">
-                <header class="page-header">
-                    <div class="page-titles">
-                        <h1><span class="page-icon">👁️‍🗨️</span> Missed (Watching the Vetoes)</h1>
-                        <p>Setups where preposition scanner CONFIRMED breakout but meta engine vetoed (REJECTED_BID_SIDE, etc) · forward returns shown · use this to learn whether the gates are over-restrictive over time</p>
-                    </div>
-                    <div class="page-meta">
-                        <span class="meta-count" id="meta-missed">0</span>
-                        <span class="meta-label">vetoed setups</span>
-                    </div>
-                </header>
-                <div id="missed-summary" style="padding:8px 12px;background:#1a2332;border-radius:6px;margin:0 0 12px 0;font-size:13px;">
-                    <span id="missed-counts">Loading…</span>
-                </div>
-                <div class="signals-container" id="missed-container">
-                    <div class="empty-state">
-                        <p>No missed setups yet. Re-run <code>python3 engine_v4/v4_missed_trades_tracker.py</code> nightly to refresh forward returns.</p>
-                    </div>
-                </div>
-            </section>
-
 
         </main>
     </div>
