@@ -103,17 +103,25 @@ def evaluate_stock_outcome(scout):
     if df is None or df.empty:
         return {'outcome': 'NO_DATA', 'reason': 'no bars returned'}
 
-    # Walk forward and classify
+    # Walk forward and classify — direction-aware
+    direction = scout.get('direction', 'CALL')
     peak = entry_ref; trough = entry_ref
     hit_target = False; hit_stop = False; hit_date = None
     for ts, row in df.iterrows():
         high = float(row['High']); low = float(row['Low'])
         peak = max(peak, high); trough = min(trough, low)
-        # For CALL direction, target is up and stop is down
-        if high >= target:
-            hit_target = True; hit_date = ts.strftime('%Y-%m-%d'); break
-        if low <= stop:
-            hit_stop = True; hit_date = ts.strftime('%Y-%m-%d'); break
+        if direction == 'PUT':
+            # PUT: target is LOW breakdown (price < target), stop is HIGH invalidation (price > stop)
+            if low <= target:
+                hit_target = True; hit_date = ts.strftime('%Y-%m-%d'); break
+            if high >= stop:
+                hit_stop = True; hit_date = ts.strftime('%Y-%m-%d'); break
+        else:
+            # CALL: target is HIGH breakout (price > target), stop is LOW (price < stop)
+            if high >= target:
+                hit_target = True; hit_date = ts.strftime('%Y-%m-%d'); break
+            if low <= stop:
+                hit_stop = True; hit_date = ts.strftime('%Y-%m-%d'); break
 
     last_close = float(df['Close'].iloc[-1])
     days_elapsed = len(df)

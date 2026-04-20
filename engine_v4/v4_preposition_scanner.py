@@ -58,6 +58,27 @@ TIER1_WATCHLIST = [
     'AMD', 'NFLX', 'PLTR', 'COIN', 'MSTR', 'QQQ', 'SPY',
 ]
 
+# Tier 3 = PUT-bias watchlist. Names that are structurally prone to downside
+# setups: rate-sensitive ETFs, consumer-weak ETFs, cyclicals, and a few
+# individual names that periodically dip below their 200 SMA. Including these
+# guarantees PUT coverage even when top-net-impact is dominated by call-heavy
+# tech in a bull tape. Scored through the same pipeline — PUT direction only
+# fires if persistent_flow.direction == 'PUT' AND spot < 200 SMA.
+TIER3_WEAK_WATCH = [
+    'KRE',   # regional banks — rate-sensitive
+    'XLF',   # financials
+    'HYG',   # high-yield credit
+    'TLT',   # bonds
+    'IWM',   # small caps — breaks before SPX
+    'XRT',   # retail consumer weakness
+    'XHB',   # homebuilders — rate-sensitive
+    'XLU',   # utilities
+    'XBI',   # biotech volatility
+    'ARKK',  # growth/speculation unwind
+    'FXI',   # China weakness
+    'CVS', 'WBA', 'INTC', 'BA', 'XOM',  # individual names prone to PUT setups
+]
+
 # Tier 2 = dynamic universe derived from UW's /top-net-impact ranking.
 # Names change daily based on real options premium flow. No hardcoding.
 TIER2_FETCH_LIMIT = 50       # how many UW ranks to pull
@@ -566,7 +587,15 @@ def scan():
     # Build combined scan universe, tagged by source
     universe = [(t, 1, None) for t in TIER1_WATCHLIST]
     universe += [(r['ticker'], 2, r.get('tier2_net_premium')) for r in tier2_records]
+    # Tier 3 — PUT-bias watchlist (dedupe against T1/T2)
     tier1_set = set(TIER1_WATCHLIST)
+    t2_set = {r['ticker'] for r in tier2_records}
+    tier3_added = 0
+    for t in TIER3_WEAK_WATCH:
+        if t in tier1_set or t in t2_set: continue
+        universe.append((t, 3, None))
+        tier3_added += 1
+    print(f"Tier 3 (weak watch for PUT setups): {tier3_added} tickers added to universe")
 
     candidates = []
     for t, tier, t2_prem in universe:
@@ -665,20 +694,30 @@ def scan():
         trend = (c.get('signals') or {}).get('trend_regime_200sma') or {}
         current_price = trend.get('spot')
         if not current_price: continue
-        # Entry criteria: price still in compression range (below trigger), not extended
-        if current_price > comp_high * 1.005:
-            continue  # already breaking out — breakout path handles this
-        if current_price < comp_low * 0.99:
-            continue  # below range floor — setup compromised
+        # Entry criteria: price still in compression range
+        if current_price > comp_high * 1.005 or current_price < comp_low * 0.99:
+            continue  # already broken out either direction — scout no longer applies
+
+        direction = c.get('direction', 'CALL')
+        # Direction-aware stop/target:
+        # CALL setup: target is compression_HIGH (breakout up), stop is below comp_LOW (failure)
+        # PUT  setup: target is compression_LOW (breakdown), stop is above comp_HIGH (failure)
+        if direction == 'PUT':
+            stop_level = round(comp_high * 1.01, 2)   # invalidation: moves UP out of range
+            target_level = round(comp_low * 0.995, 2) # breakdown: moves DOWN below range
+        else:
+            stop_level = round(comp_low * 0.99, 2)    # invalidation: falls below range
+            target_level = round(comp_high * 1.005, 2) # breakout: crosses range top
+
         # Build the accumulation signal
         accumulation_signals.append({
             'ticker': c.get('ticker'),
-            'direction': c.get('direction'),
+            'direction': direction,
             'score': c.get('score'),
             'tier': c.get('tier'),
             'entry_price_ref': current_price,
-            'stop_below': round(comp_low * 0.99, 2),
-            'target_above': round(comp_high * 1.005, 2),  # breakout level becomes TP1
+            'stop_below': stop_level,    # legacy field name — keeps dashboard compat
+            'target_above': target_level, # legacy field name — dashboard interprets direction
             'compression_low': comp_low,
             'compression_high': comp_high,
             'size_mult': 0.25,
