@@ -649,8 +649,71 @@ def scan():
 
     candidates.sort(key=lambda x: -x['score'])
 
+    # ===== STRATEGY B1: Accumulation Scout =====
+    # For every candidate score >= 40 AND price is still IN the compression range
+    # (not gapped above trigger), emit an ACCUMULATION entry signal that bypasses
+    # the breakout wait. Size will be 25% of normal — aggressive entry, small risk.
+    accumulation_signals = []
+    now_utc = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+    for c in candidates:
+        if c.get('score', 0) < 40: continue
+        comp = (c.get('signals') or {}).get('compression') or {}
+        comp_low = comp.get('low')
+        comp_high = comp.get('high')
+        if not (comp_low and comp_high): continue
+        # Need live current price. Use the spot from trend_regime (last close).
+        trend = (c.get('signals') or {}).get('trend_regime_200sma') or {}
+        current_price = trend.get('spot')
+        if not current_price: continue
+        # Entry criteria: price still in compression range (below trigger), not extended
+        if current_price > comp_high * 1.005:
+            continue  # already breaking out — breakout path handles this
+        if current_price < comp_low * 0.99:
+            continue  # below range floor — setup compromised
+        # Build the accumulation signal
+        accumulation_signals.append({
+            'ticker': c.get('ticker'),
+            'direction': c.get('direction'),
+            'score': c.get('score'),
+            'tier': c.get('tier'),
+            'entry_price_ref': current_price,
+            'stop_below': round(comp_low * 0.99, 2),
+            'target_above': round(comp_high * 1.005, 2),  # breakout level becomes TP1
+            'compression_low': comp_low,
+            'compression_high': comp_high,
+            'size_mult': 0.25,
+            'size_label': 'accumulation_scout_25pct',
+            'generated_utc': now_utc,
+            'narrative': c.get('narrative', ''),
+            'suggested_dte_min': 14, 'suggested_dte_max': 30,
+        })
+
     tier1_candidates = [c for c in candidates if c.get('tier') == 1]
     tier2_candidates = [c for c in candidates if c.get('tier') == 2]
+
+    # Write accumulation signals to their own file
+    accumulation_path = os.path.join(os.path.dirname(__file__), 'v4_accumulation_signals.json')
+    accumulation_payload = {
+        'metadata': {
+            'generated_utc': now_utc,
+            'total_signals': len(accumulation_signals),
+            'size_default': 0.25,
+            'strategy': 'B1_accumulation_scout',
+            '_doc': 'Enter at current price BEFORE breakout, 25% size. Stop at compression_low-1%. Target at compression_high.',
+        },
+        'signals': accumulation_signals,
+    }
+    import tempfile as _tmp
+    fd, tmp = _tmp.mkstemp(dir=os.path.dirname(accumulation_path) or '.', prefix='.tmp_', suffix='.json')
+    try:
+        with os.fdopen(fd, 'w') as f:
+            json.dump(accumulation_payload, f, indent=2, default=str)
+        os.replace(tmp, accumulation_path)
+    except Exception:
+        if os.path.exists(tmp):
+            try: os.unlink(tmp)
+            except Exception: pass
+    print(f"🎯 Accumulation Scout: {len(accumulation_signals)} signals written → {accumulation_path}")
     payload = {
         "metadata": {
             "scan_date": str(ref_date),

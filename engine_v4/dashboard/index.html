@@ -52,6 +52,11 @@
                     <span class="nav-label">Gaps</span>
                     <span class="nav-count" id="nav-count-gaps">0</span>
                 </a>
+                <a href="#/accumulation" data-page="accumulation">
+                    <i data-lucide="target"></i>
+                    <span class="nav-label">Accumulation Scout</span>
+                    <span class="nav-count" id="nav-count-accumulation">0</span>
+                </a>
                 <a href="#/missed" data-page="missed">
                     <i data-lucide="eye-off"></i>
                     <span class="nav-label">Missed (Watch)</span>
@@ -187,6 +192,26 @@
                 </div>
                 <div class="signals-container" id="live-account-container">
                     <div class="empty-state"><p>Fetching live positions from Alpaca…</p></div>
+                </div>
+            </section>
+
+            <!-- ACCUMULATION SCOUT — Strategy B1: early entry at 25% size before breakout -->
+            <section class="page-view" id="page-accumulation" data-page="accumulation">
+                <header class="page-header">
+                    <div class="page-titles">
+                        <h1><span class="page-icon">🎯</span> Accumulation Scout (Strategy B1)</h1>
+                        <p>Early entry at 25% size BEFORE the breakout · trigger is "score ≥ 40 + price still in compression" · takes you in during the institutional accumulation phase instead of chasing the breakout</p>
+                    </div>
+                    <div class="page-meta">
+                        <span class="meta-count" id="meta-accumulation">0</span>
+                        <span class="meta-label">active scouts</span>
+                    </div>
+                </header>
+                <div id="accum-summary" style="padding:10px 14px;background:#1a2332;border-radius:6px;margin:0 0 12px 0;font-size:13px;line-height:1.5;">
+                    <strong>How it works:</strong> Every preposition candidate with score ≥ 40 that's still INSIDE its compression range gets a scout position at 25% size. Stop = compression_low − 1% (tight). Target = compression_high (where breakout path would fire). If price breaks out, the BREAKOUT path adds more size. If it drops below stop, the scout exits at small loss.
+                </div>
+                <div class="signals-container" id="accumulation-container">
+                    <div class="empty-state"><p>No active scouts yet. Next preposition scan will populate this tab.</p></div>
                 </div>
             </section>
 

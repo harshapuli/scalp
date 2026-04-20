@@ -64,6 +64,7 @@ H = {"APCA-API-KEY-ID": ALPACA_KEY, "APCA-API-SECRET-KEY": ALPACA_SECRET}
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SIGNALS_PATH = os.path.join(BASE_DIR, 'v4_signals.json')
 PREPOSITION_PATH = os.path.join(BASE_DIR, 'v4_preposition_watchlist.json')
+ACCUMULATION_PATH = os.path.join(BASE_DIR, 'v4_accumulation_signals.json')
 POSITIONS_PATH = os.path.join(BASE_DIR, 'v4_paper_positions.json')
 TRADER_LOG_PATH = os.path.join(BASE_DIR, 'v4_paper_trader.log')
 KILL_FILE = os.path.join(BASE_DIR, 'v4_paper_trader_kill')
@@ -405,8 +406,34 @@ def preposition_to_signal(c):
     }
 
 
+def accumulation_to_signal(a):
+    """Translate an accumulation_scout signal into a V4-style signal dict.
+    Fixed 25% size, distinct status so exposure & dedup can distinguish.
+    Entry is immediate at current market (no breakout wait)."""
+    score = float(a.get('score', 0))
+    return {
+        'Ticker': a.get('ticker'),
+        'Type': a.get('direction', 'CALL'),
+        'Status': 'TRIGGER_ACCUMULATION_SCOUT',
+        'Confidence': str(score),
+        'Timestamp': a.get('generated_utc', datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')),
+        'DTE': a.get('suggested_dte_min', 21),
+        'Exit_Protocol': {
+            'SL': str(a.get('stop_below', '')),
+            'TP': f"{a.get('target_above')}",  # stock-level target (compression_high)
+            'Size_Mult': 0.25,                  # FIXED 25% per Strategy B1
+            'Path': 'ACCUMULATION',
+            'TIME_STOP': f"{max(1, int(a.get('suggested_dte_min', 21) * 0.4))} Days max",
+            'Spot_At_Watch': a.get('entry_price_ref'),
+            'Compression_Low': a.get('compression_low'),
+            'Compression_High': a.get('compression_high'),
+        },
+        'Screener_Logic': 'ACCUMULATION SCOUT — ' + a.get('narrative', ''),
+    }
+
+
 def collect_all_triggers():
-    """Union of V4 engine triggers + pre-position CONFIRMED candidates."""
+    """Union of V4 engine triggers + pre-position CONFIRMED + accumulation scouts."""
     triggers = []
     # V4 engine triggers
     if os.path.exists(SIGNALS_PATH):
@@ -425,6 +452,14 @@ def collect_all_triggers():
             for c in data.get('candidates', []):
                 if c.get('trigger_status') == 'CONFIRMED':
                     triggers.append(preposition_to_signal(c))
+        except Exception: pass
+
+    # Strategy B1: Accumulation Scouts — enter during compression, 25% size
+    if os.path.exists(ACCUMULATION_PATH):
+        try:
+            with open(ACCUMULATION_PATH) as f: data = json.load(f)
+            for a in data.get('signals', []):
+                triggers.append(accumulation_to_signal(a))
         except Exception: pass
 
     return triggers

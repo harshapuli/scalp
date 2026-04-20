@@ -48,7 +48,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let timerInterval = null;
 
     // ---------- ROUTING ----------
-    const VALID_PAGES = ["confirmed", "watching", "expired", "breakouts", "dynamic", "positions", "gaps", "missed", "live-account"];
+    const VALID_PAGES = ["confirmed", "watching", "expired", "breakouts", "dynamic", "positions", "gaps", "missed", "live-account", "accumulation"];
 
     function pageFromHash() {
         const h = (location.hash || "").replace(/^#\/?/, "").toLowerCase();
@@ -1229,6 +1229,69 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    // ---------- ACCUMULATION SCOUT (Strategy B1) ----------
+    function renderAccumulationCard(a) {
+        const dirCls = a.direction === 'CALL' ? 'dir-call' : 'dir-put';
+        const tierTag = a.tier === 1 ? 'MEGA' : 'DYN';
+        const entryRef = a.entry_price_ref || 0;
+        const stop = a.stop_below || 0;
+        const target = a.target_above || 0;
+        const riskPct = entryRef > 0 ? ((stop - entryRef) / entryRef * 100).toFixed(1) : '?';
+        const rewardPct = entryRef > 0 ? ((target - entryRef) / entryRef * 100).toFixed(1) : '?';
+        const rr = (entryRef > 0 && stop && target)
+            ? Math.abs((target - entryRef) / (entryRef - stop)).toFixed(2) : '?';
+        return `
+        <div class="signal-card" style="padding:14px;border-left:4px solid #f59e0b;margin-bottom:12px;">
+            <div class="card-head">
+                <div>
+                    <span class="signal-ticker">${a.ticker}</span>
+                    <span class="signal-direction ${dirCls}">${a.direction}</span>
+                    <span style="background:#475569;color:#fff;padding:2px 6px;border-radius:3px;font-size:10px;">${tierTag}</span>
+                    <span style="background:#f59e0b;color:#fff;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:700;">SCOUT · 25% size</span>
+                </div>
+                <div class="signal-score">${a.score} pts</div>
+            </div>
+            <div class="card-body" style="padding:10px 0 0 0;">
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:8px;">
+                    <div><div style="font-size:11px;color:#94a3b8;">Entry ref</div><strong style="font-size:14px;">$${entryRef.toFixed(2)}</strong></div>
+                    <div><div style="font-size:11px;color:#94a3b8;">Stop</div><strong style="font-size:14px;color:#ef4444;">$${stop.toFixed(2)} (${riskPct}%)</strong></div>
+                    <div><div style="font-size:11px;color:#94a3b8;">Target</div><strong style="font-size:14px;color:#10b981;">$${target.toFixed(2)} (+${rewardPct}%)</strong></div>
+                    <div><div style="font-size:11px;color:#94a3b8;">R:R</div><strong style="font-size:14px;">${rr}x</strong></div>
+                </div>
+                <div style="font-size:11px;color:#64748b;">
+                    Compression range: $${a.compression_low?.toFixed(2)} – $${a.compression_high?.toFixed(2)}  ·  DTE ${a.suggested_dte_min}-${a.suggested_dte_max}
+                </div>
+                <div style="font-size:12px;color:#94a3b8;margin-top:6px;">${a.narrative || ''}</div>
+            </div>
+        </div>`;
+    }
+
+    async function fetchAccumulation() {
+        try {
+            const r = await fetch(API_BASE + '/api/v4/accumulation');
+            if (!r.ok) return;
+            const data = await r.json();
+            const signals = data.signals || [];
+
+            const navAcc = document.getElementById('nav-count-accumulation');
+            const metaAcc = document.getElementById('meta-accumulation');
+            if (navAcc) navAcc.innerText = signals.length;
+            if (metaAcc) metaAcc.innerText = signals.length;
+
+            const container = document.getElementById('accumulation-container');
+            if (!container) return;
+            if (signals.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>No active scouts yet. Next preposition scan will populate this tab.</p></div>';
+                return;
+            }
+            // Sort by score descending
+            signals.sort((x, y) => (y.score || 0) - (x.score || 0));
+            container.innerHTML = signals.map(renderAccumulationCard).join('');
+        } catch (e) {
+            // silent fail
+        }
+    }
+
     setInterval(fetchSignals, 2000);
     setInterval(tickAllExpiries, 1000);
     setInterval(fetchBreakouts, 5000);
@@ -1236,10 +1299,12 @@ document.addEventListener("DOMContentLoaded", () => {
     setInterval(fetchGaps, 10000);      // gap scanner runs once per session, slow poll
     setInterval(fetchMissed, 30000);    // missed trades update only when tracker re-runs
     setInterval(fetchLiveAccount, 10000);  // live Alpaca account snapshot
+    setInterval(fetchAccumulation, 15000); // accumulation scouts (refresh per preposition cycle)
     fetchSignals();
     fetchBreakouts();
     fetchPositions();
     fetchGaps();
     fetchMissed();
     fetchLiveAccount();
+    fetchAccumulation();
 });
