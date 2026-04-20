@@ -641,11 +641,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
                     return `
                     <div class="order-ticket" style="margin:10px 0;padding:10px 12px;background:#0f1729;border:1px solid #1e3a5f;border-radius:6px;">
-                        <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">📋 Stock Entry Level</div>
+                        <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">📋 Stock Entry Level</div>
                         <div style="font-size:14px;line-height:1.6;">
                             <div style="color:#10b981;">${entryRule}</div>
                             <div style="color:#f59e0b;font-size:12px;margin-top:4px;">${dontChaseRule}</div>
-                            ${spotAt ? `<div style="color:#94a3b8;font-size:11px;margin-top:6px;">Stock was $${spotAt.toFixed(2)} when signal fired. Look up the option contract in your broker by its OCC symbol above.</div>` : ''}
+                            ${spotAt ? `<div style="color:#64748b;font-size:11px;margin-top:6px;">Stock was $${spotAt.toFixed(2)} when signal fired. Look up the option contract in your broker by its OCC symbol above.</div>` : ''}
                         </div>
                     </div>`;
                 })()}
@@ -722,7 +722,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         : `wait for stock to retest <strong>$${zoneLow.toFixed(2)} – $${zoneHigh.toFixed(2)}</strong> zone`;
                     return `
                     <div class="order-ticket" style="margin:10px 0;padding:8px 12px;background:#0f1729;border:1px solid #1e3a5f;border-radius:6px;font-size:12px;">
-                        <span style="color:#94a3b8;">📋 Stock entry trigger:</span>
+                        <span style="color:#64748b;">📋 Stock entry trigger:</span>
                         <span style="color:#10b981;margin-left:6px;">${ruleText}</span>
                     </div>`;
                 })()}
@@ -1064,11 +1064,11 @@ document.addEventListener("DOMContentLoaded", () => {
                         <div>
                             <div><span class="signal-direction ${dirCls}">${c.direction}</span>
                                  <span style="background:#475569;color:#fff;padding:2px 6px;border-radius:3px;font-size:10px;">${tierTag}</span>
-                                 <span style="color:#94a3b8;margin-left:6px;font-size:12px;">score ${c.score}</span></div>
+                                 <span style="color:#64748b;margin-left:6px;font-size:12px;">score ${c.score}</span></div>
                             <div style="font-size:12px;color:#64748b;margin-top:4px;">${c.narrative}</div>
                         </div>
                         <div style="text-align:right;min-width:180px;">
-                            <div style="font-size:11px;color:#94a3b8;">triggered at</div>
+                            <div style="font-size:11px;color:#64748b;">triggered at</div>
                             <div style="font-family:monospace;font-size:13px;">${timeStr}</div>
                             ${c.trigger_level ? `<div style="font-size:11px;color:#64748b;">trigger $${c.trigger_level}</div>` : ''}
                         </div>
@@ -1143,7 +1143,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // ---------- MISSED TRADES (preposition CONFIRMED but meta vetoed) ----------
     function fmtPct(x) {
         if (x === null || x === undefined) return '<span style="color:#64748b;">—</span>';
-        const cls = x > 0.005 ? 'color:#10b981;' : x < -0.005 ? 'color:#ef4444;' : 'color:#94a3b8;';
+        const cls = x > 0.005 ? 'color:#10b981;' : x < -0.005 ? 'color:#ef4444;' : 'color:#64748b;';
         return `<span style="${cls}font-weight:600;">${x >= 0 ? '+' : ''}${(x*100).toFixed(2)}%</span>`;
     }
 
@@ -1159,15 +1159,15 @@ document.addEventListener("DOMContentLoaded", () => {
                     <span class="signal-direction ${dirCls}">${m.direction}</span>
                     <span class="signal-status">VETOED ${m.rejection_count}× on ${m.date}</span>
                 </div>
-                <div style="font-size:13px;color:#94a3b8;">spot @ confirm: $${(m.spot_at_confirm || 0).toFixed(2)}</div>
+                <div style="font-size:13px;color:#64748b;">spot @ confirm: $${(m.spot_at_confirm || 0).toFixed(2)}</div>
             </div>
             <div class="card-body" style="padding:12px;">
                 <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px;">
-                    <div><div style="font-size:11px;color:#94a3b8;">+1D</div>${fmtPct(fwd['1D'])}</div>
-                    <div><div style="font-size:11px;color:#94a3b8;">+3D</div>${fmtPct(fwd['3D'])}</div>
-                    <div><div style="font-size:11px;color:#94a3b8;">+5D</div>${fmtPct(fwd['5D'])}</div>
+                    <div><div style="font-size:11px;color:#64748b;">+1D</div>${fmtPct(fwd['1D'])}</div>
+                    <div><div style="font-size:11px;color:#64748b;">+3D</div>${fmtPct(fwd['3D'])}</div>
+                    <div><div style="font-size:11px;color:#64748b;">+5D</div>${fmtPct(fwd['5D'])}</div>
                 </div>
-                <div style="font-size:12px;color:#94a3b8;">Vetoed by: <strong>${reasons.join(', ')}</strong></div>
+                <div style="font-size:12px;color:#64748b;">Vetoed by: <strong>${reasons.join(', ')}</strong></div>
                 <div style="font-size:11px;color:#64748b;margin-top:4px;">${m.last_rejection_logic || ''}</div>
             </div>
         </div>`;
@@ -1236,14 +1236,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 <div>${tag}</div>
                 <div>
                     <div style="font-family:monospace;font-size:13px;font-weight:600;">${p.symbol}</div>
-                    <div style="font-size:11px;color:#94a3b8;margin-top:2px;">qty ${p.qty} · entry $${p.avg_entry_price.toFixed(2)} · now $${p.current_price.toFixed(2)}</div>
+                    <div style="font-size:11px;color:#64748b;margin-top:2px;">qty ${p.qty} · entry $${p.avg_entry_price.toFixed(2)} · now $${p.current_price.toFixed(2)}</div>
                 </div>
                 <div style="text-align:right;">
-                    <div style="font-size:11px;color:#94a3b8;">market value</div>
+                    <div style="font-size:11px;color:#64748b;">market value</div>
                     <div style="font-size:14px;font-weight:600;">$${p.market_value.toLocaleString(undefined,{maximumFractionDigits:0})}</div>
                 </div>
                 <div style="text-align:right;min-width:110px;">
-                    <div style="font-size:11px;color:#94a3b8;">unrealized</div>
+                    <div style="font-size:11px;color:#64748b;">unrealized</div>
                     <div style="font-size:15px;font-weight:700;color:${pnlColor};">${fmtMoney(p.unrealized_pl)}<br><span style="font-size:11px;font-weight:500;">${pnlPct >= 0 ? '+' : ''}${pnlPct}%</span></div>
                 </div>
             </div>
@@ -1272,12 +1272,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 const totalColor = totalPnL >= 0 ? '#10b981' : '#ef4444';
                 summaryEl.innerHTML = `
                     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
-                        <div><div style="font-size:11px;color:#94a3b8;">Account equity</div><strong style="font-size:16px;">$${(account.equity||0).toLocaleString(undefined,{maximumFractionDigits:0})}</strong></div>
-                        <div><div style="font-size:11px;color:#94a3b8;">Cash / Options BP</div><strong style="font-size:16px;">$${(account.options_buying_power||0).toLocaleString(undefined,{maximumFractionDigits:0})}</strong></div>
-                        <div><div style="font-size:11px;color:#94a3b8;">Total unrealized</div><strong style="font-size:16px;color:${totalColor};">${fmtMoney(totalPnL)}</strong></div>
-                        <div><div style="font-size:11px;color:#94a3b8;">Positions</div><strong style="font-size:16px;">${summary.total_positions} <span style="font-size:11px;color:#94a3b8;">(${summary.claude_v4_positions} Claude · ${summary.other_bot_positions} ChatGPT)</span></strong></div>
+                        <div><div style="font-size:11px;color:#64748b;">Account equity</div><strong style="font-size:16px;">$${(account.equity||0).toLocaleString(undefined,{maximumFractionDigits:0})}</strong></div>
+                        <div><div style="font-size:11px;color:#64748b;">Cash / Options BP</div><strong style="font-size:16px;">$${(account.options_buying_power||0).toLocaleString(undefined,{maximumFractionDigits:0})}</strong></div>
+                        <div><div style="font-size:11px;color:#64748b;">Total unrealized</div><strong style="font-size:16px;color:${totalColor};">${fmtMoney(totalPnL)}</strong></div>
+                        <div><div style="font-size:11px;color:#64748b;">Positions</div><strong style="font-size:16px;">${summary.total_positions} <span style="font-size:11px;color:#64748b;">(${summary.claude_v4_positions} Claude · ${summary.other_bot_positions} ChatGPT)</span></strong></div>
                     </div>
-                    <div style="margin-top:8px;padding-top:8px;border-top:1px solid #2d3748;font-size:12px;color:#94a3b8;">
+                    <div style="margin-top:8px;padding-top:8px;border-top:1px solid #2d3748;font-size:12px;color:#64748b;">
                         Claude bot P&L: <strong style="color:${ourPnL>=0?'#10b981':'#ef4444'};">${fmtMoney(ourPnL)}</strong> ·
                         ChatGPT bot P&L: <strong style="color:${otherPnL>=0?'#10b981':'#ef4444'};">${fmtMoney(otherPnL)}</strong>
                     </div>
@@ -1320,15 +1320,15 @@ document.addEventListener("DOMContentLoaded", () => {
             </div>
             <div class="card-body" style="padding:10px 0 0 0;">
                 <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:8px;">
-                    <div><div style="font-size:11px;color:#94a3b8;">Entry ref</div><strong style="font-size:14px;">$${entryRef.toFixed(2)}</strong></div>
-                    <div><div style="font-size:11px;color:#94a3b8;">Stop</div><strong style="font-size:14px;color:#ef4444;">$${stop.toFixed(2)} (${riskPct}%)</strong></div>
-                    <div><div style="font-size:11px;color:#94a3b8;">Target</div><strong style="font-size:14px;color:#10b981;">$${target.toFixed(2)} (+${rewardPct}%)</strong></div>
-                    <div><div style="font-size:11px;color:#94a3b8;">R:R</div><strong style="font-size:14px;">${rr}x</strong></div>
+                    <div><div style="font-size:11px;color:#64748b;">Entry ref</div><strong style="font-size:14px;">$${entryRef.toFixed(2)}</strong></div>
+                    <div><div style="font-size:11px;color:#64748b;">Stop</div><strong style="font-size:14px;color:#ef4444;">$${stop.toFixed(2)} (${riskPct}%)</strong></div>
+                    <div><div style="font-size:11px;color:#64748b;">Target</div><strong style="font-size:14px;color:#10b981;">$${target.toFixed(2)} (+${rewardPct}%)</strong></div>
+                    <div><div style="font-size:11px;color:#64748b;">R:R</div><strong style="font-size:14px;">${rr}x</strong></div>
                 </div>
                 <div style="font-size:11px;color:#64748b;">
                     Compression range: $${a.compression_low?.toFixed(2)} – $${a.compression_high?.toFixed(2)}  ·  DTE ${a.suggested_dte_min}-${a.suggested_dte_max}
                 </div>
-                <div style="font-size:12px;color:#94a3b8;margin-top:6px;">${a.narrative || ''}</div>
+                <div style="font-size:12px;color:#64748b;margin-top:6px;">${a.narrative || ''}</div>
             </div>
         </div>`;
     }
@@ -1346,21 +1346,21 @@ document.addEventListener("DOMContentLoaded", () => {
             const unrlColor = (s.avg_open_unrealized_pct ?? 0) >= 0 ? '#10b981' : '#ef4444';
             body.innerHTML = `
                 <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
-                    <div><div style="font-size:11px;color:#94a3b8;">Total scouts</div>
+                    <div><div style="font-size:11px;color:#64748b;">Total scouts</div>
                          <strong style="font-size:18px;">${s.total_scouts || 0}</strong></div>
-                    <div><div style="font-size:11px;color:#94a3b8;">Hit target / Hit stop</div>
+                    <div><div style="font-size:11px;color:#64748b;">Hit target / Hit stop</div>
                          <strong style="font-size:16px;"><span style="color:#10b981;">${s.hit_target || 0}W</span> / <span style="color:#ef4444;">${s.hit_stop || 0}L</span></strong>
-                         <span style="color:#94a3b8;font-size:11px;"> · ${s.open || 0} open</span></div>
-                    <div><div style="font-size:11px;color:#94a3b8;">Resolved win rate</div>
+                         <span style="color:#64748b;font-size:11px;"> · ${s.open || 0} open</span></div>
+                    <div><div style="font-size:11px;color:#64748b;">Resolved win rate</div>
                          <strong style="font-size:18px;color:${wrColor};">${((s.resolved_win_rate || 0) * 100).toFixed(0)}%</strong></div>
-                    <div><div style="font-size:11px;color:#94a3b8;">Paper-traded</div>
+                    <div><div style="font-size:11px;color:#64748b;">Paper-traded</div>
                          <strong style="font-size:16px;">${s.paper_positions_opened || 0}</strong>
-                         <span style="color:#94a3b8;font-size:11px;"> · ${s.paper_open || 0} open · ${s.paper_closed || 0} closed</span></div>
+                         <span style="color:#64748b;font-size:11px;"> · ${s.paper_open || 0} open · ${s.paper_closed || 0} closed</span></div>
                 </div>
-                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:10px;padding-top:10px;border-top:1px solid #2d3748;">
-                    <div><div style="font-size:11px;color:#94a3b8;">Realized option P&L</div>
+                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border-soft);">
+                    <div><div style="font-size:11px;color:#64748b;">Realized option P&L</div>
                          <strong style="font-size:16px;color:${pnlColor};">${s.realized_pnl_usd >= 0 ? '+' : ''}$${Math.abs(s.realized_pnl_usd || 0).toFixed(0)}</strong></div>
-                    <div><div style="font-size:11px;color:#94a3b8;">Avg open unrealized</div>
+                    <div><div style="font-size:11px;color:#64748b;">Avg open unrealized</div>
                          <strong style="font-size:16px;color:${unrlColor};">${(s.avg_open_unrealized_pct || 0) >= 0 ? '+' : ''}${(s.avg_open_unrealized_pct || 0).toFixed(1)}%</strong></div>
                 </div>
                 <div style="margin-top:8px;font-size:11px;color:#64748b;">
