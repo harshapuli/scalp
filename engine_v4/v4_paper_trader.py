@@ -79,12 +79,12 @@ MAX_POSITION_USD = 3000       # raised from 1500 so qty>=2 fits on ~$10-15 premi
 BASE_SIZE_USD = 1000
 MAX_OPTION_SPREAD_PCT = 0.08  # skip illiquid contracts
 
-# ---------- Exposure caps (Phase: portfolio risk control) ----------
-# Hidden-leverage protection. Without these, a 9-position book can be 100% the same
-# AI/tech/crypto narrative — single CPI shock takes the whole book down together.
-MAX_POSITIONS_PER_SECTOR = 2     # e.g., max 2 Tech, 2 Healthcare, etc.
-MAX_POSITIONS_PER_THEME  = 3     # e.g., max 3 AI-adjacent, 3 crypto-adjacent
-MAX_PORTFOLIO_DELTA      = 3.0   # absolute net delta in spy-equivalents (rough cap)
+# ---------- Exposure caps — DISABLED per user directive "take all confirmed trades" ----------
+# Set so high they never bind. Real risk controls remain: spread > 8% reject,
+# earnings halt, max-pain pin filter, dedup per ticker+direction.
+MAX_POSITIONS_PER_SECTOR = 999
+MAX_POSITIONS_PER_THEME  = 999
+MAX_PORTFOLIO_DELTA      = 9999.0
 
 # Theme tagging — coarse manual mapping, expand as needed.
 # A position adds to ALL themes its ticker maps to.
@@ -547,13 +547,19 @@ def process_new_triggers(positions):
         tp2 = tp2_num  # normalize for downstream
 
         # Gamma-wall context — record the underlying levels where dealer hedging flips.
-        # Used by Patrol to manage exits: if underlying breaks the upper gamma wall,
-        # consider trailing stop tighter; if it can't pierce, suggest scale-out.
-        walls = gamma_walls(ticker, spot)
-        gw_upper = walls.get('upper_wall', {}).get('strike') if walls else None
-        gw_lower = walls.get('lower_wall', {}).get('strike') if walls else None
-        if walls.get('upper_wall') or walls.get('lower_wall'):
-            log(f"  gamma walls for {ticker}: upper=${gw_upper}, lower=${gw_lower} (vs spot ${spot:.2f})")
+        # Defensive: gamma_walls may return None or keys with None values when UW has no
+        # gamma data for this ticker. Guard every access.
+        try:
+            walls = gamma_walls(ticker, spot) or {}
+            upper_w = walls.get('upper_wall') or {}
+            lower_w = walls.get('lower_wall') or {}
+            gw_upper = upper_w.get('strike') if isinstance(upper_w, dict) else None
+            gw_lower = lower_w.get('strike') if isinstance(lower_w, dict) else None
+            if gw_upper or gw_lower:
+                log(f"  gamma walls for {ticker}: upper=${gw_upper}, lower=${gw_lower} (vs spot ${spot:.2f})")
+        except Exception as e:
+            gw_upper, gw_lower = None, None
+            log(f"  gamma walls lookup failed for {ticker}: {type(e).__name__} — continuing without", "WARN")
 
         # Record position as PENDING_ENTRY
         positions.append({
