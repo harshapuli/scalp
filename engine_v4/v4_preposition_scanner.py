@@ -190,10 +190,20 @@ def score_compression(ticker, ref_date):
 
 
 # ============ SIGNAL 2: PERSISTENT FLOW ============
-def score_persistent_flow(ticker, ref_date):
-    """0-25 points + direction. Net (call_ask - put_ask) premium per day over LOOKBACK_DAYS."""
+def score_persistent_flow(ticker, ref_date, force_direction=None):
+    """0-25 points + direction. Net (call_ask - put_ask) premium per day over LOOKBACK_DAYS.
+
+    force_direction='CALL' → score the call-side even if net is negative
+                  ='PUT'  → score the put-side even if net is positive
+                  None    → auto-pick dominant direction (legacy behavior)
+
+    Used for dual-direction scanning on Tier 1 mega-caps: we evaluate both sides
+    so a mega-cap with persistent CALL flow AND mild PUT interest can produce
+    two candidates if both pass the 200 SMA regime gate (rare but possible —
+    e.g., protection bids into earnings).
+    """
     days = trading_days_back(ref_date, LOOKBACK_DAYS)
-    daily_net = []  # (date, call_ask - put_ask)
+    daily_net = []
     for d in days:
         date_str = d.strftime('%Y-%m-%d')
         j = _uw_get(f"{BASE_URL}/api/stock/{ticker}/flow-per-strike?date={date_str}")
@@ -204,7 +214,7 @@ def score_persistent_flow(ticker, ref_date):
         daily_net.append((date_str, call_ask - put_ask))
 
     if not daily_net:
-        return {"score": 0, "direction": "CALL", "days_with_data": 0,
+        return {"score": 0, "direction": force_direction or "CALL", "days_with_data": 0,
                 "net_call_premium_avg": 0}
 
     bullish_days = sum(1 for _, n in daily_net if n > 5_000_000)
@@ -216,7 +226,8 @@ def score_persistent_flow(ticker, ref_date):
     light_bear = sum(1 for _, n in daily_net if n < -1_000_000)
 
     avg_net = sum(n for _, n in daily_net) / len(daily_net)
-    direction = "CALL" if avg_net >= 0 else "PUT"
+    auto_direction = "CALL" if avg_net >= 0 else "PUT"
+    direction = force_direction if force_direction in ('CALL', 'PUT') else auto_direction
 
     if direction == "CALL":
         if bullish_days >= 4: score = 25
@@ -595,9 +606,16 @@ def scan():
         sector_snapshot = {}
         print(f"sector ETF snapshot unavailable: {type(e).__name__}\n")
 
-    # Build combined scan universe, tagged by source
-    universe = [(t, 1, None) for t in TIER1_WATCHLIST]
-    universe += [(r['ticker'], 2, r.get('tier2_net_premium')) for r in tier2_records]
+    # Build combined scan universe, tagged by source + direction.
+    # Tier 1 mega-caps are scanned in BOTH directions so a META above its 200 SMA
+    # can still produce a PUT candidate if institutions are buying protection and
+    # the setup flips to bearish. Tier 2/3 use auto-picked direction (single pass).
+    # Tuple: (ticker, tier, net_premium, force_direction)
+    universe = []
+    for t in TIER1_WATCHLIST:
+        universe.append((t, 1, None, 'CALL'))
+        universe.append((t, 1, None, 'PUT'))
+    universe += [(r['ticker'], 2, r.get('tier2_net_premium'), None) for r in tier2_records]
     tier1_set = set(TIER1_WATCHLIST)
     t2_set = {r['ticker'] for r in tier2_records}
 
@@ -607,17 +625,18 @@ def scan():
     except Exception as e:
         print(f"  tier 3 fetch failed: {e} — continuing without PUT universe")
         tier3_records = []
-    universe += [(r['ticker'], 3, r.get('tier3_net_premium')) for r in tier3_records]
+    universe += [(r['ticker'], 3, r.get('tier3_net_premium'), None) for r in tier3_records]
     print(f"Tier 3 (dynamic PUT-bias): {len(tier3_records)} tickers — sample: "
           f"{[r['ticker'] for r in tier3_records[:5]]}")
 
     candidates = []
-    for t, tier, t2_prem in universe:
-        print(f"— {t}")
+    for t, tier, t2_prem, force_dir in universe:
+        label = f"{t}-{force_dir}" if force_dir else t
+        print(f"— {label}")
         ref_dt = datetime.combine(ref_date, datetime.min.time())
         try:
             comp = score_compression(t, ref_dt)
-            flow = score_persistent_flow(t, ref_dt)
+            flow = score_persistent_flow(t, ref_dt, force_direction=force_dir)
             dp = score_darkpool(t, ref_dt)
             sector = score_sector_strength(t, ref_dt, spy_5d)
             gex = score_gex_flip(t, ref_dt)
@@ -629,7 +648,7 @@ def scan():
 
         # 200 SMA gate: CALL must be above, PUT must be below. Reject before scoring.
         if not trend.get('pass', True):
-            print(f"  🚫 {t:>5} | skip — {flow.get('direction','?')} but spot ${trend.get('spot')} vs 200 SMA ${trend.get('sma_200')} ({trend.get('regime')})")
+            print(f"  🚫 {t:>5} | skip {flow.get('direction','?')} — spot ${trend.get('spot')} vs 200 SMA ${trend.get('sma_200')} ({trend.get('regime')})")
             continue
 
         direction = flow['direction']
