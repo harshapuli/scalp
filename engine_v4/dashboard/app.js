@@ -342,9 +342,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function renderTierPage(pageKey, candidates, container, navEl, metaEl, emptyMsg) {
-        navEl.innerText = candidates.length;
-        metaEl.innerText = candidates.length;
-        navEl.classList.toggle("has-items", candidates.length > 0);
+        // Guarded — some nav elements were removed (Mega Caps merged into Dynamic)
+        if (navEl) navEl.innerText = candidates.length;
+        if (metaEl) metaEl.innerText = candidates.length;
+        if (navEl) navEl.classList.toggle("has-items", candidates.length > 0);
         updateFilterCounts(pageKey, candidates);
 
         const filter = statusFilters[pageKey] || 'all';
