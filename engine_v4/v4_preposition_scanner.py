@@ -328,8 +328,21 @@ def score_darkpool(ticker, ref_date):
 # ============ SIGNAL 4b: 200 SMA TREND REGIME ============
 # Not a lit signal (doesn't take pts), acts as a hard gate + context flag.
 # Humbled Trader: "only long names above 200 SMA, only short names below."
-def score_trend_regime(ticker, direction, ref_date):
-    """Hard gate: spot vs 200-day SMA. Returns dict with pass/fail + context."""
+def score_trend_regime(ticker, direction, ref_date, flow_score=0):
+    """Gate: spot vs 200-day SMA, with asymmetric logic per direction.
+
+    CALL: requires spot > 200 SMA — don't buy calls into a downtrend.
+    PUT: passes if ANY of:
+         (a) spot < 200 SMA — classic weakness, or
+         (b) spot > 200 SMA × 1.15 — overextended, pullback-ripe, or
+         (c) persistent PUT flow_score >= 15 — institutional hedging signal
+             strong enough to override the regime filter (earnings protection,
+             sector rotation out of a strong name, failed breakout setups).
+
+    Rationale: the original symmetric "PUT needs spot < 200 SMA" rule was
+    backwards from actual trading. Best PUT setups live in STRONG names
+    rolling over (overextension + put-flow), not already-broken names.
+    """
     try:
         df = fetch_alpaca_bars(
             ticker, '1Day',
@@ -340,15 +353,26 @@ def score_trend_regime(ticker, direction, ref_date):
             return {"pass": True, "note": "insufficient history — permissive"}
         sma_200 = float(df['Close'].tail(200).mean())
         spot = float(df['Close'].iloc[-1])
+        pct_vs_sma = (spot - sma_200) / sma_200 * 100
         if direction == 'CALL':
             ok = spot > sma_200
+            gate_reason = 'spot > 200 SMA' if ok else f'below SMA ({pct_vs_sma:+.1f}%)'
         else:
-            ok = spot < sma_200
+            # PUT: three independent pass conditions
+            below_sma = spot < sma_200
+            overextended = pct_vs_sma > 15.0
+            strong_put_flow = flow_score >= 15
+            ok = below_sma or overextended or strong_put_flow
+            if below_sma:        gate_reason = f'spot < 200 SMA ({pct_vs_sma:+.1f}%)'
+            elif overextended:   gate_reason = f'overextended ({pct_vs_sma:+.1f}% above SMA)'
+            elif strong_put_flow: gate_reason = f'strong put flow overrides regime'
+            else:                 gate_reason = f'SMA fail, not overextended, weak flow'
         return {
             "pass": ok,
             "sma_200": round(sma_200, 2), "spot": round(spot, 2),
-            "pct_vs_sma": round((spot - sma_200) / sma_200 * 100, 2),
+            "pct_vs_sma": round(pct_vs_sma, 2),
             "regime": "BULL" if spot > sma_200 else "BEAR",
+            "gate_reason": gate_reason,
         }
     except Exception as e:
         return {"pass": True, "note": f"error: {str(e)[:60]}"}
@@ -641,7 +665,8 @@ def scan():
             sector = score_sector_strength(t, ref_dt, spy_5d)
             gex = score_gex_flip(t, ref_dt)
             skew = score_skew(t, ref_dt)
-            trend = score_trend_regime(t, flow.get('direction', 'CALL'), ref_dt)
+            trend = score_trend_regime(t, flow.get('direction', 'CALL'), ref_dt,
+                                       flow_score=flow.get('score', 0))
         except Exception as e:
             print(f"  ⚠️ scoring failed for {t}: {type(e).__name__}: {str(e)[:100]} — skipping")
             continue

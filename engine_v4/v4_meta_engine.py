@@ -147,27 +147,36 @@ def check_gap_hold(ticker: str, direction: str) -> dict:
 
 
 def check_200sma_regime(ticker: str, direction: str) -> tuple:
-    """Hard gate: CALL only if spot > 200 SMA, PUT only if spot < 200 SMA.
-    Returns (pass, {spot, sma_200, ratio, regime_desc})."""
+    """Asymmetric gate.
+      CALL: spot > 200 SMA (don't buy into downtrend).
+      PUT:  passes on overextension (spot > SMA × 1.15) OR classic weakness
+            (spot < SMA). Best PUT setups are strong names rolling over,
+            not already-broken names.
+    Returns (pass, {spot, sma_200, ratio, regime_desc, pct_vs_sma})."""
     try:
         end = datetime.utcnow()
-        start = end - timedelta(days=400)  # 200 trading days ≈ 280 calendar days; buffer for holidays
+        start = end - timedelta(days=400)
         df = fetch_alpaca_bars(ticker, '1Day', start.strftime('%Y-%m-%dT%H:%M:%SZ'), end.strftime('%Y-%m-%dT%H:%M:%SZ'))
         if df is None or df.empty or len(df) < 200:
-            return (True, {"note": "insufficient history for 200 SMA"})  # permissive: don't block on missing data
+            return (True, {"note": "insufficient history for 200 SMA"})
         sma_200 = float(df['Close'].tail(200).mean())
         spot = float(df['Close'].iloc[-1])
         ratio = spot / sma_200 if sma_200 > 0 else 0
+        pct_vs_sma = (spot - sma_200) / sma_200 * 100 if sma_200 > 0 else 0
         if direction == 'CALL':
-            # Above 200 SMA (even just 1% above) → allowed. Below = macro downtrend, reject.
             regime_ok = spot > sma_200
             regime_desc = "ABOVE_200SMA" if regime_ok else "BELOW_200SMA_FAIL"
         else:  # PUT
-            regime_ok = spot < sma_200
-            regime_desc = "BELOW_200SMA" if regime_ok else "ABOVE_200SMA_FAIL"
+            below_sma = spot < sma_200
+            overextended = pct_vs_sma > 15.0
+            regime_ok = below_sma or overextended
+            if below_sma:       regime_desc = "BELOW_200SMA"
+            elif overextended:  regime_desc = f"OVEREXTENDED_{pct_vs_sma:+.0f}%"
+            else:               regime_desc = "ABOVE_200SMA_NOT_EXTENDED_FAIL"
         return (regime_ok, {
             "sma_200": round(sma_200, 2), "spot": round(spot, 2),
-            "ratio": round(ratio, 3), "regime": regime_desc,
+            "ratio": round(ratio, 3), "pct_vs_sma": round(pct_vs_sma, 2),
+            "regime": regime_desc,
         })
     except Exception as e:
         # On error: permissive (don't block trades if data is briefly unavailable)
