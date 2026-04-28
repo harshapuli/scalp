@@ -15,10 +15,7 @@ Anthropic brand styling: Poppins/Lora, #d97757/#6a9bcc/#788c5d.
 """
 from __future__ import annotations
 
-import json
-import sqlite3
 import sys
-from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -49,62 +46,6 @@ def _e(s) -> str:
 # ──────────────────────────────────────────────────────────────────────────────
 # SVG widgets
 # ──────────────────────────────────────────────────────────────────────────────
-
-
-def _svg_equity_curve(pnls: list[float], width: int = 320, height: int = 80,
-                       color: str = None) -> str:
-    """Inline SVG equity curve (cumulative PnL polyline). Pure float values."""
-    if not pnls:
-        return f'<svg width="{width}" height="{height}"></svg>'
-    cum = []; running = 0.0
-    for p in pnls:
-        running += p
-        cum.append(running)
-    pmin = min(0, min(cum))
-    pmax = max(0, max(cum))
-    span = max(0.001, pmax - pmin)
-
-    pad = 6
-    points = []
-    for i, v in enumerate(cum):
-        x = pad + (i / max(1, len(cum) - 1)) * (width - 2 * pad)
-        y = height - pad - ((v - pmin) / span) * (height - 2 * pad)
-        points.append(f"{x:.1f},{y:.1f}")
-
-    color = color or (BRAND["green"] if cum[-1] >= 0 else BRAND["red"])
-    fill_color = color
-    # Build a closed polygon for fill
-    fill_pts = points + [
-        f"{pad + (width - 2*pad):.1f},{height - pad}",
-        f"{pad}.0,{height - pad}",
-    ]
-    # Zero line
-    if pmin < 0 < pmax:
-        zero_y = height - pad - ((0 - pmin) / span) * (height - 2 * pad)
-    else:
-        zero_y = None
-
-    zero_line = (f'<line x1="{pad}" y1="{zero_y:.1f}" x2="{width - pad}" '
-                  f'y2="{zero_y:.1f}" stroke="{BRAND["mid_gray"]}" '
-                  f'stroke-dasharray="2,2" opacity="0.5"/>'
-                  if zero_y is not None else '')
-
-    return f"""<svg width="{width}" height="{height}" viewBox="0 0 {width} {height}" xmlns="http://www.w3.org/2000/svg">
-  {zero_line}
-  <polygon points="{' '.join(fill_pts)}" fill="{fill_color}" opacity="0.15"/>
-  <polyline points="{' '.join(points)}" fill="none" stroke="{color}" stroke-width="2"/>
-</svg>"""
-
-
-def _svg_horizontal_bar(value: float, max_value: float, color: str,
-                         width: int = 140, height: int = 14) -> str:
-    """A small horizontal bar widget."""
-    pct = (value / max_value) if max_value > 0 else 0
-    bar_w = max(0, min(width, int(width * pct)))
-    return f"""<svg width="{width}" height="{height}" viewBox="0 0 {width} {height}" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="{width}" height="{height-4}" rx="2" fill="{BRAND['light_gray']}"/>
-  <rect x="0" y="2" width="{bar_w}" height="{height-4}" rx="2" fill="{color}"/>
-</svg>"""
 
 
 def _svg_gauge(value: float, danger_at: float, label: str,
@@ -146,118 +87,134 @@ def _header_bar(account: dict, daily_pnl: float, generated: str, mode: str) -> s
 <div class="header-bar">
   <div class="header-left">
     <h1>scalp 2 — trader dashboard</h1>
-    <div class="header-sub">{_e(generated[:19])} · branch <code>dev/harsha/slaudesadvstartegy</code></div>
+    <div class="header-sub">live polling 3s · last reload {_e(generated[:19])}</div>
   </div>
   <div class="header-right">
     <div class="hb-stat"><span class="hb-label">Mode</span><span class="hb-value {('neg' if 'live' in mode.lower() else 'pos')}">{_e(mode.upper())}</span></div>
-    <div class="hb-stat"><span class="hb-label">Equity</span><span class="hb-value">${eq:,.0f}</span></div>
-    <div class="hb-stat"><span class="hb-label">Buying Power</span><span class="hb-value">${bp:,.0f}</span></div>
-    <div class="hb-stat"><span class="hb-label">Today P&L</span><span class="hb-value {pnl_class}">{pnl_sign}${daily_pnl:,.0f}</span></div>
-    <div class="hb-stat"><span class="hb-label">Day Trades</span><span class="hb-value">{dt_count}/3</span></div>
+    <div class="hb-stat"><span class="hb-label">Equity</span><span class="hb-value" data-live="equity">${eq:,.0f}</span></div>
+    <div class="hb-stat"><span class="hb-label">Buying Power</span><span class="hb-value" data-live="bp">${bp:,.0f}</span></div>
+    <div class="hb-stat"><span class="hb-label">Today P&L</span><span class="hb-value {pnl_class}" data-live="pnl">{pnl_sign}${daily_pnl:,.0f}</span></div>
+    <div class="hb-stat"><span class="hb-label">Day Trades</span><span class="hb-value" data-live="daytrade">{dt_count}/3</span></div>
   </div>
 </div>"""
 
 
-def _action_panel(today_decisions: list[dict], universe_rules: dict) -> str:
-    today_trades = [d for d in today_decisions if d.get("decision") == "TRADE"]
-    today_passes = [d for d in today_decisions if d.get("decision") == "PASS"]
+def _can_i_trade_panel(today_decisions: list[dict],
+                         account: dict,
+                         positions: list[dict],
+                         daily_pnl: float,
+                         cfg_caps: dict) -> str:
+    """The dominant element on the page: GO / NO-GO answer.
 
-    if today_trades:
-        first = today_trades[0]
-        cards = []
-        for t in today_trades[:5]:
-            ts = (t.get("timestamp") or "")[11:19]
-            cards.append(f"""
-<div class="action-card">
-  <div class="action-time">{_e(ts)}</div>
-  <div class="action-strategy">{_e(t.get("strategy"))}</div>
-  <div class="action-ticker">{_e(t.get("ticker"))}</div>
-  <div class="action-cta">▶ ACTIVE SIGNAL</div>
-</div>""")
-        return f"""
-<div class="action-panel">
-  <div class="action-header">
-    <h2>Active signals — {len(today_trades)} TRADE(s) today</h2>
-    <span class="badge pos">LIVE</span>
-  </div>
-  <div class="action-cards">{"".join(cards)}</div>
-</div>"""
+    Evaluates account-level risk gates first. If any is blown, the page tells
+    you flat-out NO before listing any signals. If risk is OK, surfaces every
+    today TRADE decision with explicit "TAKE IT" call-to-action.
+    """
+    eq = account.get("equity", 0) or 1
+    daytrade = account.get("daytrade_count", 0) or 0
+    daily_kill_pct = cfg_caps.get("daily_kill_pct", -0.020) * 100
+    weekly_pct = cfg_caps.get("weekly_soft_pct", -0.040) * 100
+    concurrent_max = cfg_caps.get("concurrent_max", 2)
+    pnl_pct = (daily_pnl / eq * 100) if eq > 0 else 0
+    n_open = len(positions)
+
+    # Evaluate gates
+    gates = []
+    # Daily kill
+    if pnl_pct <= daily_kill_pct:
+        gates.append(("FAIL", f"Daily kill hit · {pnl_pct:+.2f}% vs {daily_kill_pct:.1f}%",
+                       "stop trading until tomorrow"))
+    elif pnl_pct <= daily_kill_pct * 0.5:
+        gates.append(("WARN", f"Daily P&L approaching kill · {pnl_pct:+.2f}% (kill at {daily_kill_pct:.1f}%)",
+                       "size down, one more loss = halt"))
     else:
-        s2_uni = (universe_rules.get("s2") or [])[:6]
-        s3_uni = "ALL 37 tickers" if universe_rules.get("s3") is None else "selected"
-        return f"""
-<div class="action-panel quiet">
-  <div class="action-header">
-    <h2>No active signals · waiting for setups</h2>
-    <span class="badge zero">WAIT</span>
+        gates.append(("OK", f"Daily P&L · {pnl_pct:+.2f}% (kill at {daily_kill_pct:.1f}%)", ""))
+
+    # Day trade count
+    if daytrade >= 3:
+        gates.append(("FAIL", f"Day trades · {daytrade}/3 PDT cap reached",
+                       "no more round-trips today"))
+    elif daytrade >= 2:
+        gates.append(("WARN", f"Day trades · {daytrade}/3", "1 left before PDT block"))
+    else:
+        gates.append(("OK", f"Day trades · {daytrade}/3", ""))
+
+    # Concurrent positions (S5 cap is on options spreads — count option positions)
+    n_option_positions = sum(1 for p in positions
+                              if len(p.get("symbol", "")) > 6 and any(c.isdigit() for c in p.get("symbol", "")))
+    if n_option_positions >= concurrent_max:
+        gates.append(("WARN", f"S5 concurrent · {n_option_positions}/{concurrent_max}",
+                       "at cap — close one before opening another"))
+    else:
+        gates.append(("OK", f"S5 concurrent · {n_option_positions}/{concurrent_max}", ""))
+
+    blocked = any(g[0] == "FAIL" for g in gates)
+
+    today_trade_decisions = [d for d in today_decisions if d.get("decision") == "TRADE"]
+    n_trade = len(today_trade_decisions)
+
+    # ─── Top banner: GO / NO-GO ─────────────────────────────────────────────
+    if blocked:
+        banner_class = "banner-blocked"
+        banner_emoji = "⛔"
+        banner_text = "DON'T TRADE"
+        banner_sub = next((g[2] for g in gates if g[0] == "FAIL"), "risk gate hit")
+    elif n_trade > 0:
+        banner_class = "banner-go"
+        banner_emoji = "⚡"
+        banner_text = f"TAKE IT — {n_trade} ACTIVE SIGNAL{'S' if n_trade > 1 else ''}"
+        banner_sub = "see cards below for entry / stop / target"
+    else:
+        banner_class = "banner-wait"
+        banner_emoji = "⏸"
+        banner_text = "WAIT — no signals firing"
+        banner_sub = "daemon is watching; no strategy gates have triggered"
+
+    # ─── Risk gate strip ─────────────────────────────────────────────────────
+    gate_chips = []
+    for status, label, _hint in gates:
+        cls = {"OK": "gate-ok", "WARN": "gate-warn", "FAIL": "gate-fail"}[status]
+        emoji = {"OK": "✓", "WARN": "⚠", "FAIL": "✗"}[status]
+        gate_chips.append(f'<span class="gate-chip {cls}">{emoji} {_e(label)}</span>')
+
+    # ─── Trade-decision cards (one per TRADE row from decision_log) ───────
+    trade_cards_html = ""
+    if today_trade_decisions:
+        cards = []
+        for t in today_trade_decisions[:8]:
+            ts = (t.get("timestamp") or "")[11:19]
+            ml_str = (f"{t.get('ml_prob'):.3f}" if t.get('ml_prob') is not None else "—")
+            ev_str = (f"${t.get('expected_value'):,.2f}" if t.get('expected_value') is not None else "—")
+            direction = (t.get("direction") or "").upper()
+            dir_class = "go-long" if direction == "LONG" else "go-short" if direction == "SHORT" else ""
+            cards.append(f"""
+<div class="trade-card {('disabled' if blocked else 'active')}">
+  <div class="tc-head">
+    <span class="tc-ticker">{_e(t.get("ticker", "?"))}</span>
+    <span class="tc-strategy">{_e(t.get("strategy", "?"))}</span>
+    <span class="tc-dir {dir_class}">{_e(direction or "—")}</span>
   </div>
-  <div class="action-body">
-    Daemon is watching for state changes. When a strategy fires, it'll appear here.<br>
-    <span class="muted">S3 universe: {_e(s3_uni)} · S2 universe: {_e(', '.join(s2_uni))} ... · S5: low-frequency, paper-only</span>
+  <div class="tc-meta">
+    <span>{_e(ts)} UTC</span>
+    <span>ML <b>{ml_str}</b></span>
+    <span>EV <b>{ev_str}</b></span>
   </div>
-</div>"""
-
-
-def _strategy_cards(per_strategy: dict, trades: list[dict]) -> str:
-    cards = []
-    for s in ["S2", "S3", "S5"]:
-        m = per_strategy.get(s) or {}
-        n = m.get("n_trades", 0)
-        win_pct = m.get("win_pct", 0)
-        avg_pnl = m.get("avg_pnl_atr", 0)
-        sharpe = m.get("sharpe", 0)
-        max_dd = m.get("max_drawdown_atr", 0)
-
-        if n == 0:
-            verdict = "NO DATA"
-            verdict_class = "zero"
-        elif sharpe > 4 and win_pct > 60:
-            verdict = "STRONG"
-            verdict_class = "pos"
-        elif sharpe > 0:
-            verdict = "OK"
-            verdict_class = "zero"
-        else:
-            verdict = "MUTE"
-            verdict_class = "neg"
-
-        # Equity curve from the trade pnls (in order of timestamp)
-        s_trades = sorted([t for t in trades if t.get("strategy") == s],
-                           key=lambda t: t.get("timestamp_iso") or "")
-        pnls = [t.get("pnl_atr", 0) for t in s_trades]
-        equity_svg = _svg_equity_curve(pnls, width=300, height=70)
-        running = 0; peak = 0; dd_running = 0
-        for p in pnls:
-            running += p; peak = max(peak, running)
-            dd_running = min(dd_running, running - peak)
-
-        win_bar = _svg_horizontal_bar(win_pct, 100, BRAND["green"] if win_pct >= 50 else BRAND["red"], width=110)
-
-        cards.append(f"""
-<div class="strat-card">
-  <div class="strat-header">
-    <span class="strat-name">{_e(s)}</span>
-    <span class="badge {verdict_class}">{verdict}</span>
-  </div>
-  <div class="strat-stats">
-    <div class="strat-stat"><span class="label">Trades</span><span class="value">{n}</span></div>
-    <div class="strat-stat"><span class="label">Win %</span>
-      <span class="value">{win_pct:.1f}%</span>
-      {win_bar}
-    </div>
-    <div class="strat-stat"><span class="label">Avg PnL</span>
-      <span class="value {verdict_class}">{avg_pnl:+.2f} ATR</span></div>
-    <div class="strat-stat"><span class="label">Sharpe (ann)</span>
-      <span class="value {verdict_class}">{sharpe:+.2f}</span></div>
-    <div class="strat-stat"><span class="label">Max DD</span>
-      <span class="value neg">{max_dd:.2f} ATR</span></div>
-  </div>
-  <div class="strat-equity">
-    <div class="strat-equity-label">Cumulative ATR</div>
-    {equity_svg}
-  </div>
+  <div class="tc-cta">{('⛔ BLOCKED — risk gate' if blocked else '⚡ TAKE THIS TRADE')}</div>
 </div>""")
-    return f'<div class="strat-cards-row">{"".join(cards)}</div>'
+        trade_cards_html = f'<div class="trade-cards">{"".join(cards)}</div>'
+
+    return f"""
+<div class="action-panel">
+  <div class="banner {banner_class}">
+    <div class="banner-main">
+      <span class="banner-emoji">{banner_emoji}</span>
+      <span class="banner-text">{banner_text}</span>
+    </div>
+    <div class="banner-sub">{_e(banner_sub)}</div>
+  </div>
+  <div class="gate-strip">{"".join(gate_chips)}</div>
+  {trade_cards_html}
+</div>"""
 
 
 def _live_trades_section(live_trades: list[dict], today_decisions: list[dict]) -> str:
@@ -436,147 +393,6 @@ def _positions_section(positions: list[dict]) -> str:
 </div>"""
 
 
-def _trades_table(trades: list[dict]) -> str:
-    if not trades:
-        return f"""
-<div class="section">
-  <h2>Backtest trades</h2>
-  <div class="note">No backtest trades yet. Run <code>python3 scripts/backtest_all.py</code>.</div>
-</div>"""
-    sorted_trades = sorted(trades, key=lambda t: t.get("timestamp_iso") or "", reverse=True)
-
-    def _row(t):
-        cls = "pos" if t.get("is_win") else "neg"
-        ts = (t.get("timestamp_iso") or "")[:16].replace("T", " ")
-        dirn = t.get("direction", "")
-        return f"""<tr>
-  <td class="small">{_e(ts)}</td>
-  <td>{_e(t.get("strategy"))}</td>
-  <td><b>{_e(t.get("ticker"))}</b></td>
-  <td><span class="dir-{dirn}">{_e(dirn.upper())}</span></td>
-  <td class="num small">${t.get("entry_price", 0):,.2f}</td>
-  <td class="num small">${t.get("target_price", 0):,.2f}</td>
-  <td class="num small">${t.get("stop_price", 0):,.2f}</td>
-  <td class="num small">${t.get("exit_price", 0):,.2f}</td>
-  <td><span class="badge-sm {('pos' if t.get('exit_reason') == 'target' else 'neg')}">{_e(t.get("exit_reason"))}</span></td>
-  <td class="num small">{t.get("bars_to_event")}</td>
-  <td class="num {cls}"><b>{t.get("pnl_atr", 0):+.2f}</b></td>
-</tr>"""
-
-    rows_html = "".join(_row(t) for t in sorted_trades[:100])
-    return f"""
-<div class="section">
-  <h2>Backtest trades · {len(trades)} total · showing latest {min(100, len(trades))}</h2>
-  <p class="muted">Each trade simulated forward 60 bars after signal fire. Stop-first on wide bars (conservative). PnL in ATR units.</p>
-  <table>
-    <thead><tr>
-      <th>UTC</th><th>Strat</th><th>Ticker</th><th>Dir</th>
-      <th class="num">Entry</th><th class="num">Target</th><th class="num">Stop</th>
-      <th class="num">Exit</th><th>Exit</th><th class="num">Bars</th>
-      <th class="num">PnL ATR</th>
-    </tr></thead>
-    <tbody>{rows_html}</tbody>
-  </table>
-</div>"""
-
-
-def _winners_losers(trades: list[dict]) -> str:
-    if not trades:
-        return ""
-    wins = sorted([t for t in trades if t.get("is_win")],
-                   key=lambda t: -t.get("pnl_atr", 0))[:10]
-    losses = sorted([t for t in trades if not t.get("is_win")],
-                     key=lambda t: t.get("pnl_atr", 0))[:10]
-
-    def _row(t, cls):
-        ts = (t.get("timestamp_iso") or "")[:10]
-        dirn = t.get("direction", "")
-        return f"""<tr>
-  <td class="small">{_e(ts)}</td>
-  <td>{_e(t.get("strategy"))}</td>
-  <td><b>{_e(t.get("ticker"))}</b></td>
-  <td><span class="dir-{dirn}">{_e(dirn.upper())}</span></td>
-  <td class="num small">${t.get("entry_price", 0):,.2f} → ${t.get("exit_price", 0):,.2f}</td>
-  <td class="num {cls}"><b>{t.get("pnl_atr", 0):+.2f}</b></td>
-</tr>"""
-
-    wins_html = "".join(_row(t, "pos") for t in wins)
-    losses_html = "".join(_row(t, "neg") for t in losses)
-    return f"""
-<div class="section">
-  <h2>Top winners + losers</h2>
-  <div style="display:flex;gap:18px;flex-wrap:wrap">
-    <div style="flex:1;min-width:380px">
-      <h3 class="pos">Top {len(wins)} winners</h3>
-      <table>
-        <thead><tr><th>Date</th><th>Strat</th><th>Ticker</th><th>Dir</th>
-          <th>Trade</th><th class="num">PnL</th></tr></thead>
-        <tbody>{wins_html}</tbody>
-      </table>
-    </div>
-    <div style="flex:1;min-width:380px">
-      <h3 class="neg">Top {len(losses)} losers</h3>
-      <table>
-        <thead><tr><th>Date</th><th>Strat</th><th>Ticker</th><th>Dir</th>
-          <th>Trade</th><th class="num">PnL</th></tr></thead>
-        <tbody>{losses_html}</tbody>
-      </table>
-    </div>
-  </div>
-</div>"""
-
-
-def _per_ticker_leaderboard(per_ticker: dict, trades: list[dict]) -> str:
-    if not per_ticker:
-        return ""
-    leaderboard = []
-    for tk, by_strat in per_ticker.items():
-        total_n = sum(d.get("n", 0) for d in by_strat.values())
-        total_w = sum(d.get("wins", 0) for d in by_strat.values())
-        total_pnl = sum(d.get("pnl", 0.0) for d in by_strat.values())
-        if total_n > 0:
-            leaderboard.append({
-                "ticker": tk, "n": total_n,
-                "win_pct": 100 * total_w / total_n,
-                "avg_pnl": total_pnl / total_n,
-                "total_pnl": total_pnl,
-                "by_strat": {s: d for s, d in by_strat.items() if d.get("n", 0) > 0},
-            })
-    leaderboard.sort(key=lambda r: -r["total_pnl"])
-
-    rows = []
-    max_pnl = max((abs(r["total_pnl"]) for r in leaderboard), default=1)
-    for r in leaderboard:
-        cls = "pos" if r["total_pnl"] >= 0 else "neg"
-        bar = _svg_horizontal_bar(abs(r["total_pnl"]), max_pnl,
-                                    BRAND["green"] if r["total_pnl"] >= 0 else BRAND["red"],
-                                    width=120)
-        strat_str = " · ".join(f"{s}: {d['n']}({100*d['wins']/d['n']:.0f}%)"
-                                 for s, d in r["by_strat"].items())
-        rows.append(f"""<tr>
-  <td><b>{_e(r["ticker"])}</b></td>
-  <td class="num">{r["n"]}</td>
-  <td class="num">{r["win_pct"]:.1f}%</td>
-  <td class="num {cls}">{r["avg_pnl"]:+.2f}</td>
-  <td class="num {cls}"><b>{r["total_pnl"]:+.2f}</b></td>
-  <td>{bar}</td>
-  <td class="small">{_e(strat_str)}</td>
-</tr>""")
-
-    return f"""
-<div class="section">
-  <h2>Per-ticker leaderboard ({len(leaderboard)} tickers ranked by cumulative ATR)</h2>
-  <table>
-    <thead><tr>
-      <th>Ticker</th><th class="num">Trades</th><th class="num">Win %</th>
-      <th class="num">Avg PnL</th><th class="num">Total PnL</th>
-      <th>Magnitude</th><th>Per-strategy</th>
-    </tr></thead>
-    <tbody>{"".join(rows)}</tbody>
-  </table>
-</div>"""
-
-
 def _risk_gauges(account: dict, daily_pnl: float, n_open: int, cfg_caps: dict) -> str:
     eq = account.get("equity", 1)
     daily_pnl_pct = (daily_pnl / eq * 100) if eq > 0 else 0
@@ -611,14 +427,9 @@ def _risk_gauges(account: dict, daily_pnl: float, n_open: int, cfg_caps: dict) -
 
 
 def render_trading_dashboard(ctx: dict) -> str:
-    bt = ctx.get("backtest_summary") or {}
-    per_strategy = bt.get("per_strategy", {})
-    per_ticker = ctx.get("per_ticker_breakdown") or {}
     today_decisions = ctx.get("today_decisions") or []
     positions = ctx.get("alpaca_positions") or []
     account = ctx.get("alpaca_account") or {}
-    universe_rules = ctx.get("universe_rules") or {}
-    trades = ctx.get("backtest_trades") or []
     cfg_caps = ctx.get("cfg_caps") or {}
     mode = ctx.get("trading_mode") or "paper"
     live_trades = ctx.get("live_trades") or []
@@ -664,43 +475,87 @@ def render_trading_dashboard(ctx: dict) -> str:
     .hb-value {{ font-family: 'Poppins', Arial, sans-serif; font-weight: 600;
                  font-size: 16px; color: {BRAND['dark']}; }}
 
-    /* Action panel */
-    .action-panel {{
-      background: white; border: 2px solid {BRAND['orange']}; border-radius: 8px;
-      padding: 16px 20px; margin: 18px 0;
+    /* Action panel — Can I take this trade? */
+    .action-panel {{ margin: 18px 0; }}
+    .banner {{
+      border-radius: 12px; padding: 22px 28px; margin-bottom: 12px;
+      display: flex; flex-direction: column; gap: 4px;
     }}
-    .action-panel.quiet {{ border-color: {BRAND['light_gray']}; background: {BRAND['light_gray']}; }}
-    .action-header {{ display: flex; justify-content: space-between; align-items: center;
-                       margin-bottom: 10px; }}
-    .action-header h2 {{ margin: 0; border-bottom: none; padding: 0; font-size: 16px; }}
-    .action-cards {{ display: flex; gap: 10px; flex-wrap: wrap; }}
-    .action-card {{ background: {BRAND['light']}; border: 1px solid {BRAND['orange']};
-                     padding: 10px 14px; border-radius: 6px; min-width: 140px; }}
-    .action-time {{ font-size: 10px; color: {BRAND['mid_gray']}; }}
-    .action-strategy {{ font-family: 'Poppins', Arial, sans-serif; font-weight: 600;
-                         font-size: 11px; color: {BRAND['mid_gray']}; }}
-    .action-ticker {{ font-family: 'Poppins', Arial, sans-serif; font-weight: 600;
-                       font-size: 18px; color: {BRAND['dark']}; }}
-    .action-cta {{ font-family: 'Poppins', Arial, sans-serif; font-weight: 600;
-                    font-size: 11px; color: {BRAND['orange']}; margin-top: 4px; }}
+    .banner-main {{ display: flex; align-items: center; gap: 12px; }}
+    .banner-emoji {{ font-size: 32px; }}
+    .banner-text {{
+      font-family: 'Poppins', Arial, sans-serif; font-weight: 700;
+      font-size: 26px; letter-spacing: 0.02em;
+    }}
+    .banner-sub {{
+      font-family: 'Poppins', Arial, sans-serif; font-size: 13px;
+      opacity: 0.85;
+    }}
+    .banner-go {{
+      background: linear-gradient(135deg, #788c5d 0%, #3d7c5e 100%);
+      color: white; box-shadow: 0 4px 14px rgba(61,124,94,0.35);
+    }}
+    .banner-blocked {{
+      background: linear-gradient(135deg, #b85436 0%, #8d2920 100%);
+      color: white; box-shadow: 0 4px 14px rgba(176,53,40,0.35);
+    }}
+    .banner-wait {{
+      background: {BRAND['light_gray']}; color: {BRAND['dark']};
+      border: 1px solid {BRAND['mid_gray']};
+    }}
+    .gate-strip {{
+      display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;
+    }}
+    .gate-chip {{
+      font-family: 'Poppins', Arial, sans-serif; font-size: 11px; font-weight: 500;
+      padding: 6px 12px; border-radius: 999px;
+      display: inline-flex; align-items: center; gap: 6px;
+    }}
+    .gate-ok   {{ background: #e7ece0; color: #3d7c5e; border: 1px solid rgba(61,124,94,0.2); }}
+    .gate-warn {{ background: #fef3c7; color: #854d0e; border: 1px solid rgba(161,98,7,0.3); }}
+    .gate-fail {{ background: #f9e0dd; color: #8d2920; border: 1px solid rgba(176,53,40,0.3); }}
 
-    /* Strategy cards */
-    .strat-cards-row {{ display: flex; gap: 14px; margin: 14px 0; flex-wrap: wrap; }}
-    .strat-card {{ background: white; border: 1px solid {BRAND['light_gray']};
-                    border-radius: 8px; padding: 14px 18px; flex: 1; min-width: 320px; }}
-    .strat-header {{ display: flex; justify-content: space-between; align-items: center;
-                      margin-bottom: 10px; }}
-    .strat-name {{ font-family: 'Poppins', Arial, sans-serif; font-weight: 600;
-                    font-size: 17px; color: {BRAND['dark']}; }}
-    .strat-stats {{ display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; margin-bottom: 12px; }}
-    .strat-stat {{ display: flex; flex-direction: column; }}
-    .strat-stat .label {{ font-size: 10px; color: {BRAND['mid_gray']};
-                           text-transform: uppercase; letter-spacing: 0.04em; }}
-    .strat-stat .value {{ font-family: 'Poppins', Arial, sans-serif; font-weight: 600;
-                           font-size: 14px; }}
-    .strat-equity {{ margin-top: 8px; }}
-    .strat-equity-label {{ font-size: 10px; color: {BRAND['mid_gray']};
-                            text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }}
+    .trade-cards {{ display: flex; gap: 10px; flex-wrap: wrap; }}
+    .trade-card {{
+      flex: 1; min-width: 240px;
+      background: white; border: 2px solid {BRAND['orange']};
+      border-radius: 10px; padding: 14px 18px;
+    }}
+    .trade-card.disabled {{
+      border-color: {BRAND['mid_gray']}; opacity: 0.6;
+    }}
+    .tc-head {{ display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }}
+    .tc-ticker {{
+      font-family: 'Poppins', Arial, sans-serif; font-weight: 700;
+      font-size: 22px; color: {BRAND['dark']};
+    }}
+    .tc-strategy {{
+      font-family: 'Poppins', Arial, sans-serif; font-size: 10px; font-weight: 600;
+      letter-spacing: 0.06em; padding: 3px 8px; border-radius: 4px;
+      background: #fceee7; color: #9a3412;
+    }}
+    .tc-dir {{
+      font-family: 'Poppins', Arial, sans-serif; font-size: 10px; font-weight: 700;
+      letter-spacing: 0.06em; padding: 3px 9px; border-radius: 4px;
+      color: white;
+    }}
+    .tc-dir.go-long {{ background: linear-gradient(135deg, #3d7c5e 0%, #4d9b75 100%); }}
+    .tc-dir.go-short {{ background: linear-gradient(135deg, #b03528 0%, #d04638 100%); }}
+    .tc-meta {{
+      display: flex; gap: 14px; font-size: 11px; color: {BRAND['mid_gray']};
+      font-family: 'Poppins', Arial, sans-serif; font-variant-numeric: tabular-nums;
+      margin-bottom: 8px;
+    }}
+    .tc-meta b {{ color: {BRAND['dark']}; font-weight: 600; }}
+    .tc-cta {{
+      font-family: 'Poppins', Arial, sans-serif; font-weight: 700;
+      font-size: 13px; padding: 8px 12px; border-radius: 6px;
+      text-align: center; letter-spacing: 0.04em;
+      background: #fceee7; color: {BRAND['orange']};
+    }}
+    .trade-card.disabled .tc-cta {{
+      background: {BRAND['light_gray']}; color: {BRAND['mid_gray']};
+    }}
 
     /* Tables */
     .section {{ margin: 24px 0; }}
@@ -741,62 +596,296 @@ def render_trading_dashboard(ctx: dict) -> str:
     .note {{ border-left: 4px solid {BRAND['blue']}; background: {BRAND['light_gray']};
               padding: 12px 16px; border-radius: 0 4px 4px 0; font-size: 13px; }}
 
+    /* Polling failure indicator */
+    body.poll-error {{ box-shadow: inset 0 0 0 4px {BRAND['red']}; }}
+    body.poll-error::before {{
+      content: "⚠ live polling stalled — check server"; position: fixed;
+      top: 0; right: 12px; background: {BRAND['red']}; color: white;
+      padding: 4px 12px; font-family: 'Poppins', Arial, sans-serif;
+      font-size: 11px; z-index: 100; border-radius: 0 0 4px 4px;
+    }}
+
     /* Live trades — extra prominent block */
     .live-trades h2 {{ color: {BRAND['orange']}; border-bottom-color: {BRAND['orange']}; }}
     .live-trades h3 {{ font-size: 13px; margin: 14px 0 6px; }}
     .live-trades table {{ box-shadow: 0 1px 3px rgba(20,20,19,0.06); }}
 
-    /* Top nav (matches conviction page) */
-    .topnav {{
-      position: sticky; top: 0; z-index: 20;
-      display: flex; gap: 4px; padding: 10px 14px;
-      background: {BRAND['light']}; border-bottom: 1px solid {BRAND['light_gray']};
-      overflow-x: auto; white-space: nowrap;
-    }}
-    .topnav a {{
-      font-family: 'Poppins', Arial, sans-serif;
-      display: inline-flex; align-items: center; gap: 6px;
-      padding: 8px 14px; font-size: 13px; font-weight: 500;
-      color: {BRAND['mid_gray']}; text-decoration: none;
-      border-radius: 999px; border: 1px solid transparent;
-    }}
-    .topnav a:hover {{ color: {BRAND['dark']}; background: {BRAND['light_gray']}; }}
-    .topnav a.active {{
-      color: {BRAND['dark']}; background: #fceee7;
-      border-color: rgba(217,119,87,0.3);
-    }}
-    .topnav a .sub {{ font-size: 10px; color: {BRAND['mid_gray']}; font-weight: 400; }}
-    .topnav a.active .sub {{ color: {BRAND['orange']}; }}
     """
 
-    topnav = f"""
-<nav class="topnav">
-  <a href="trading_dashboard.html" class="active"><span>📊 Dashboard</span><span class="sub">positions + backtest</span></a>
-  <a href="conviction.html"><span>👁 Conviction</span><span class="sub">tomorrow's plan</span></a>
-</nav>"""
+    # Embed the cfg_caps so the client-side JS can re-evaluate gates.
+    import json as _json
+    caps_json = _json.dumps({
+        "daily_kill_pct": cfg_caps.get("daily_kill_pct", -0.020),
+        "weekly_soft_pct": cfg_caps.get("weekly_soft_pct", -0.040),
+        "concurrent_max": cfg_caps.get("concurrent_max", 2),
+    })
 
     body = f"""
-{topnav}
 {_header_bar(account, daily_pnl, generated, mode)}
 
 <div class="container">
-  {_action_panel(today_decisions, universe_rules)}
+  <div id="action-panel-host">
+    {_can_i_trade_panel(today_decisions, account, positions, daily_pnl, cfg_caps)}
+  </div>
 
-  {_live_trades_section(live_trades, today_decisions)}
+  <div id="live-trades-host">
+    {_live_trades_section(live_trades, today_decisions)}
+  </div>
 
-  <h2>Strategy performance · backtest window {_e(bt.get("window", "—"))}</h2>
-  {_strategy_cards(per_strategy, trades)}
-
-  {_positions_section(positions)}
-
-  {_trades_table(trades)}
-
-  {_winners_losers(trades)}
-
-  {_per_ticker_leaderboard(per_ticker, trades)}
+  <div id="positions-host">
+    {_positions_section(positions)}
+  </div>
 
   {_risk_gauges(account, daily_pnl, len(positions), cfg_caps)}
 </div>
+
+<script>
+  // ── Live polling layer for scalping ────────────────────────────────────
+  // Polls /api/live every 3s. Updates banner state, positions P&L, and live
+  // trades feed without a page reload. The full-page HTML renders only every
+  // 5 min server-side (for structure / signals); the live JSON drives the
+  // numbers that move tick-by-tick.
+  const CFG_CAPS = {caps_json};
+  const LIVE_POLL_MS = 3000;
+
+  function fmtMoney(n) {{
+    if (n == null) return "—";
+    const sign = n >= 0 ? "" : "-";
+    return sign + "$" + Math.abs(n).toLocaleString(undefined, {{minimumFractionDigits: 0, maximumFractionDigits: 0}});
+  }}
+  function fmtPct(n, digits=2) {{
+    if (n == null) return "—";
+    const sign = n >= 0 ? "+" : "";
+    return sign + n.toFixed(digits) + "%";
+  }}
+
+  function classifyGate(label, value, danger) {{
+    // Returns ['OK'|'WARN'|'FAIL', cls, emoji]
+    if (danger < 0) {{
+      if (value <= danger) return ["FAIL", "gate-fail", "✗"];
+      if (value <= danger * 0.5) return ["WARN", "gate-warn", "⚠"];
+      return ["OK", "gate-ok", "✓"];
+    }}
+    if (value >= danger) return ["FAIL", "gate-fail", "✗"];
+    if (value >= danger * 0.66) return ["WARN", "gate-warn", "⚠"];
+    return ["OK", "gate-ok", "✓"];
+  }}
+
+  function isOptionSymbol(sym) {{
+    return sym && sym.length > 6 && /\\d/.test(sym);
+  }}
+
+  function updateBanner(state) {{
+    const acct = state.account || {{}};
+    const positions = state.positions || [];
+    const decisions = state.decisions || [];
+    const eq = acct.equity || 1;
+    const dailyPnl = positions.reduce((s, p) => s + (p.unrealized_pl || 0), 0);
+    const pnlPct = (dailyPnl / eq) * 100;
+    const dt = acct.daytrade_count || 0;
+    const nOptions = positions.filter(p => isOptionSymbol(p.symbol)).length;
+    const tradeDecisions = decisions.filter(d => d.decision === "TRADE");
+
+    const dailyKillPct = (CFG_CAPS.daily_kill_pct || -0.020) * 100;
+    const concurrentMax = CFG_CAPS.concurrent_max || 2;
+
+    const gates = [];
+    const [s1, c1, e1] = classifyGate("Daily P&L", pnlPct, dailyKillPct);
+    gates.push({{status: s1, label: `Daily P&L · ${{pnlPct.toFixed(2)}}% (kill at ${{dailyKillPct.toFixed(1)}}%)`, cls: c1, emoji: e1}});
+    if (dt >= 3)        gates.push({{status: "FAIL", label: `Day trades · ${{dt}}/3 PDT cap reached`, cls: "gate-fail", emoji: "✗"}});
+    else if (dt >= 2)   gates.push({{status: "WARN", label: `Day trades · ${{dt}}/3`, cls: "gate-warn", emoji: "⚠"}});
+    else                gates.push({{status: "OK",   label: `Day trades · ${{dt}}/3`, cls: "gate-ok",   emoji: "✓"}});
+    if (nOptions >= concurrentMax) gates.push({{status: "WARN", label: `S5 concurrent · ${{nOptions}}/${{concurrentMax}}`, cls: "gate-warn", emoji: "⚠"}});
+    else                            gates.push({{status: "OK",   label: `S5 concurrent · ${{nOptions}}/${{concurrentMax}}`, cls: "gate-ok",   emoji: "✓"}});
+
+    const blocked = gates.some(g => g.status === "FAIL");
+    let bannerClass, bannerEmoji, bannerText, bannerSub;
+    if (blocked) {{
+      bannerClass = "banner-blocked"; bannerEmoji = "⛔";
+      bannerText = "DON'T TRADE";
+      bannerSub = "risk gate hit — see below";
+    }} else if (tradeDecisions.length > 0) {{
+      bannerClass = "banner-go"; bannerEmoji = "⚡";
+      bannerText = `TAKE IT — ${{tradeDecisions.length}} ACTIVE SIGNAL${{tradeDecisions.length > 1 ? "S" : ""}}`;
+      bannerSub = "see cards below for entry / stop / target";
+    }} else {{
+      bannerClass = "banner-wait"; bannerEmoji = "⏸";
+      bannerText = "WAIT — no signals firing";
+      bannerSub = "daemon is watching; no strategy gates have triggered";
+    }}
+
+    const tradeCardsHtml = tradeDecisions.slice(0, 8).map(t => {{
+      const ts = (t.timestamp || "").substring(11, 19);
+      const ml = t.ml_prob != null ? Number(t.ml_prob).toFixed(3) : "—";
+      const ev = t.expected_value != null ? "$" + Number(t.expected_value).toFixed(2) : "—";
+      const dir = (t.direction || "").toUpperCase();
+      const dirClass = dir === "LONG" ? "go-long" : dir === "SHORT" ? "go-short" : "";
+      return `<div class="trade-card ${{blocked ? "disabled" : "active"}}">
+        <div class="tc-head">
+          <span class="tc-ticker">${{t.ticker || "?"}}</span>
+          <span class="tc-strategy">${{t.strategy || "?"}}</span>
+          <span class="tc-dir ${{dirClass}}">${{dir || "—"}}</span>
+        </div>
+        <div class="tc-meta"><span>${{ts}} UTC</span><span>ML <b>${{ml}}</b></span><span>EV <b>${{ev}}</b></span></div>
+        <div class="tc-cta">${{blocked ? "⛔ BLOCKED — risk gate" : "⚡ TAKE THIS TRADE"}}</div>
+      </div>`;
+    }}).join("");
+
+    const gatesHtml = gates.map(g =>
+      `<span class="gate-chip ${{g.cls}}">${{g.emoji}} ${{g.label}}</span>`
+    ).join("");
+
+    const html = `<div class="action-panel">
+      <div class="banner ${{bannerClass}}">
+        <div class="banner-main">
+          <span class="banner-emoji">${{bannerEmoji}}</span>
+          <span class="banner-text">${{bannerText}}</span>
+        </div>
+        <div class="banner-sub">${{bannerSub}}</div>
+      </div>
+      <div class="gate-strip">${{gatesHtml}}</div>
+      ${{tradeDecisions.length > 0 ? `<div class="trade-cards">${{tradeCardsHtml}}</div>` : ""}}
+    </div>`;
+    document.getElementById("action-panel-host").innerHTML = html;
+  }}
+
+  function updateHeader(state) {{
+    const acct = state.account || {{}};
+    const positions = state.positions || [];
+    const dailyPnl = positions.reduce((s, p) => s + (p.unrealized_pl || 0), 0);
+    const eqEl = document.querySelector("[data-live=equity]");
+    const bpEl = document.querySelector("[data-live=bp]");
+    const pnlEl = document.querySelector("[data-live=pnl]");
+    const dtEl = document.querySelector("[data-live=daytrade]");
+    if (eqEl) eqEl.textContent = fmtMoney(acct.equity || 0);
+    if (bpEl) bpEl.textContent = fmtMoney(acct.buying_power || 0);
+    if (pnlEl) {{
+      pnlEl.textContent = (dailyPnl >= 0 ? "+" : "") + fmtMoney(dailyPnl).replace("-$", "$");
+      pnlEl.className = "hb-value " + (dailyPnl >= 0 ? "pos" : "neg");
+    }}
+    if (dtEl) dtEl.textContent = (acct.daytrade_count || 0) + "/3";
+  }}
+
+  function updatePositions(state) {{
+    const positions = state.positions || [];
+    const host = document.getElementById("positions-host");
+    if (!positions.length) {{
+      host.innerHTML = "";
+      return;
+    }}
+    const totalPl = positions.reduce((s, p) => s + (p.unrealized_pl || 0), 0);
+    const totalMv = positions.reduce((s, p) => s + Math.abs(p.market_value || 0), 0);
+    const plClass = totalPl >= 0 ? "pos" : "neg";
+
+    const rows = positions.map(p => {{
+      const cls = (p.unrealized_pl || 0) >= 0 ? "pos" : "neg";
+      const plpc = (p.unrealized_plpc || 0) * 100;
+      return `<tr>
+        <td><code>${{p.symbol}}</code></td>
+        <td class="num">${{p.qty}}</td>
+        <td class="num small">$${{Number(p.avg_entry_price || 0).toFixed(2)}}</td>
+        <td class="num small">$${{Number(p.current_price || 0).toFixed(2)}}</td>
+        <td class="num small">${{fmtMoney(p.market_value || 0)}}</td>
+        <td class="num ${{cls}}">${{(p.unrealized_pl >= 0 ? "+" : "")}}${{fmtMoney(p.unrealized_pl || 0).replace("-$", "$")}}</td>
+        <td class="num ${{cls}}">${{fmtPct(plpc, 1)}}</td>
+      </tr>`;
+    }}).join("");
+
+    host.innerHTML = `<div class="section">
+      <h2>Open positions (${{positions.length}}) · ${{fmtMoney(totalMv)}} mkt value · <span class="${{plClass}}">${{(totalPl >= 0 ? "+" : "")}}${{fmtMoney(totalPl).replace("-$", "$")}}</span> unrealized</h2>
+      <table>
+        <thead><tr><th>Symbol</th><th class="num">Qty</th><th class="num">Avg entry</th>
+          <th class="num">Current</th><th class="num">Mkt value</th>
+          <th class="num">Unrealized $</th><th class="num">%</th></tr></thead>
+        <tbody>${{rows}}</tbody>
+      </table>
+    </div>`;
+  }}
+
+  function updateLiveTrades(state) {{
+    const orders = state.live_orders || [];
+    const decisions = state.decisions || [];
+    const tradeDecisions = decisions.filter(d => d.decision === "TRADE");
+    const filled = orders.filter(o => o.status === "filled");
+    const open = orders.filter(o => ["new","accepted","partially_filled","pending_new"].includes(o.status));
+
+    const host = document.getElementById("live-trades-host");
+    if (!filled.length && !open.length && !tradeDecisions.length) {{
+      host.innerHTML = `<div class="section"><h2>Live trades today · 0 fills · 0 open · 0 daemon TRADE</h2><div class="note">No live activity yet. Daemon decisions + Alpaca fills appear here in real time (3s poll).</div></div>`;
+      return;
+    }}
+
+    const decisionsBlock = tradeDecisions.length > 0 ? `
+      <h3 class="pos">Daemon TRADE decisions today (${{tradeDecisions.length}})</h3>
+      <table>
+        <thead><tr><th>UTC</th><th>Strategy</th><th>Ticker</th><th>Decision</th><th class="num">ML</th><th class="num">EV</th></tr></thead>
+        <tbody>${{tradeDecisions.slice(0, 50).map(d => {{
+          const ts = (d.timestamp || "").substring(11, 19);
+          const ml = d.ml_prob != null ? Number(d.ml_prob).toFixed(3) : "—";
+          const ev = d.expected_value != null ? "$" + Number(d.expected_value).toFixed(2) : "—";
+          return `<tr><td class="small">${{ts}}</td><td>${{d.strategy || ""}}</td><td><b>${{d.ticker || ""}}</b></td><td><span class="badge-sm pos">TRADE</span></td><td class="num small">${{ml}}</td><td class="num small">${{ev}}</td></tr>`;
+        }}).join("")}}</tbody>
+      </table>` : "";
+
+    const filledBlock = filled.length > 0 ? `
+      <h3 class="pos">Filled today (${{filled.length}})</h3>
+      <table>
+        <thead><tr><th>UTC</th><th>Symbol</th><th>Side</th><th class="num">Qty</th><th class="num">Avg fill</th><th class="num">Notional</th></tr></thead>
+        <tbody>${{filled.slice(0, 50).map(o => {{
+          const ts = ((o.filled_at || o.submitted_at) || "").substring(11, 19);
+          const side = (o.side || "").toUpperCase();
+          const qty = o.filled_qty || o.qty || 0;
+          const px = Number(o.filled_avg_price || 0);
+          const notional = px * Number(qty);
+          return `<tr><td class="small">${{ts}}</td><td><b>${{o.symbol}}</b></td><td><span class="dir-${{side.toLowerCase()}}">${{side}}</span></td><td class="num">${{qty}}</td><td class="num small">$${{px.toFixed(2)}}</td><td class="num small">${{fmtMoney(notional)}}</td></tr>`;
+        }}).join("")}}</tbody>
+      </table>` : "";
+
+    const openBlock = open.length > 0 ? `
+      <h3>Open orders (${{open.length}})</h3>
+      <table>
+        <thead><tr><th>UTC</th><th>Symbol</th><th>Side</th><th class="num">Qty</th><th class="num">Limit</th><th>Status</th></tr></thead>
+        <tbody>${{open.slice(0, 50).map(o => `<tr>
+          <td class="small">${{((o.submitted_at || o.created_at) || "").substring(11, 19)}}</td>
+          <td><b>${{o.symbol}}</b></td>
+          <td><span class="dir-${{(o.side || "").toLowerCase()}}">${{(o.side || "").toUpperCase()}}</span></td>
+          <td class="num">${{o.qty || 0}}</td>
+          <td class="num small">${{o.limit_price ? "$" + o.limit_price : "—"}}</td>
+          <td><span class="badge-sm zero">${{o.status || ""}}</span></td>
+        </tr>`).join("")}}</tbody>
+      </table>` : "";
+
+    host.innerHTML = `<div class="section live-trades">
+      <h2>Live trades today · ${{filled.length}} filled · ${{open.length}} open · ${{tradeDecisions.length}} daemon TRADE</h2>
+      ${{decisionsBlock}}${{filledBlock}}${{openBlock}}
+    </div>`;
+  }}
+
+  let lastFetchOk = true;
+  async function pollLive() {{
+    try {{
+      const r = await fetch("/api/live", {{ cache: "no-store" }});
+      if (!r.ok) throw new Error("status " + r.status);
+      const state = await r.json();
+      if (state.stale) return;
+      updateHeader(state);
+      updateBanner(state);
+      updatePositions(state);
+      updateLiveTrades(state);
+      // Indicator: clear any error border
+      document.body.classList.remove("poll-error");
+      lastFetchOk = true;
+    }} catch (e) {{
+      if (lastFetchOk) {{
+        console.warn("poll failed:", e);
+      }}
+      document.body.classList.add("poll-error");
+      lastFetchOk = false;
+    }}
+  }}
+  pollLive();
+  setInterval(pollLive, LIVE_POLL_MS);
+</script>
 """
 
     return f"""<!doctype html>
@@ -811,29 +900,3 @@ def render_trading_dashboard(ctx: dict) -> str:
 </html>"""
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Backtest loader (called by scripts/render_trading_dashboard.py)
-# ──────────────────────────────────────────────────────────────────────────────
-
-
-def gather_backtest_summary(bt_path: Path) -> tuple[dict, dict, list]:
-    """Returns (per_strategy_summary, per_ticker_breakdown, raw_trades)."""
-    if not bt_path.exists():
-        return {}, {}, []
-    raw = json.loads(bt_path.read_text())
-    per_strategy = raw.get("per_strategy", {})
-    trades = raw.get("trades", [])
-
-    per_ticker: dict[str, dict[str, dict]] = defaultdict(lambda: defaultdict(
-        lambda: {"n": 0, "wins": 0, "pnl": 0.0}
-    ))
-    for t in trades:
-        d = per_ticker[t["ticker"]][t["strategy"]]
-        d["n"] += 1
-        d["wins"] += int(t["is_win"])
-        d["pnl"] += t["pnl_atr"]
-
-    return {
-        "per_strategy": per_strategy,
-        "window": f'{raw.get("meta",{}).get("start","?")} → {raw.get("meta",{}).get("end","?")}',
-    }, dict(per_ticker), trades

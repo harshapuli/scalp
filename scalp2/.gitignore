@@ -12,6 +12,9 @@ __pycache__/
 *.log
 *.swp
 
+# Dashboard server runtime
+data/dashboard_server.pid
+
 # Override parent: keep our analytical run artifacts
 !data/phase_state/**/*.json
 !data/posterior/**/*.jsonl

@@ -2,6 +2,14 @@
 
   $ python3 scripts/render_trading_dashboard.py
   → output/trading_dashboard.html
+
+This page is LIVE-account focused — no backtest, no conviction, just:
+  · header bar with account stats
+  · banner: "TAKE IT" / "DON'T TRADE" / "WAIT" + risk gates
+  · today's TRADE decisions (decision_log) as cards
+  · live trades section (Alpaca fills + open orders + daemon decisions)
+  · open positions table
+  · risk gauges
 """
 from __future__ import annotations
 
@@ -21,16 +29,6 @@ from infra.secrets import load_secrets
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = PROJECT_ROOT / "output"
 DEFAULT_DB = PROJECT_ROOT / "data" / "dev_journal.db"
-BACKTEST_DIR = PROJECT_ROOT / "data" / "backtest"
-
-
-def _latest_backtest() -> Optional[Path]:
-    if not BACKTEST_DIR.exists():
-        return None
-    runs = sorted(BACKTEST_DIR.glob("run_37tickers_v*_*.json"))
-    if not runs:
-        runs = sorted(BACKTEST_DIR.glob("run_*.json"))
-    return runs[-1] if runs else None
 
 
 def _gather_decisions(db_path: Path = DEFAULT_DB) -> list[dict]:
@@ -117,15 +115,7 @@ def main() -> int:
     load_secrets()
     cfg = load_thresholds()
 
-    print("[render_trading] loading latest backtest...")
-    from journal.trading_dashboard import gather_backtest_summary, render_trading_dashboard
-    bt_path = _latest_backtest()
-    if bt_path is None:
-        print("[render_trading] no backtest run found — run scripts/backtest_all.py first")
-        backtest_summary, per_ticker, backtest_trades = {}, {}, []
-    else:
-        print(f"[render_trading] backtest source: {bt_path.name}")
-        backtest_summary, per_ticker, backtest_trades = gather_backtest_summary(bt_path)
+    from journal.trading_dashboard import render_trading_dashboard
 
     print("[render_trading] gathering today's decisions (decision_log)...")
     decisions = _gather_decisions()
@@ -138,23 +128,14 @@ def main() -> int:
     if not mode:
         mode = "live" if account.get("is_live") else "paper"
 
-    universe_rules = {
-        "s2": cfg.get("s2", {}).get("universe_allowlist") or [],
-        "s3": cfg.get("s3", {}).get("universe_allowlist"),    # None = all allowed
-    }
-
     cfg_caps = cfg.get("s5", {}).get("risk", {}) or {}
 
     ctx = {
         "generated_utc": datetime.now(tz=timezone.utc).isoformat(timespec="seconds") + "Z",
-        "backtest_summary": backtest_summary,
-        "per_ticker_breakdown": per_ticker,
-        "backtest_trades": backtest_trades,
         "today_decisions": decisions,
         "alpaca_account": account,
         "alpaca_positions": positions,
         "live_trades": live_orders,
-        "universe_rules": universe_rules,
         "cfg_caps": cfg_caps,
         "trading_mode": mode,
     }
@@ -166,9 +147,9 @@ def main() -> int:
         datetime.now(tz=timezone.utc).date().isoformat(),
     )
 
+    n_trade_today = sum(1 for d in decisions if d.get("decision") == "TRADE")
     print(f"[render_trading] context summary:")
-    print(f"  · backtest trades:    {len(backtest_trades)}")
-    print(f"  · today's decisions:  {len(decisions)} (decision_log)")
+    print(f"  · today's decisions:  {len(decisions)} (TRADE={n_trade_today})")
     print(f"  · open positions:     {len(positions)}")
     print(f"  · live orders shown:  {len(live_orders)} (session {session_date})")
     print(f"  · trading mode:       {mode}")

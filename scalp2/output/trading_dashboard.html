@@ -40,43 +40,87 @@
     .hb-value { font-family: 'Poppins', Arial, sans-serif; font-weight: 600;
                  font-size: 16px; color: #141413; }
 
-    /* Action panel */
-    .action-panel {
-      background: white; border: 2px solid #d97757; border-radius: 8px;
-      padding: 16px 20px; margin: 18px 0;
+    /* Action panel — Can I take this trade? */
+    .action-panel { margin: 18px 0; }
+    .banner {
+      border-radius: 12px; padding: 22px 28px; margin-bottom: 12px;
+      display: flex; flex-direction: column; gap: 4px;
     }
-    .action-panel.quiet { border-color: #e8e6dc; background: #e8e6dc; }
-    .action-header { display: flex; justify-content: space-between; align-items: center;
-                       margin-bottom: 10px; }
-    .action-header h2 { margin: 0; border-bottom: none; padding: 0; font-size: 16px; }
-    .action-cards { display: flex; gap: 10px; flex-wrap: wrap; }
-    .action-card { background: #faf9f5; border: 1px solid #d97757;
-                     padding: 10px 14px; border-radius: 6px; min-width: 140px; }
-    .action-time { font-size: 10px; color: #b0aea5; }
-    .action-strategy { font-family: 'Poppins', Arial, sans-serif; font-weight: 600;
-                         font-size: 11px; color: #b0aea5; }
-    .action-ticker { font-family: 'Poppins', Arial, sans-serif; font-weight: 600;
-                       font-size: 18px; color: #141413; }
-    .action-cta { font-family: 'Poppins', Arial, sans-serif; font-weight: 600;
-                    font-size: 11px; color: #d97757; margin-top: 4px; }
+    .banner-main { display: flex; align-items: center; gap: 12px; }
+    .banner-emoji { font-size: 32px; }
+    .banner-text {
+      font-family: 'Poppins', Arial, sans-serif; font-weight: 700;
+      font-size: 26px; letter-spacing: 0.02em;
+    }
+    .banner-sub {
+      font-family: 'Poppins', Arial, sans-serif; font-size: 13px;
+      opacity: 0.85;
+    }
+    .banner-go {
+      background: linear-gradient(135deg, #788c5d 0%, #3d7c5e 100%);
+      color: white; box-shadow: 0 4px 14px rgba(61,124,94,0.35);
+    }
+    .banner-blocked {
+      background: linear-gradient(135deg, #b85436 0%, #8d2920 100%);
+      color: white; box-shadow: 0 4px 14px rgba(176,53,40,0.35);
+    }
+    .banner-wait {
+      background: #e8e6dc; color: #141413;
+      border: 1px solid #b0aea5;
+    }
+    .gate-strip {
+      display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;
+    }
+    .gate-chip {
+      font-family: 'Poppins', Arial, sans-serif; font-size: 11px; font-weight: 500;
+      padding: 6px 12px; border-radius: 999px;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .gate-ok   { background: #e7ece0; color: #3d7c5e; border: 1px solid rgba(61,124,94,0.2); }
+    .gate-warn { background: #fef3c7; color: #854d0e; border: 1px solid rgba(161,98,7,0.3); }
+    .gate-fail { background: #f9e0dd; color: #8d2920; border: 1px solid rgba(176,53,40,0.3); }
 
-    /* Strategy cards */
-    .strat-cards-row { display: flex; gap: 14px; margin: 14px 0; flex-wrap: wrap; }
-    .strat-card { background: white; border: 1px solid #e8e6dc;
-                    border-radius: 8px; padding: 14px 18px; flex: 1; min-width: 320px; }
-    .strat-header { display: flex; justify-content: space-between; align-items: center;
-                      margin-bottom: 10px; }
-    .strat-name { font-family: 'Poppins', Arial, sans-serif; font-weight: 600;
-                    font-size: 17px; color: #141413; }
-    .strat-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; margin-bottom: 12px; }
-    .strat-stat { display: flex; flex-direction: column; }
-    .strat-stat .label { font-size: 10px; color: #b0aea5;
-                           text-transform: uppercase; letter-spacing: 0.04em; }
-    .strat-stat .value { font-family: 'Poppins', Arial, sans-serif; font-weight: 600;
-                           font-size: 14px; }
-    .strat-equity { margin-top: 8px; }
-    .strat-equity-label { font-size: 10px; color: #b0aea5;
-                            text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+    .trade-cards { display: flex; gap: 10px; flex-wrap: wrap; }
+    .trade-card {
+      flex: 1; min-width: 240px;
+      background: white; border: 2px solid #d97757;
+      border-radius: 10px; padding: 14px 18px;
+    }
+    .trade-card.disabled {
+      border-color: #b0aea5; opacity: 0.6;
+    }
+    .tc-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+    .tc-ticker {
+      font-family: 'Poppins', Arial, sans-serif; font-weight: 700;
+      font-size: 22px; color: #141413;
+    }
+    .tc-strategy {
+      font-family: 'Poppins', Arial, sans-serif; font-size: 10px; font-weight: 600;
+      letter-spacing: 0.06em; padding: 3px 8px; border-radius: 4px;
+      background: #fceee7; color: #9a3412;
+    }
+    .tc-dir {
+      font-family: 'Poppins', Arial, sans-serif; font-size: 10px; font-weight: 700;
+      letter-spacing: 0.06em; padding: 3px 9px; border-radius: 4px;
+      color: white;
+    }
+    .tc-dir.go-long { background: linear-gradient(135deg, #3d7c5e 0%, #4d9b75 100%); }
+    .tc-dir.go-short { background: linear-gradient(135deg, #b03528 0%, #d04638 100%); }
+    .tc-meta {
+      display: flex; gap: 14px; font-size: 11px; color: #b0aea5;
+      font-family: 'Poppins', Arial, sans-serif; font-variant-numeric: tabular-nums;
+      margin-bottom: 8px;
+    }
+    .tc-meta b { color: #141413; font-weight: 600; }
+    .tc-cta {
+      font-family: 'Poppins', Arial, sans-serif; font-weight: 700;
+      font-size: 13px; padding: 8px 12px; border-radius: 6px;
+      text-align: center; letter-spacing: 0.04em;
+      background: #fceee7; color: #d97757;
+    }
+    .trade-card.disabled .tc-cta {
+      background: #e8e6dc; color: #b0aea5;
+    }
 
     /* Tables */
     .section { margin: 24px 0; }
@@ -117,69 +161,56 @@
     .note { border-left: 4px solid #6a9bcc; background: #e8e6dc;
               padding: 12px 16px; border-radius: 0 4px 4px 0; font-size: 13px; }
 
+    /* Polling failure indicator */
+    body.poll-error { box-shadow: inset 0 0 0 4px #b85436; }
+    body.poll-error::before {
+      content: "⚠ live polling stalled — check server"; position: fixed;
+      top: 0; right: 12px; background: #b85436; color: white;
+      padding: 4px 12px; font-family: 'Poppins', Arial, sans-serif;
+      font-size: 11px; z-index: 100; border-radius: 0 0 4px 4px;
+    }
+
     /* Live trades — extra prominent block */
     .live-trades h2 { color: #d97757; border-bottom-color: #d97757; }
     .live-trades h3 { font-size: 13px; margin: 14px 0 6px; }
     .live-trades table { box-shadow: 0 1px 3px rgba(20,20,19,0.06); }
 
-    /* Top nav (matches conviction page) */
-    .topnav {
-      position: sticky; top: 0; z-index: 20;
-      display: flex; gap: 4px; padding: 10px 14px;
-      background: #faf9f5; border-bottom: 1px solid #e8e6dc;
-      overflow-x: auto; white-space: nowrap;
-    }
-    .topnav a {
-      font-family: 'Poppins', Arial, sans-serif;
-      display: inline-flex; align-items: center; gap: 6px;
-      padding: 8px 14px; font-size: 13px; font-weight: 500;
-      color: #b0aea5; text-decoration: none;
-      border-radius: 999px; border: 1px solid transparent;
-    }
-    .topnav a:hover { color: #141413; background: #e8e6dc; }
-    .topnav a.active {
-      color: #141413; background: #fceee7;
-      border-color: rgba(217,119,87,0.3);
-    }
-    .topnav a .sub { font-size: 10px; color: #b0aea5; font-weight: 400; }
-    .topnav a.active .sub { color: #d97757; }
     </style>
 </head>
 <body>
 
-<nav class="topnav">
-  <a href="trading_dashboard.html" class="active"><span>📊 Dashboard</span><span class="sub">positions + backtest</span></a>
-  <a href="conviction.html"><span>👁 Conviction</span><span class="sub">tomorrow's plan</span></a>
-</nav>
-
 <div class="header-bar">
   <div class="header-left">
     <h1>scalp 2 — trader dashboard</h1>
-    <div class="header-sub">2026-04-28T06:50:52 · branch <code>dev/harsha/slaudesadvstartegy</code></div>
+    <div class="header-sub">live polling 3s · last reload 2026-04-28T07:06:45</div>
   </div>
   <div class="header-right">
     <div class="hb-stat"><span class="hb-label">Mode</span><span class="hb-value pos">PAPER</span></div>
-    <div class="hb-stat"><span class="hb-label">Equity</span><span class="hb-value">$74,867</span></div>
-    <div class="hb-stat"><span class="hb-label">Buying Power</span><span class="hb-value">$319,977</span></div>
-    <div class="hb-stat"><span class="hb-label">Today P&L</span><span class="hb-value neg">$-10,791</span></div>
-    <div class="hb-stat"><span class="hb-label">Day Trades</span><span class="hb-value">395/3</span></div>
+    <div class="hb-stat"><span class="hb-label">Equity</span><span class="hb-value" data-live="equity">$74,867</span></div>
+    <div class="hb-stat"><span class="hb-label">Buying Power</span><span class="hb-value" data-live="bp">$319,977</span></div>
+    <div class="hb-stat"><span class="hb-label">Today P&L</span><span class="hb-value neg" data-live="pnl">$-10,791</span></div>
+    <div class="hb-stat"><span class="hb-label">Day Trades</span><span class="hb-value" data-live="daytrade">395/3</span></div>
   </div>
 </div>
 
 <div class="container">
+  <div id="action-panel-host">
+    
+<div class="action-panel">
+  <div class="banner banner-blocked">
+    <div class="banner-main">
+      <span class="banner-emoji">⛔</span>
+      <span class="banner-text">DON'T TRADE</span>
+    </div>
+    <div class="banner-sub">stop trading until tomorrow</div>
+  </div>
+  <div class="gate-strip"><span class="gate-chip gate-fail">✗ Daily kill hit · -14.41% vs -2.0%</span><span class="gate-chip gate-fail">✗ Day trades · 395/3 PDT cap reached</span><span class="gate-chip gate-warn">⚠ S5 concurrent · 32/2</span></div>
   
-<div class="action-panel quiet">
-  <div class="action-header">
-    <h2>No active signals · waiting for setups</h2>
-    <span class="badge zero">WAIT</span>
-  </div>
-  <div class="action-body">
-    Daemon is watching for state changes. When a strategy fires, it'll appear here.<br>
-    <span class="muted">S3 universe: ALL 37 tickers · S2 universe: SPY, QQQ, IWM, DIA, SOXX, SOXS ... · S5: low-frequency, paper-only</span>
-  </div>
 </div>
+  </div>
 
-  
+  <div id="live-trades-host">
+    
 <div class="section live-trades">
   <h2>Live trades last session · 2026-04-27 · 500 filled · 0 open · 0 daemon TRADE</h2>
   
@@ -646,97 +677,10 @@
   
   
 </div>
+  </div>
 
-  <h2>Strategy performance · backtest window 2026-04-14 → 2026-04-25</h2>
-  <div class="strat-cards-row">
-<div class="strat-card">
-  <div class="strat-header">
-    <span class="strat-name">S2</span>
-    <span class="badge pos">STRONG</span>
-  </div>
-  <div class="strat-stats">
-    <div class="strat-stat"><span class="label">Trades</span><span class="value">10</span></div>
-    <div class="strat-stat"><span class="label">Win %</span>
-      <span class="value">70.0%</span>
-      <svg width="110" height="14" viewBox="0 0 110 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="110" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="77" height="10" rx="2" fill="#788c5d"/>
-</svg>
-    </div>
-    <div class="strat-stat"><span class="label">Avg PnL</span>
-      <span class="value pos">+0.40 ATR</span></div>
-    <div class="strat-stat"><span class="label">Sharpe (ann)</span>
-      <span class="value pos">+6.57</span></div>
-    <div class="strat-stat"><span class="label">Max DD</span>
-      <span class="value neg">-1.00 ATR</span></div>
-  </div>
-  <div class="strat-equity">
-    <div class="strat-equity-label">Cumulative ATR</div>
-    <svg width="300" height="70" viewBox="0 0 300 70" xmlns="http://www.w3.org/2000/svg">
-  <line x1="6" y1="52.4" x2="294" y2="52.4" stroke="#b0aea5" stroke-dasharray="2,2" opacity="0.5"/>
-  <polygon points="6.0,40.8 38.0,29.2 70.0,40.8 102.0,52.4 134.0,64.0 166.0,52.4 198.0,40.8 230.0,29.2 262.0,17.6 294.0,6.0 294.0,64 6.0,64" fill="#788c5d" opacity="0.15"/>
-  <polyline points="6.0,40.8 38.0,29.2 70.0,40.8 102.0,52.4 134.0,64.0 166.0,52.4 198.0,40.8 230.0,29.2 262.0,17.6 294.0,6.0" fill="none" stroke="#788c5d" stroke-width="2"/>
-</svg>
-  </div>
-</div>
-<div class="strat-card">
-  <div class="strat-header">
-    <span class="strat-name">S3</span>
-    <span class="badge pos">STRONG</span>
-  </div>
-  <div class="strat-stats">
-    <div class="strat-stat"><span class="label">Trades</span><span class="value">41</span></div>
-    <div class="strat-stat"><span class="label">Win %</span>
-      <span class="value">63.4%</span>
-      <svg width="110" height="14" viewBox="0 0 110 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="110" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="69" height="10" rx="2" fill="#788c5d"/>
-</svg>
-    </div>
-    <div class="strat-stat"><span class="label">Avg PnL</span>
-      <span class="value pos">+0.27 ATR</span></div>
-    <div class="strat-stat"><span class="label">Sharpe (ann)</span>
-      <span class="value pos">+4.37</span></div>
-    <div class="strat-stat"><span class="label">Max DD</span>
-      <span class="value neg">-4.00 ATR</span></div>
-  </div>
-  <div class="strat-equity">
-    <div class="strat-equity-label">Cumulative ATR</div>
-    <svg width="300" height="70" viewBox="0 0 300 70" xmlns="http://www.w3.org/2000/svg">
-  <line x1="6" y1="59.5" x2="294" y2="59.5" stroke="#b0aea5" stroke-dasharray="2,2" opacity="0.5"/>
-  <polygon points="6.0,55.1 13.2,59.5 20.4,64.0 27.6,59.5 34.8,55.1 42.0,50.6 49.2,46.2 56.4,41.7 63.6,46.2 70.8,41.7 78.0,46.2 85.2,41.7 92.4,37.2 99.6,32.8 106.8,28.3 114.0,23.8 121.2,19.4 128.4,23.8 135.6,28.3 142.8,32.8 150.0,37.2 157.2,41.7 164.4,46.2 171.6,41.7 178.8,37.2 186.0,32.8 193.2,37.2 200.4,32.8 207.6,37.2 214.8,32.8 222.0,28.3 229.2,23.8 236.4,19.4 243.6,14.9 250.8,19.4 258.0,14.9 265.2,10.5 272.4,6.0 279.6,10.5 286.8,6.0 294.0,10.5 294.0,64 6.0,64" fill="#788c5d" opacity="0.15"/>
-  <polyline points="6.0,55.1 13.2,59.5 20.4,64.0 27.6,59.5 34.8,55.1 42.0,50.6 49.2,46.2 56.4,41.7 63.6,46.2 70.8,41.7 78.0,46.2 85.2,41.7 92.4,37.2 99.6,32.8 106.8,28.3 114.0,23.8 121.2,19.4 128.4,23.8 135.6,28.3 142.8,32.8 150.0,37.2 157.2,41.7 164.4,46.2 171.6,41.7 178.8,37.2 186.0,32.8 193.2,37.2 200.4,32.8 207.6,37.2 214.8,32.8 222.0,28.3 229.2,23.8 236.4,19.4 243.6,14.9 250.8,19.4 258.0,14.9 265.2,10.5 272.4,6.0 279.6,10.5 286.8,6.0 294.0,10.5" fill="none" stroke="#788c5d" stroke-width="2"/>
-</svg>
-  </div>
-</div>
-<div class="strat-card">
-  <div class="strat-header">
-    <span class="strat-name">S5</span>
-    <span class="badge zero">NO DATA</span>
-  </div>
-  <div class="strat-stats">
-    <div class="strat-stat"><span class="label">Trades</span><span class="value">0</span></div>
-    <div class="strat-stat"><span class="label">Win %</span>
-      <span class="value">0.0%</span>
-      <svg width="110" height="14" viewBox="0 0 110 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="110" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="0" height="10" rx="2" fill="#b85436"/>
-</svg>
-    </div>
-    <div class="strat-stat"><span class="label">Avg PnL</span>
-      <span class="value zero">+0.00 ATR</span></div>
-    <div class="strat-stat"><span class="label">Sharpe (ann)</span>
-      <span class="value zero">+0.00</span></div>
-    <div class="strat-stat"><span class="label">Max DD</span>
-      <span class="value neg">0.00 ATR</span></div>
-  </div>
-  <div class="strat-equity">
-    <div class="strat-equity-label">Cumulative ATR</div>
-    <svg width="300" height="70"></svg>
-  </div>
-</div></div>
-
-  
+  <div id="positions-host">
+    
 <div class="section">
   <h2>Open positions (32) · $68,382 mkt value · <span class="neg">$-10,791</span> unrealized</h2>
   <table>
@@ -1002,1128 +946,7 @@
 </tr></tbody>
   </table>
 </div>
-
-  
-<div class="section">
-  <h2>Backtest trades · 51 total · showing latest 51</h2>
-  <p class="muted">Each trade simulated forward 60 bars after signal fire. Stop-first on wide bars (conservative). PnL in ATR units.</p>
-  <table>
-    <thead><tr>
-      <th>UTC</th><th>Strat</th><th>Ticker</th><th>Dir</th>
-      <th class="num">Entry</th><th class="num">Target</th><th class="num">Stop</th>
-      <th class="num">Exit</th><th>Exit</th><th class="num">Bars</th>
-      <th class="num">PnL ATR</th>
-    </tr></thead>
-    <tbody><tr>
-  <td class="small">2026-04-24 13:41</td>
-  <td>S3</td>
-  <td><b>SNDK</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$968.58</td>
-  <td class="num small">$974.78</td>
-  <td class="num small">$962.38</td>
-  <td class="num small">$962.38</td>
-  <td><span class="badge-sm neg">stop</span></td>
-  <td class="num small">4</td>
-  <td class="num neg"><b>-1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-24 13:37</td>
-  <td>S3</td>
-  <td><b>CRWV</b></td>
-  <td><span class="dir-short">SHORT</span></td>
-  <td class="num small">$116.20</td>
-  <td class="num small">$115.46</td>
-  <td class="num small">$116.94</td>
-  <td class="num small">$116.94</td>
-  <td><span class="badge-sm neg">stop</span></td>
-  <td class="num small">7</td>
-  <td class="num neg"><b>-1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-24 13:37</td>
-  <td>S3</td>
-  <td><b>MSFT</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$419.87</td>
-  <td class="num small">$420.86</td>
-  <td class="num small">$418.88</td>
-  <td class="num small">$420.86</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">11</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-23 17:43</td>
-  <td>S3</td>
-  <td><b>IWM</b></td>
-  <td><span class="dir-short">SHORT</span></td>
-  <td class="num small">$272.72</td>
-  <td class="num small">$272.36</td>
-  <td class="num small">$273.08</td>
-  <td class="num small">$272.36</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">1</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-23 17:42</td>
-  <td>S3</td>
-  <td><b>CRWV</b></td>
-  <td><span class="dir-short">SHORT</span></td>
-  <td class="num small">$117.18</td>
-  <td class="num small">$116.76</td>
-  <td class="num small">$117.60</td>
-  <td class="num small">$116.76</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">0</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-23 17:42</td>
-  <td>S3</td>
-  <td><b>NVDA</b></td>
-  <td><span class="dir-short">SHORT</span></td>
-  <td class="num small">$198.24</td>
-  <td class="num small">$197.89</td>
-  <td class="num small">$198.59</td>
-  <td class="num small">$197.89</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">2</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-23 13:59</td>
-  <td>S3</td>
-  <td><b>NFLX</b></td>
-  <td><span class="dir-short">SHORT</span></td>
-  <td class="num small">$93.38</td>
-  <td class="num small">$93.22</td>
-  <td class="num small">$93.53</td>
-  <td class="num small">$93.53</td>
-  <td><span class="badge-sm neg">stop</span></td>
-  <td class="num small">4</td>
-  <td class="num neg"><b>-1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-23 13:55</td>
-  <td>S3</td>
-  <td><b>COIN</b></td>
-  <td><span class="dir-short">SHORT</span></td>
-  <td class="num small">$199.30</td>
-  <td class="num small">$198.40</td>
-  <td class="num small">$200.20</td>
-  <td class="num small">$198.40</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">4</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-23 13:55</td>
-  <td>S3</td>
-  <td><b>HOOD</b></td>
-  <td><span class="dir-short">SHORT</span></td>
-  <td class="num small">$86.25</td>
-  <td class="num small">$85.99</td>
-  <td class="num small">$86.51</td>
-  <td class="num small">$85.99</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">2</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-23 13:42</td>
-  <td>S3</td>
-  <td><b>SOXS</b></td>
-  <td><span class="dir-short">SHORT</span></td>
-  <td class="num small">$15.73</td>
-  <td class="num small">$15.61</td>
-  <td class="num small">$15.86</td>
-  <td class="num small">$15.61</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">8</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-23 13:41</td>
-  <td>S3</td>
-  <td><b>SMH</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$484.48</td>
-  <td class="num small">$485.53</td>
-  <td class="num small">$483.43</td>
-  <td class="num small">$485.53</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">9</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-23 13:40</td>
-  <td>S3</td>
-  <td><b>ARM</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$200.76</td>
-  <td class="num small">$202.25</td>
-  <td class="num small">$199.28</td>
-  <td class="num small">$202.25</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">2</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-23 13:38</td>
-  <td>S2</td>
-  <td><b>QQQ</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$654.05</td>
-  <td class="num small">$654.60</td>
-  <td class="num small">$653.50</td>
-  <td class="num small">$654.60</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">1</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-23 13:38</td>
-  <td>S2</td>
-  <td><b>SOXS</b></td>
-  <td><span class="dir-short">SHORT</span></td>
-  <td class="num small">$15.85</td>
-  <td class="num small">$15.73</td>
-  <td class="num small">$15.96</td>
-  <td class="num small">$15.73</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">1</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-23 13:38</td>
-  <td>S2</td>
-  <td><b>SQQQ</b></td>
-  <td><span class="dir-short">SHORT</span></td>
-  <td class="num small">$55.00</td>
-  <td class="num small">$54.86</td>
-  <td class="num small">$55.14</td>
-  <td class="num small">$54.86</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">1</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-23 13:38</td>
-  <td>S2</td>
-  <td><b>TQQQ</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$59.94</td>
-  <td class="num small">$60.08</td>
-  <td class="num small">$59.79</td>
-  <td class="num small">$60.08</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">1</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-22 14:36</td>
-  <td>S3</td>
-  <td><b>XLF</b></td>
-  <td><span class="dir-short">SHORT</span></td>
-  <td class="num small">$52.29</td>
-  <td class="num small">$52.26</td>
-  <td class="num small">$52.32</td>
-  <td class="num small">$52.32</td>
-  <td><span class="badge-sm neg">stop</span></td>
-  <td class="num small">0</td>
-  <td class="num neg"><b>-1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-22 13:41</td>
-  <td>S3</td>
-  <td><b>COIN</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$208.25</td>
-  <td class="num small">$209.73</td>
-  <td class="num small">$206.78</td>
-  <td class="num small">$209.73</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">7</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-22 13:38</td>
-  <td>S2</td>
-  <td><b>SOXX</b></td>
-  <td><span class="dir-short">SHORT</span></td>
-  <td class="num small">$425.72</td>
-  <td class="num small">$424.99</td>
-  <td class="num small">$426.45</td>
-  <td class="num small">$424.99</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">7</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-21 14:11</td>
-  <td>S2</td>
-  <td><b>SQQQ</b></td>
-  <td><span class="dir-short">SHORT</span></td>
-  <td class="num small">$56.11</td>
-  <td class="num small">$56.01</td>
-  <td class="num small">$56.21</td>
-  <td class="num small">$56.21</td>
-  <td><span class="badge-sm neg">stop</span></td>
-  <td class="num small">1</td>
-  <td class="num neg"><b>-1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-21 14:05</td>
-  <td>S2</td>
-  <td><b>SOXS</b></td>
-  <td><span class="dir-short">SHORT</span></td>
-  <td class="num small">$17.90</td>
-  <td class="num small">$17.83</td>
-  <td class="num small">$17.97</td>
-  <td class="num small">$17.97</td>
-  <td><span class="badge-sm neg">stop</span></td>
-  <td class="num small">4</td>
-  <td class="num neg"><b>-1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-21 13:37</td>
-  <td>S3</td>
-  <td><b>XLE</b></td>
-  <td><span class="dir-short">SHORT</span></td>
-  <td class="num small">$55.05</td>
-  <td class="num small">$54.94</td>
-  <td class="num small">$55.16</td>
-  <td class="num small">$55.16</td>
-  <td><span class="badge-sm neg">stop</span></td>
-  <td class="num small">0</td>
-  <td class="num neg"><b>-1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-20 14:02</td>
-  <td>S3</td>
-  <td><b>MU</b></td>
-  <td><span class="dir-short">SHORT</span></td>
-  <td class="num small">$447.68</td>
-  <td class="num small">$446.04</td>
-  <td class="num small">$449.32</td>
-  <td class="num small">$446.04</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">1</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-20 13:41</td>
-  <td>S3</td>
-  <td><b>AMZN</b></td>
-  <td><span class="dir-short">SHORT</span></td>
-  <td class="num small">$247.55</td>
-  <td class="num small">$246.83</td>
-  <td class="num small">$248.27</td>
-  <td class="num small">$246.83</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">7</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-20 13:38</td>
-  <td>S3</td>
-  <td><b>CRWV</b></td>
-  <td><span class="dir-short">SHORT</span></td>
-  <td class="num small">$113.28</td>
-  <td class="num small">$112.30</td>
-  <td class="num small">$114.27</td>
-  <td class="num small">$112.30</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">1</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-20 13:37</td>
-  <td>S3</td>
-  <td><b>AAPL</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$272.92</td>
-  <td class="num small">$273.54</td>
-  <td class="num small">$272.30</td>
-  <td class="num small">$272.30</td>
-  <td><span class="badge-sm neg">stop</span></td>
-  <td class="num small">2</td>
-  <td class="num neg"><b>-1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-20 13:37</td>
-  <td>S3</td>
-  <td><b>CRWD</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$428.42</td>
-  <td class="num small">$430.86</td>
-  <td class="num small">$425.98</td>
-  <td class="num small">$425.98</td>
-  <td><span class="badge-sm neg">stop</span></td>
-  <td class="num small">0</td>
-  <td class="num neg"><b>-1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-20 13:37</td>
-  <td>S3</td>
-  <td><b>PLTR</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$146.59</td>
-  <td class="num small">$147.35</td>
-  <td class="num small">$145.83</td>
-  <td class="num small">$145.83</td>
-  <td><span class="badge-sm neg">stop</span></td>
-  <td class="num small">1</td>
-  <td class="num neg"><b>-1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-20 13:37</td>
-  <td>S2</td>
-  <td><b>XLF</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$52.72</td>
-  <td class="num small">$52.79</td>
-  <td class="num small">$52.64</td>
-  <td class="num small">$52.64</td>
-  <td><span class="badge-sm neg">stop</span></td>
-  <td class="num small">1</td>
-  <td class="num neg"><b>-1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-17 13:59</td>
-  <td>S3</td>
-  <td><b>AAPL</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$268.99</td>
-  <td class="num small">$269.46</td>
-  <td class="num small">$268.51</td>
-  <td class="num small">$268.51</td>
-  <td><span class="badge-sm neg">stop</span></td>
-  <td class="num small">29</td>
-  <td class="num neg"><b>-1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-17 13:42</td>
-  <td>S3</td>
-  <td><b>RDDT</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$168.24</td>
-  <td class="num small">$169.33</td>
-  <td class="num small">$167.16</td>
-  <td class="num small">$167.16</td>
-  <td><span class="badge-sm neg">stop</span></td>
-  <td class="num small">4</td>
-  <td class="num neg"><b>-1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-17 13:37</td>
-  <td>S3</td>
-  <td><b>SPY</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$707.48</td>
-  <td class="num small">$708.06</td>
-  <td class="num small">$706.89</td>
-  <td class="num small">$706.89</td>
-  <td><span class="badge-sm neg">stop</span></td>
-  <td class="num small">2</td>
-  <td class="num neg"><b>-1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-16 13:56</td>
-  <td>S3</td>
-  <td><b>DIA</b></td>
-  <td><span class="dir-short">SHORT</span></td>
-  <td class="num small">$484.38</td>
-  <td class="num small">$484.07</td>
-  <td class="num small">$484.69</td>
-  <td class="num small">$484.07</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">0</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-16 13:51</td>
-  <td>S3</td>
-  <td><b>CRWV</b></td>
-  <td><span class="dir-short">SHORT</span></td>
-  <td class="num small">$116.56</td>
-  <td class="num small">$115.84</td>
-  <td class="num small">$117.27</td>
-  <td class="num small">$115.84</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">1</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-16 13:41</td>
-  <td>S3</td>
-  <td><b>AMZN</b></td>
-  <td><span class="dir-short">SHORT</span></td>
-  <td class="num small">$246.16</td>
-  <td class="num small">$245.43</td>
-  <td class="num small">$246.90</td>
-  <td class="num small">$245.43</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">10</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-15 16:31</td>
-  <td>S3</td>
-  <td><b>SMH</b></td>
-  <td><span class="dir-short">SHORT</span></td>
-  <td class="num small">$448.64</td>
-  <td class="num small">$448.33</td>
-  <td class="num small">$448.95</td>
-  <td class="num small">$448.33</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">0</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-15 13:50</td>
-  <td>S3</td>
-  <td><b>AVGO</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$394.54</td>
-  <td class="num small">$395.95</td>
-  <td class="num small">$393.13</td>
-  <td class="num small">$395.95</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">7</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-15 13:40</td>
-  <td>S3</td>
-  <td><b>ROKU</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$109.41</td>
-  <td class="num small">$109.82</td>
-  <td class="num small">$109.00</td>
-  <td class="num small">$109.00</td>
-  <td><span class="badge-sm neg">stop</span></td>
-  <td class="num small">1</td>
-  <td class="num neg"><b>-1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-15 13:40</td>
-  <td>S3</td>
-  <td><b>SNDK</b></td>
-  <td><span class="dir-short">SHORT</span></td>
-  <td class="num small">$909.34</td>
-  <td class="num small">$902.77</td>
-  <td class="num small">$915.91</td>
-  <td class="num small">$902.77</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">18</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-15 13:38</td>
-  <td>S3</td>
-  <td><b>AAPL</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$260.13</td>
-  <td class="num small">$260.65</td>
-  <td class="num small">$259.61</td>
-  <td class="num small">$259.61</td>
-  <td><span class="badge-sm neg">stop</span></td>
-  <td class="num small">1</td>
-  <td class="num neg"><b>-1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-15 13:38</td>
-  <td>S3</td>
-  <td><b>SHOP</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$121.80</td>
-  <td class="num small">$122.43</td>
-  <td class="num small">$121.17</td>
-  <td class="num small">$122.43</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">8</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-15 13:37</td>
-  <td>S2</td>
-  <td><b>IWM</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$269.28</td>
-  <td class="num small">$269.50</td>
-  <td class="num small">$269.06</td>
-  <td class="num small">$269.50</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">2</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-15 13:37</td>
-  <td>S3</td>
-  <td><b>SPY</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$695.94</td>
-  <td class="num small">$696.24</td>
-  <td class="num small">$695.64</td>
-  <td class="num small">$696.24</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">1</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-14 13:57</td>
-  <td>S3</td>
-  <td><b>ABNB</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$133.03</td>
-  <td class="num small">$133.26</td>
-  <td class="num small">$132.80</td>
-  <td class="num small">$133.26</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">1</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-14 13:41</td>
-  <td>S3</td>
-  <td><b>COIN</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$185.10</td>
-  <td class="num small">$186.32</td>
-  <td class="num small">$183.88</td>
-  <td class="num small">$186.32</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">4</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-14 13:40</td>
-  <td>S3</td>
-  <td><b>DIA</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$483.98</td>
-  <td class="num small">$484.37</td>
-  <td class="num small">$483.59</td>
-  <td class="num small">$484.37</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">0</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-14 13:40</td>
-  <td>S3</td>
-  <td><b>SPY</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$689.16</td>
-  <td class="num small">$689.52</td>
-  <td class="num small">$688.80</td>
-  <td class="num small">$689.52</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">1</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-14 13:39</td>
-  <td>S3</td>
-  <td><b>XLE</b></td>
-  <td><span class="dir-short">SHORT</span></td>
-  <td class="num small">$55.68</td>
-  <td class="num small">$55.50</td>
-  <td class="num small">$55.86</td>
-  <td class="num small">$55.86</td>
-  <td><span class="badge-sm neg">stop</span></td>
-  <td class="num small">1</td>
-  <td class="num neg"><b>-1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-14 13:37</td>
-  <td>S3</td>
-  <td><b>AMZN</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$246.10</td>
-  <td class="num small">$246.86</td>
-  <td class="num small">$245.34</td>
-  <td class="num small">$246.86</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">1</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-14 13:37</td>
-  <td>S3</td>
-  <td><b>MSFT</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$393.50</td>
-  <td class="num small">$394.55</td>
-  <td class="num small">$392.45</td>
-  <td class="num small">$392.45</td>
-  <td><span class="badge-sm neg">stop</span></td>
-  <td class="num small">2</td>
-  <td class="num neg"><b>-1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-14 13:37</td>
-  <td>S2</td>
-  <td><b>SPY</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$689.26</td>
-  <td class="num small">$689.58</td>
-  <td class="num small">$688.95</td>
-  <td class="num small">$689.58</td>
-  <td><span class="badge-sm pos">target</span></td>
-  <td class="num small">4</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr></tbody>
-  </table>
-</div>
-
-  
-<div class="section">
-  <h2>Top winners + losers</h2>
-  <div style="display:flex;gap:18px;flex-wrap:wrap">
-    <div style="flex:1;min-width:380px">
-      <h3 class="pos">Top 10 winners</h3>
-      <table>
-        <thead><tr><th>Date</th><th>Strat</th><th>Ticker</th><th>Dir</th>
-          <th>Trade</th><th class="num">PnL</th></tr></thead>
-        <tbody><tr>
-  <td class="small">2026-04-14</td>
-  <td>S3</td>
-  <td><b>ABNB</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$133.03 → $133.26</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-14</td>
-  <td>S3</td>
-  <td><b>AMZN</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$246.10 → $246.86</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-16</td>
-  <td>S3</td>
-  <td><b>AMZN</b></td>
-  <td><span class="dir-short">SHORT</span></td>
-  <td class="num small">$246.16 → $245.43</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-20</td>
-  <td>S3</td>
-  <td><b>AMZN</b></td>
-  <td><span class="dir-short">SHORT</span></td>
-  <td class="num small">$247.55 → $246.83</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-23</td>
-  <td>S3</td>
-  <td><b>ARM</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$200.76 → $202.25</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-15</td>
-  <td>S3</td>
-  <td><b>AVGO</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$394.54 → $395.95</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-14</td>
-  <td>S3</td>
-  <td><b>COIN</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$185.10 → $186.32</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-22</td>
-  <td>S3</td>
-  <td><b>COIN</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$208.25 → $209.73</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-23</td>
-  <td>S3</td>
-  <td><b>COIN</b></td>
-  <td><span class="dir-short">SHORT</span></td>
-  <td class="num small">$199.30 → $198.40</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-16</td>
-  <td>S3</td>
-  <td><b>CRWV</b></td>
-  <td><span class="dir-short">SHORT</span></td>
-  <td class="num small">$116.56 → $115.84</td>
-  <td class="num pos"><b>+1.00</b></td>
-</tr></tbody>
-      </table>
-    </div>
-    <div style="flex:1;min-width:380px">
-      <h3 class="neg">Top 10 losers</h3>
-      <table>
-        <thead><tr><th>Date</th><th>Strat</th><th>Ticker</th><th>Dir</th>
-          <th>Trade</th><th class="num">PnL</th></tr></thead>
-        <tbody><tr>
-  <td class="small">2026-04-15</td>
-  <td>S3</td>
-  <td><b>AAPL</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$260.13 → $259.61</td>
-  <td class="num neg"><b>-1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-17</td>
-  <td>S3</td>
-  <td><b>AAPL</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$268.99 → $268.51</td>
-  <td class="num neg"><b>-1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-20</td>
-  <td>S3</td>
-  <td><b>AAPL</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$272.92 → $272.30</td>
-  <td class="num neg"><b>-1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-20</td>
-  <td>S3</td>
-  <td><b>CRWD</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$428.42 → $425.98</td>
-  <td class="num neg"><b>-1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-24</td>
-  <td>S3</td>
-  <td><b>CRWV</b></td>
-  <td><span class="dir-short">SHORT</span></td>
-  <td class="num small">$116.20 → $116.94</td>
-  <td class="num neg"><b>-1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-14</td>
-  <td>S3</td>
-  <td><b>MSFT</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$393.50 → $392.45</td>
-  <td class="num neg"><b>-1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-23</td>
-  <td>S3</td>
-  <td><b>NFLX</b></td>
-  <td><span class="dir-short">SHORT</span></td>
-  <td class="num small">$93.38 → $93.53</td>
-  <td class="num neg"><b>-1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-20</td>
-  <td>S3</td>
-  <td><b>PLTR</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$146.59 → $145.83</td>
-  <td class="num neg"><b>-1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-17</td>
-  <td>S3</td>
-  <td><b>RDDT</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$168.24 → $167.16</td>
-  <td class="num neg"><b>-1.00</b></td>
-</tr><tr>
-  <td class="small">2026-04-15</td>
-  <td>S3</td>
-  <td><b>ROKU</b></td>
-  <td><span class="dir-long">LONG</span></td>
-  <td class="num small">$109.41 → $109.00</td>
-  <td class="num neg"><b>-1.00</b></td>
-</tr></tbody>
-      </table>
-    </div>
   </div>
-</div>
-
-  
-<div class="section">
-  <h2>Per-ticker leaderboard (29 tickers ranked by cumulative ATR)</h2>
-  <table>
-    <thead><tr>
-      <th>Ticker</th><th class="num">Trades</th><th class="num">Win %</th>
-      <th class="num">Avg PnL</th><th class="num">Total PnL</th>
-      <th>Magnitude</th><th>Per-strategy</th>
-    </tr></thead>
-    <tbody><tr>
-  <td><b>AMZN</b></td>
-  <td class="num">3</td>
-  <td class="num">100.0%</td>
-  <td class="num pos">+1.00</td>
-  <td class="num pos"><b>+3.00</b></td>
-  <td><svg width="120" height="14" viewBox="0 0 120 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#788c5d"/>
-</svg></td>
-  <td class="small">S3: 3(100%)</td>
-</tr><tr>
-  <td><b>COIN</b></td>
-  <td class="num">3</td>
-  <td class="num">100.0%</td>
-  <td class="num pos">+1.00</td>
-  <td class="num pos"><b>+3.00</b></td>
-  <td><svg width="120" height="14" viewBox="0 0 120 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#788c5d"/>
-</svg></td>
-  <td class="small">S3: 3(100%)</td>
-</tr><tr>
-  <td><b>CRWV</b></td>
-  <td class="num">4</td>
-  <td class="num">75.0%</td>
-  <td class="num pos">+0.50</td>
-  <td class="num pos"><b>+2.00</b></td>
-  <td><svg width="120" height="14" viewBox="0 0 120 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="80" height="10" rx="2" fill="#788c5d"/>
-</svg></td>
-  <td class="small">S3: 4(75%)</td>
-</tr><tr>
-  <td><b>DIA</b></td>
-  <td class="num">2</td>
-  <td class="num">100.0%</td>
-  <td class="num pos">+1.00</td>
-  <td class="num pos"><b>+2.00</b></td>
-  <td><svg width="120" height="14" viewBox="0 0 120 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="80" height="10" rx="2" fill="#788c5d"/>
-</svg></td>
-  <td class="small">S3: 2(100%)</td>
-</tr><tr>
-  <td><b>IWM</b></td>
-  <td class="num">2</td>
-  <td class="num">100.0%</td>
-  <td class="num pos">+1.00</td>
-  <td class="num pos"><b>+2.00</b></td>
-  <td><svg width="120" height="14" viewBox="0 0 120 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="80" height="10" rx="2" fill="#788c5d"/>
-</svg></td>
-  <td class="small">S2: 1(100%) · S3: 1(100%)</td>
-</tr><tr>
-  <td><b>SMH</b></td>
-  <td class="num">2</td>
-  <td class="num">100.0%</td>
-  <td class="num pos">+1.00</td>
-  <td class="num pos"><b>+2.00</b></td>
-  <td><svg width="120" height="14" viewBox="0 0 120 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="80" height="10" rx="2" fill="#788c5d"/>
-</svg></td>
-  <td class="small">S3: 2(100%)</td>
-</tr><tr>
-  <td><b>SPY</b></td>
-  <td class="num">4</td>
-  <td class="num">75.0%</td>
-  <td class="num pos">+0.50</td>
-  <td class="num pos"><b>+2.00</b></td>
-  <td><svg width="120" height="14" viewBox="0 0 120 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="80" height="10" rx="2" fill="#788c5d"/>
-</svg></td>
-  <td class="small">S2: 1(100%) · S3: 3(67%)</td>
-</tr><tr>
-  <td><b>ABNB</b></td>
-  <td class="num">1</td>
-  <td class="num">100.0%</td>
-  <td class="num pos">+1.00</td>
-  <td class="num pos"><b>+1.00</b></td>
-  <td><svg width="120" height="14" viewBox="0 0 120 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="40" height="10" rx="2" fill="#788c5d"/>
-</svg></td>
-  <td class="small">S3: 1(100%)</td>
-</tr><tr>
-  <td><b>ARM</b></td>
-  <td class="num">1</td>
-  <td class="num">100.0%</td>
-  <td class="num pos">+1.00</td>
-  <td class="num pos"><b>+1.00</b></td>
-  <td><svg width="120" height="14" viewBox="0 0 120 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="40" height="10" rx="2" fill="#788c5d"/>
-</svg></td>
-  <td class="small">S3: 1(100%)</td>
-</tr><tr>
-  <td><b>AVGO</b></td>
-  <td class="num">1</td>
-  <td class="num">100.0%</td>
-  <td class="num pos">+1.00</td>
-  <td class="num pos"><b>+1.00</b></td>
-  <td><svg width="120" height="14" viewBox="0 0 120 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="40" height="10" rx="2" fill="#788c5d"/>
-</svg></td>
-  <td class="small">S3: 1(100%)</td>
-</tr><tr>
-  <td><b>HOOD</b></td>
-  <td class="num">1</td>
-  <td class="num">100.0%</td>
-  <td class="num pos">+1.00</td>
-  <td class="num pos"><b>+1.00</b></td>
-  <td><svg width="120" height="14" viewBox="0 0 120 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="40" height="10" rx="2" fill="#788c5d"/>
-</svg></td>
-  <td class="small">S3: 1(100%)</td>
-</tr><tr>
-  <td><b>MU</b></td>
-  <td class="num">1</td>
-  <td class="num">100.0%</td>
-  <td class="num pos">+1.00</td>
-  <td class="num pos"><b>+1.00</b></td>
-  <td><svg width="120" height="14" viewBox="0 0 120 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="40" height="10" rx="2" fill="#788c5d"/>
-</svg></td>
-  <td class="small">S3: 1(100%)</td>
-</tr><tr>
-  <td><b>NVDA</b></td>
-  <td class="num">1</td>
-  <td class="num">100.0%</td>
-  <td class="num pos">+1.00</td>
-  <td class="num pos"><b>+1.00</b></td>
-  <td><svg width="120" height="14" viewBox="0 0 120 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="40" height="10" rx="2" fill="#788c5d"/>
-</svg></td>
-  <td class="small">S3: 1(100%)</td>
-</tr><tr>
-  <td><b>QQQ</b></td>
-  <td class="num">1</td>
-  <td class="num">100.0%</td>
-  <td class="num pos">+1.00</td>
-  <td class="num pos"><b>+1.00</b></td>
-  <td><svg width="120" height="14" viewBox="0 0 120 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="40" height="10" rx="2" fill="#788c5d"/>
-</svg></td>
-  <td class="small">S2: 1(100%)</td>
-</tr><tr>
-  <td><b>SHOP</b></td>
-  <td class="num">1</td>
-  <td class="num">100.0%</td>
-  <td class="num pos">+1.00</td>
-  <td class="num pos"><b>+1.00</b></td>
-  <td><svg width="120" height="14" viewBox="0 0 120 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="40" height="10" rx="2" fill="#788c5d"/>
-</svg></td>
-  <td class="small">S3: 1(100%)</td>
-</tr><tr>
-  <td><b>SOXS</b></td>
-  <td class="num">3</td>
-  <td class="num">66.7%</td>
-  <td class="num pos">+0.33</td>
-  <td class="num pos"><b>+1.00</b></td>
-  <td><svg width="120" height="14" viewBox="0 0 120 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="40" height="10" rx="2" fill="#788c5d"/>
-</svg></td>
-  <td class="small">S2: 2(50%) · S3: 1(100%)</td>
-</tr><tr>
-  <td><b>SOXX</b></td>
-  <td class="num">1</td>
-  <td class="num">100.0%</td>
-  <td class="num pos">+1.00</td>
-  <td class="num pos"><b>+1.00</b></td>
-  <td><svg width="120" height="14" viewBox="0 0 120 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="40" height="10" rx="2" fill="#788c5d"/>
-</svg></td>
-  <td class="small">S2: 1(100%)</td>
-</tr><tr>
-  <td><b>TQQQ</b></td>
-  <td class="num">1</td>
-  <td class="num">100.0%</td>
-  <td class="num pos">+1.00</td>
-  <td class="num pos"><b>+1.00</b></td>
-  <td><svg width="120" height="14" viewBox="0 0 120 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="40" height="10" rx="2" fill="#788c5d"/>
-</svg></td>
-  <td class="small">S2: 1(100%)</td>
-</tr><tr>
-  <td><b>MSFT</b></td>
-  <td class="num">2</td>
-  <td class="num">50.0%</td>
-  <td class="num pos">+0.00</td>
-  <td class="num pos"><b>+0.00</b></td>
-  <td><svg width="120" height="14" viewBox="0 0 120 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="0" height="10" rx="2" fill="#788c5d"/>
-</svg></td>
-  <td class="small">S3: 2(50%)</td>
-</tr><tr>
-  <td><b>SNDK</b></td>
-  <td class="num">2</td>
-  <td class="num">50.0%</td>
-  <td class="num pos">+0.00</td>
-  <td class="num pos"><b>+0.00</b></td>
-  <td><svg width="120" height="14" viewBox="0 0 120 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="0" height="10" rx="2" fill="#788c5d"/>
-</svg></td>
-  <td class="small">S3: 2(50%)</td>
-</tr><tr>
-  <td><b>SQQQ</b></td>
-  <td class="num">2</td>
-  <td class="num">50.0%</td>
-  <td class="num pos">+0.00</td>
-  <td class="num pos"><b>+0.00</b></td>
-  <td><svg width="120" height="14" viewBox="0 0 120 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="0" height="10" rx="2" fill="#788c5d"/>
-</svg></td>
-  <td class="small">S2: 2(50%)</td>
-</tr><tr>
-  <td><b>CRWD</b></td>
-  <td class="num">1</td>
-  <td class="num">0.0%</td>
-  <td class="num neg">-1.00</td>
-  <td class="num neg"><b>-1.00</b></td>
-  <td><svg width="120" height="14" viewBox="0 0 120 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="40" height="10" rx="2" fill="#b85436"/>
-</svg></td>
-  <td class="small">S3: 1(0%)</td>
-</tr><tr>
-  <td><b>NFLX</b></td>
-  <td class="num">1</td>
-  <td class="num">0.0%</td>
-  <td class="num neg">-1.00</td>
-  <td class="num neg"><b>-1.00</b></td>
-  <td><svg width="120" height="14" viewBox="0 0 120 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="40" height="10" rx="2" fill="#b85436"/>
-</svg></td>
-  <td class="small">S3: 1(0%)</td>
-</tr><tr>
-  <td><b>PLTR</b></td>
-  <td class="num">1</td>
-  <td class="num">0.0%</td>
-  <td class="num neg">-1.00</td>
-  <td class="num neg"><b>-1.00</b></td>
-  <td><svg width="120" height="14" viewBox="0 0 120 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="40" height="10" rx="2" fill="#b85436"/>
-</svg></td>
-  <td class="small">S3: 1(0%)</td>
-</tr><tr>
-  <td><b>RDDT</b></td>
-  <td class="num">1</td>
-  <td class="num">0.0%</td>
-  <td class="num neg">-1.00</td>
-  <td class="num neg"><b>-1.00</b></td>
-  <td><svg width="120" height="14" viewBox="0 0 120 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="40" height="10" rx="2" fill="#b85436"/>
-</svg></td>
-  <td class="small">S3: 1(0%)</td>
-</tr><tr>
-  <td><b>ROKU</b></td>
-  <td class="num">1</td>
-  <td class="num">0.0%</td>
-  <td class="num neg">-1.00</td>
-  <td class="num neg"><b>-1.00</b></td>
-  <td><svg width="120" height="14" viewBox="0 0 120 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="40" height="10" rx="2" fill="#b85436"/>
-</svg></td>
-  <td class="small">S3: 1(0%)</td>
-</tr><tr>
-  <td><b>XLE</b></td>
-  <td class="num">2</td>
-  <td class="num">0.0%</td>
-  <td class="num neg">-1.00</td>
-  <td class="num neg"><b>-2.00</b></td>
-  <td><svg width="120" height="14" viewBox="0 0 120 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="80" height="10" rx="2" fill="#b85436"/>
-</svg></td>
-  <td class="small">S3: 2(0%)</td>
-</tr><tr>
-  <td><b>XLF</b></td>
-  <td class="num">2</td>
-  <td class="num">0.0%</td>
-  <td class="num neg">-1.00</td>
-  <td class="num neg"><b>-2.00</b></td>
-  <td><svg width="120" height="14" viewBox="0 0 120 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="80" height="10" rx="2" fill="#b85436"/>
-</svg></td>
-  <td class="small">S2: 1(0%) · S3: 1(0%)</td>
-</tr><tr>
-  <td><b>AAPL</b></td>
-  <td class="num">3</td>
-  <td class="num">0.0%</td>
-  <td class="num neg">-1.00</td>
-  <td class="num neg"><b>-3.00</b></td>
-  <td><svg width="120" height="14" viewBox="0 0 120 14" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#e8e6dc"/>
-  <rect x="0" y="2" width="120" height="10" rx="2" fill="#b85436"/>
-</svg></td>
-  <td class="small">S3: 3(0%)</td>
-</tr></tbody>
-  </table>
-</div>
 
   
 <div class="section">
@@ -2153,5 +976,253 @@
   </div>
 </div>
 </div>
+
+<script>
+  // ── Live polling layer for scalping ────────────────────────────────────
+  // Polls /api/live every 3s. Updates banner state, positions P&L, and live
+  // trades feed without a page reload. The full-page HTML renders only every
+  // 5 min server-side (for structure / signals); the live JSON drives the
+  // numbers that move tick-by-tick.
+  const CFG_CAPS = {"daily_kill_pct": -0.02, "weekly_soft_pct": -0.04, "concurrent_max": 2};
+  const LIVE_POLL_MS = 3000;
+
+  function fmtMoney(n) {
+    if (n == null) return "—";
+    const sign = n >= 0 ? "" : "-";
+    return sign + "$" + Math.abs(n).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0});
+  }
+  function fmtPct(n, digits=2) {
+    if (n == null) return "—";
+    const sign = n >= 0 ? "+" : "";
+    return sign + n.toFixed(digits) + "%";
+  }
+
+  function classifyGate(label, value, danger) {
+    // Returns ['OK'|'WARN'|'FAIL', cls, emoji]
+    if (danger < 0) {
+      if (value <= danger) return ["FAIL", "gate-fail", "✗"];
+      if (value <= danger * 0.5) return ["WARN", "gate-warn", "⚠"];
+      return ["OK", "gate-ok", "✓"];
+    }
+    if (value >= danger) return ["FAIL", "gate-fail", "✗"];
+    if (value >= danger * 0.66) return ["WARN", "gate-warn", "⚠"];
+    return ["OK", "gate-ok", "✓"];
+  }
+
+  function isOptionSymbol(sym) {
+    return sym && sym.length > 6 && /\d/.test(sym);
+  }
+
+  function updateBanner(state) {
+    const acct = state.account || {};
+    const positions = state.positions || [];
+    const decisions = state.decisions || [];
+    const eq = acct.equity || 1;
+    const dailyPnl = positions.reduce((s, p) => s + (p.unrealized_pl || 0), 0);
+    const pnlPct = (dailyPnl / eq) * 100;
+    const dt = acct.daytrade_count || 0;
+    const nOptions = positions.filter(p => isOptionSymbol(p.symbol)).length;
+    const tradeDecisions = decisions.filter(d => d.decision === "TRADE");
+
+    const dailyKillPct = (CFG_CAPS.daily_kill_pct || -0.020) * 100;
+    const concurrentMax = CFG_CAPS.concurrent_max || 2;
+
+    const gates = [];
+    const [s1, c1, e1] = classifyGate("Daily P&L", pnlPct, dailyKillPct);
+    gates.push({status: s1, label: `Daily P&L · ${pnlPct.toFixed(2)}% (kill at ${dailyKillPct.toFixed(1)}%)`, cls: c1, emoji: e1});
+    if (dt >= 3)        gates.push({status: "FAIL", label: `Day trades · ${dt}/3 PDT cap reached`, cls: "gate-fail", emoji: "✗"});
+    else if (dt >= 2)   gates.push({status: "WARN", label: `Day trades · ${dt}/3`, cls: "gate-warn", emoji: "⚠"});
+    else                gates.push({status: "OK",   label: `Day trades · ${dt}/3`, cls: "gate-ok",   emoji: "✓"});
+    if (nOptions >= concurrentMax) gates.push({status: "WARN", label: `S5 concurrent · ${nOptions}/${concurrentMax}`, cls: "gate-warn", emoji: "⚠"});
+    else                            gates.push({status: "OK",   label: `S5 concurrent · ${nOptions}/${concurrentMax}`, cls: "gate-ok",   emoji: "✓"});
+
+    const blocked = gates.some(g => g.status === "FAIL");
+    let bannerClass, bannerEmoji, bannerText, bannerSub;
+    if (blocked) {
+      bannerClass = "banner-blocked"; bannerEmoji = "⛔";
+      bannerText = "DON'T TRADE";
+      bannerSub = "risk gate hit — see below";
+    } else if (tradeDecisions.length > 0) {
+      bannerClass = "banner-go"; bannerEmoji = "⚡";
+      bannerText = `TAKE IT — ${tradeDecisions.length} ACTIVE SIGNAL${tradeDecisions.length > 1 ? "S" : ""}`;
+      bannerSub = "see cards below for entry / stop / target";
+    } else {
+      bannerClass = "banner-wait"; bannerEmoji = "⏸";
+      bannerText = "WAIT — no signals firing";
+      bannerSub = "daemon is watching; no strategy gates have triggered";
+    }
+
+    const tradeCardsHtml = tradeDecisions.slice(0, 8).map(t => {
+      const ts = (t.timestamp || "").substring(11, 19);
+      const ml = t.ml_prob != null ? Number(t.ml_prob).toFixed(3) : "—";
+      const ev = t.expected_value != null ? "$" + Number(t.expected_value).toFixed(2) : "—";
+      const dir = (t.direction || "").toUpperCase();
+      const dirClass = dir === "LONG" ? "go-long" : dir === "SHORT" ? "go-short" : "";
+      return `<div class="trade-card ${blocked ? "disabled" : "active"}">
+        <div class="tc-head">
+          <span class="tc-ticker">${t.ticker || "?"}</span>
+          <span class="tc-strategy">${t.strategy || "?"}</span>
+          <span class="tc-dir ${dirClass}">${dir || "—"}</span>
+        </div>
+        <div class="tc-meta"><span>${ts} UTC</span><span>ML <b>${ml}</b></span><span>EV <b>${ev}</b></span></div>
+        <div class="tc-cta">${blocked ? "⛔ BLOCKED — risk gate" : "⚡ TAKE THIS TRADE"}</div>
+      </div>`;
+    }).join("");
+
+    const gatesHtml = gates.map(g =>
+      `<span class="gate-chip ${g.cls}">${g.emoji} ${g.label}</span>`
+    ).join("");
+
+    const html = `<div class="action-panel">
+      <div class="banner ${bannerClass}">
+        <div class="banner-main">
+          <span class="banner-emoji">${bannerEmoji}</span>
+          <span class="banner-text">${bannerText}</span>
+        </div>
+        <div class="banner-sub">${bannerSub}</div>
+      </div>
+      <div class="gate-strip">${gatesHtml}</div>
+      ${tradeDecisions.length > 0 ? `<div class="trade-cards">${tradeCardsHtml}</div>` : ""}
+    </div>`;
+    document.getElementById("action-panel-host").innerHTML = html;
+  }
+
+  function updateHeader(state) {
+    const acct = state.account || {};
+    const positions = state.positions || [];
+    const dailyPnl = positions.reduce((s, p) => s + (p.unrealized_pl || 0), 0);
+    const eqEl = document.querySelector("[data-live=equity]");
+    const bpEl = document.querySelector("[data-live=bp]");
+    const pnlEl = document.querySelector("[data-live=pnl]");
+    const dtEl = document.querySelector("[data-live=daytrade]");
+    if (eqEl) eqEl.textContent = fmtMoney(acct.equity || 0);
+    if (bpEl) bpEl.textContent = fmtMoney(acct.buying_power || 0);
+    if (pnlEl) {
+      pnlEl.textContent = (dailyPnl >= 0 ? "+" : "") + fmtMoney(dailyPnl).replace("-$", "$");
+      pnlEl.className = "hb-value " + (dailyPnl >= 0 ? "pos" : "neg");
+    }
+    if (dtEl) dtEl.textContent = (acct.daytrade_count || 0) + "/3";
+  }
+
+  function updatePositions(state) {
+    const positions = state.positions || [];
+    const host = document.getElementById("positions-host");
+    if (!positions.length) {
+      host.innerHTML = "";
+      return;
+    }
+    const totalPl = positions.reduce((s, p) => s + (p.unrealized_pl || 0), 0);
+    const totalMv = positions.reduce((s, p) => s + Math.abs(p.market_value || 0), 0);
+    const plClass = totalPl >= 0 ? "pos" : "neg";
+
+    const rows = positions.map(p => {
+      const cls = (p.unrealized_pl || 0) >= 0 ? "pos" : "neg";
+      const plpc = (p.unrealized_plpc || 0) * 100;
+      return `<tr>
+        <td><code>${p.symbol}</code></td>
+        <td class="num">${p.qty}</td>
+        <td class="num small">$${Number(p.avg_entry_price || 0).toFixed(2)}</td>
+        <td class="num small">$${Number(p.current_price || 0).toFixed(2)}</td>
+        <td class="num small">${fmtMoney(p.market_value || 0)}</td>
+        <td class="num ${cls}">${(p.unrealized_pl >= 0 ? "+" : "")}${fmtMoney(p.unrealized_pl || 0).replace("-$", "$")}</td>
+        <td class="num ${cls}">${fmtPct(plpc, 1)}</td>
+      </tr>`;
+    }).join("");
+
+    host.innerHTML = `<div class="section">
+      <h2>Open positions (${positions.length}) · ${fmtMoney(totalMv)} mkt value · <span class="${plClass}">${(totalPl >= 0 ? "+" : "")}${fmtMoney(totalPl).replace("-$", "$")}</span> unrealized</h2>
+      <table>
+        <thead><tr><th>Symbol</th><th class="num">Qty</th><th class="num">Avg entry</th>
+          <th class="num">Current</th><th class="num">Mkt value</th>
+          <th class="num">Unrealized $</th><th class="num">%</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  }
+
+  function updateLiveTrades(state) {
+    const orders = state.live_orders || [];
+    const decisions = state.decisions || [];
+    const tradeDecisions = decisions.filter(d => d.decision === "TRADE");
+    const filled = orders.filter(o => o.status === "filled");
+    const open = orders.filter(o => ["new","accepted","partially_filled","pending_new"].includes(o.status));
+
+    const host = document.getElementById("live-trades-host");
+    if (!filled.length && !open.length && !tradeDecisions.length) {
+      host.innerHTML = `<div class="section"><h2>Live trades today · 0 fills · 0 open · 0 daemon TRADE</h2><div class="note">No live activity yet. Daemon decisions + Alpaca fills appear here in real time (3s poll).</div></div>`;
+      return;
+    }
+
+    const decisionsBlock = tradeDecisions.length > 0 ? `
+      <h3 class="pos">Daemon TRADE decisions today (${tradeDecisions.length})</h3>
+      <table>
+        <thead><tr><th>UTC</th><th>Strategy</th><th>Ticker</th><th>Decision</th><th class="num">ML</th><th class="num">EV</th></tr></thead>
+        <tbody>${tradeDecisions.slice(0, 50).map(d => {
+          const ts = (d.timestamp || "").substring(11, 19);
+          const ml = d.ml_prob != null ? Number(d.ml_prob).toFixed(3) : "—";
+          const ev = d.expected_value != null ? "$" + Number(d.expected_value).toFixed(2) : "—";
+          return `<tr><td class="small">${ts}</td><td>${d.strategy || ""}</td><td><b>${d.ticker || ""}</b></td><td><span class="badge-sm pos">TRADE</span></td><td class="num small">${ml}</td><td class="num small">${ev}</td></tr>`;
+        }).join("")}</tbody>
+      </table>` : "";
+
+    const filledBlock = filled.length > 0 ? `
+      <h3 class="pos">Filled today (${filled.length})</h3>
+      <table>
+        <thead><tr><th>UTC</th><th>Symbol</th><th>Side</th><th class="num">Qty</th><th class="num">Avg fill</th><th class="num">Notional</th></tr></thead>
+        <tbody>${filled.slice(0, 50).map(o => {
+          const ts = ((o.filled_at || o.submitted_at) || "").substring(11, 19);
+          const side = (o.side || "").toUpperCase();
+          const qty = o.filled_qty || o.qty || 0;
+          const px = Number(o.filled_avg_price || 0);
+          const notional = px * Number(qty);
+          return `<tr><td class="small">${ts}</td><td><b>${o.symbol}</b></td><td><span class="dir-${side.toLowerCase()}">${side}</span></td><td class="num">${qty}</td><td class="num small">$${px.toFixed(2)}</td><td class="num small">${fmtMoney(notional)}</td></tr>`;
+        }).join("")}</tbody>
+      </table>` : "";
+
+    const openBlock = open.length > 0 ? `
+      <h3>Open orders (${open.length})</h3>
+      <table>
+        <thead><tr><th>UTC</th><th>Symbol</th><th>Side</th><th class="num">Qty</th><th class="num">Limit</th><th>Status</th></tr></thead>
+        <tbody>${open.slice(0, 50).map(o => `<tr>
+          <td class="small">${((o.submitted_at || o.created_at) || "").substring(11, 19)}</td>
+          <td><b>${o.symbol}</b></td>
+          <td><span class="dir-${(o.side || "").toLowerCase()}">${(o.side || "").toUpperCase()}</span></td>
+          <td class="num">${o.qty || 0}</td>
+          <td class="num small">${o.limit_price ? "$" + o.limit_price : "—"}</td>
+          <td><span class="badge-sm zero">${o.status || ""}</span></td>
+        </tr>`).join("")}</tbody>
+      </table>` : "";
+
+    host.innerHTML = `<div class="section live-trades">
+      <h2>Live trades today · ${filled.length} filled · ${open.length} open · ${tradeDecisions.length} daemon TRADE</h2>
+      ${decisionsBlock}${filledBlock}${openBlock}
+    </div>`;
+  }
+
+  let lastFetchOk = true;
+  async function pollLive() {
+    try {
+      const r = await fetch("/api/live", { cache: "no-store" });
+      if (!r.ok) throw new Error("status " + r.status);
+      const state = await r.json();
+      if (state.stale) return;
+      updateHeader(state);
+      updateBanner(state);
+      updatePositions(state);
+      updateLiveTrades(state);
+      // Indicator: clear any error border
+      document.body.classList.remove("poll-error");
+      lastFetchOk = true;
+    } catch (e) {
+      if (lastFetchOk) {
+        console.warn("poll failed:", e);
+      }
+      document.body.classList.add("poll-error");
+      lastFetchOk = false;
+    }
+  }
+  pollLive();
+  setInterval(pollLive, LIVE_POLL_MS);
+</script>
 </body>
 </html>
