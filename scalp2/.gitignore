@@ -1,0 +1,19 @@
+# scalp2 .gitignore
+# Parent gitignore (gemini/.gitignore) bans *.json globally — override below.
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Misc
+.DS_Store
+*.log
+*.swp
+
+# Override parent: keep our analytical run artifacts
+!data/phase_state/**/*.json
+!data/posterior/**/*.jsonl
+!data/ev_curves/*.json
+!data/kelly_ledger/**/*.jsonl
