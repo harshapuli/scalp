@@ -158,6 +158,12 @@ class PaperTrader:
         self._earnings_cache: dict[str, tuple[bool, float]] = {}
         # Daily relative volume cache (1-min TTL — needs fresh today's vol)
         self._daily_rvol_cache: dict[str, tuple[float, float]] = {}
+        # HTF (higher-timeframe) support/resistance level cache (1-hour TTL)
+        # value = (nearest_distance_atr, fetched_ts)
+        self._htf_cache: dict[str, tuple[float, float]] = {}
+        # ML model — lazy-loaded once at first use, kept in memory
+        self._ml_model = None
+        self._ml_model_loaded = False
         # Today's account snapshot at session start (for daily-kill comparison)
         self._session_start_equity: Optional[float] = None
         self._session_start_date: Optional[str] = None
@@ -384,6 +390,18 @@ class PaperTrader:
         except Exception:
             trades, quotes = [], []
 
+        # Real HTF S/R: nearest daily pivot in ATR units (replaces default 1.0)
+        try:
+            from features.price_structure import atr_from_bars
+            atr_now = atr_from_bars(bars_ohlc, period=14) if len(bars_ohlc) >= 14 else 0.0
+        except Exception:
+            atr_now = 0.0
+        htf_distance_atr = self._compute_htf_distance_atr(
+            alp, ticker, now,
+            current_price=bars_ohlc[-1].c if bars_ohlc else 0.0,
+            atr=atr_now,
+        )
+
         try:
             features = build_features(
                 ticker=ticker, bar_idx=len(bars_ohlc) - 1,
@@ -391,6 +409,7 @@ class PaperTrader:
                 gex_snapshot=gex_snapshot, flow_records=flow_records,
                 iv_percentile=iv_pct,
                 earnings_blackout=earnings_blackout,
+                near_htf_level_atr=htf_distance_atr,
                 timestamp=last_bar_t,
             )
         except Exception:
@@ -403,20 +422,14 @@ class PaperTrader:
             return False
 
         state_changed = (prior is None or prior.name != new_state.name)
-        if state_changed:
-            self._prior_state[ticker] = new_state
-            await self._evaluate_and_maybe_trade(
-                alp, features, new_state, cfg, alp_bars, now,
-            )
-            return True
-        # Re-evaluate every tick (not just on state change) so FORMING cards
-        # get new pass_reason / score updates and S4 re-checks fresh flow.
         self._prior_state[ticker] = new_state
-        if new_state.name != "NEUTRAL":
-            await self._evaluate_and_maybe_trade(
-                alp, features, new_state, cfg, alp_bars, now,
-            )
-        return False
+        # Always evaluate every tick — S1 is calendar-driven (fires regardless
+        # of state); S2-S5 short-circuit if state isn't a trigger state.
+        # Cost: one function call per ticker per minute. Well within budget.
+        await self._evaluate_and_maybe_trade(
+            alp, features, new_state, cfg, alp_bars, now,
+        )
+        return state_changed
 
     def _ensure_session(self, ticker: str, today_str: str) -> dict:
         sd = self._session.get(ticker)
@@ -661,6 +674,67 @@ class PaperTrader:
             self._daily_rvol_cache[cache_key] = (1.0, wall)
             return 1.0
 
+    def _compute_htf_distance_atr(self, alpaca, ticker: str,
+                                      now_utc: datetime,
+                                      current_price: float,
+                                      atr: float) -> float:
+        """Distance to nearest daily-pivot S/R in ATR units. Cached 1 hour.
+        Returns 99.0 if no pivots found or ATR is zero (matches the spec
+        default of 'far from any HTF level' = no constraint)."""
+        import time as _time
+        wall = _time.time()
+        cached = self._htf_cache.get(ticker)
+        if cached and (wall - cached[1]) < 3600:
+            return cached[0]
+        if atr <= 0:
+            return 99.0
+        try:
+            today = now_utc.date()
+            start = (today - timedelta(days=80)).isoformat()
+            end = today.isoformat()
+            bars = alpaca.get_bars(ticker, start=start, end=end,
+                                     timeframe="1Day", limit=80)
+            if len(bars) < 7:
+                self._htf_cache[ticker] = (99.0, wall)
+                return 99.0
+            # 3-bar pivot detection: a high is a pivot if it's the max of
+            # bars[i-1], bars[i], bars[i+1]; same for lows
+            pivots: list[float] = []
+            for i in range(1, len(bars) - 1):
+                if bars[i].h >= bars[i-1].h and bars[i].h >= bars[i+1].h:
+                    pivots.append(bars[i].h)
+                if bars[i].l <= bars[i-1].l and bars[i].l <= bars[i+1].l:
+                    pivots.append(bars[i].l)
+            if not pivots:
+                self._htf_cache[ticker] = (99.0, wall)
+                return 99.0
+            nearest = min(abs(p - current_price) for p in pivots)
+            distance_atr = nearest / atr
+            self._htf_cache[ticker] = (distance_atr, wall)
+            return distance_atr
+        except Exception:
+            self._htf_cache[ticker] = (99.0, wall)
+            return 99.0
+
+    def _load_ml_model(self):
+        """Lazy-load `data/ml_model_s5.pkl` once. Returns None if not present
+        (S5 falls back to rules-only). Kept in memory after first load."""
+        if self._ml_model_loaded:
+            return self._ml_model
+        self._ml_model_loaded = True
+        try:
+            import pickle
+            model_path = PROJECT_ROOT / "data" / "ml_model_s5.pkl"
+            if not model_path.exists():
+                return None
+            with open(model_path, "rb") as f:
+                self._ml_model = pickle.load(f)
+            print(f"[paper_trader] loaded S5 ML model from {model_path.name}")
+            return self._ml_model
+        except Exception as e:
+            print(f"[paper_trader] ML model load failed: {e}")
+            return None
+
     @staticmethod
     def _count_higher_lows(bars: list, n_windows: int = 4,
                               window_size: int = 5) -> int:
@@ -735,13 +809,20 @@ class PaperTrader:
             if day_pl_pct <= daily_kill_pct:
                 return (False, f"daily_kill_hit ({day_pl_pct*100:+.2f}% vs {daily_kill_pct*100:.1f}%)")
 
-        # Concurrent option positions cap (per spec, S5 only — but we apply
-        # to all option-instrument strategies since paper has no other source)
+        # Concurrent option positions cap — applies to S5 (option spreads)
         concurrent_max = risk_cfg.get("concurrent_max", 2)
         n_option_pos = sum(1 for p in positions
                             if len(p.symbol) > 6 and any(c.isdigit() for c in p.symbol))
         if strategy == "S5" and n_option_pos >= concurrent_max:
             return (False, f"concurrent_s5_cap ({n_option_pos}/{concurrent_max})")
+
+        # Concurrent equity positions cap — applies to S1/S2/S3/S4 (all
+        # equity bracket strategies). Default 5 simultaneous open positions.
+        equity_concurrent_max = int(risk_cfg.get("equity_concurrent_max", 5))
+        n_equity_pos = sum(1 for p in positions
+                            if not (len(p.symbol) > 6 and any(c.isdigit() for c in p.symbol)))
+        if strategy in ("S1", "S2", "S3", "S4") and n_equity_pos >= equity_concurrent_max:
+            return (False, f"concurrent_equity_cap ({n_equity_pos}/{equity_concurrent_max})")
 
         return (True, "")
 
@@ -856,11 +937,54 @@ class PaperTrader:
         )
         return decision, direction
 
+    def _build_s1_decision(self, features, cfg, alpaca, now: datetime):
+        """S1 Pre-FOMC: calendar-driven, fires on SPY/QQQ/IWM during 24h
+        window before scheduled FOMC announcement. Returns (decision, direction)
+        or (None, None) if outside window or wrong ticker."""
+        from strategies.s1_pre_fomc.allow_s1_trade import allow_s1_trade
+        from strategies.s1_pre_fomc.setup import (
+            S1SetupContext, is_in_window, S1_UNIVERSE,
+        )
+        if features.ticker not in S1_UNIVERSE:
+            return None, None
+        if not is_in_window(now):
+            return None, None
+        # Fetch latest VIX (daemon's prebreakout scanner already does this)
+        vix_value = None
+        try:
+            from prebreakout.scanner import f7_vix_bucket
+            bucket = f7_vix_bucket(alpaca, now)
+            # Approximate VIX from bucket (we don't need exact — only the >35 trigger)
+            if bucket == "low":
+                vix_value = 12.0
+            elif bucket == "normal":
+                vix_value = 18.0
+            elif bucket == "elevated":
+                vix_value = 26.0
+        except Exception:
+            pass
+        ctx = S1SetupContext(
+            ticker=features.ticker,
+            now_utc=now,
+            vix_value=vix_value,
+            is_holiday_day=False,
+            prior_emergency_announcement=False,
+        )
+        decision = allow_s1_trade(
+            setup_ctx=ctx, cfg=cfg, risk_manager_allows=True,
+            candidate_id=f"auto-S1-{features.ticker}-{features.bar_idx}",
+        )
+        # S1 spec is bullish-drift bias (long-only on broad-market ETFs)
+        return decision, "long"
+
     def _build_s5_decision(self, features, scalp_state, cfg):
         from strategies.s5_gamma_reversal.allow_s5_trade import allow_s5_trade
         direction = "long" if scalp_state.name == "TANK_REVERSE" else "short"
+        # Lazy-load ML model on first use; None when no model file shipped
+        model = self._load_ml_model()
+        threshold = float(cfg.get("s5", {}).get("ml", {}).get("threshold_low", 0.50))
         decision = allow_s5_trade(
-            features=features, model=None, threshold=0.50, cfg=cfg,
+            features=features, model=model, threshold=threshold, cfg=cfg,
             risk_manager_allows=True, expected_value_net=0.0,
             reversal_score=scalp_state.score,
             candidate_id=f"auto-S5-{features.ticker}-{features.bar_idx}",
@@ -883,6 +1007,12 @@ class PaperTrader:
         # Build list of (strategy, decision, direction) tuples for all
         # strategies in scope of this state.
         evals: list[tuple[str, object, str]] = []
+
+        # S1 Pre-FOMC fires on calendar window, NOT state changes —
+        # evaluated independently for SPY/QQQ/IWM during the 24h pre-FOMC window.
+        d1, dirn1 = self._build_s1_decision(features, cfg, alp, now)
+        if d1 is not None:
+            evals.append(("S1", d1, dirn1))
 
         if scalp_state.name in ("SURGE_REVERSE", "TANK_REVERSE"):
             d, dirn = self._build_s5_decision(features, scalp_state, cfg)
