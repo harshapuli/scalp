@@ -114,12 +114,12 @@
 <body>
 
 <nav class="topnav">
-  <a href="/trade.html"><span>👤 Trade</span><span class="sub">scalp signals</span></a>
-  <a href="/swing.html"><span>📈 Swing</span><span class="sub">candidates</span></a>
-  <a href="/live.html"><span>💼 Live</span><span class="sub">positions</span></a>
-  <a href="/auto.html" class="active"><span>🤖 Auto</span><span class="sub">paper bot</span></a>
-  <a href="/review.html"><span>📓 Review</span><span class="sub">EOD analysis</span></a>
-  <a href="/prebreakout.html"><span>🌱 Pre-Breakout</span><span class="sub">factor stack</span></a>
+  <a href="trade.html"><span>👤 Trade</span><span class="sub">scalp signals</span></a>
+  <a href="swing.html"><span>📈 Swing</span><span class="sub">candidates</span></a>
+  <a href="live.html"><span>💼 Live</span><span class="sub">positions</span></a>
+  <a href="auto.html" class="active"><span>🤖 Auto</span><span class="sub">paper bot</span></a>
+  <a href="review.html"><span>📓 Review</span><span class="sub">EOD analysis</span></a>
+  <a href="prebreakout.html"><span>🌱 Pre-Breakout</span><span class="sub">factor stack</span></a>
 </nav>
 
 <main>
@@ -276,7 +276,7 @@
 
   async function pullStatus() {
     try {
-      const r = await fetch("/api/daemon/status");
+      const r = await fetch("api/daemon/status");
       const s = await r.json();
       renderStatus(s);
       renderDecisions(s.decisions);
@@ -292,7 +292,7 @@
     if (!tickers.length) return toast("Enter at least one ticker", "err");
     $("start-btn").disabled = true;
     try {
-      const r = await fetch("/api/daemon/start", {
+      const r = await fetch("api/daemon/start", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({tickers, poll_seconds: poll}),
@@ -310,7 +310,7 @@
     if (!confirm("Stop the auto-trader?\n(Open positions stay — close them manually if needed.)")) return;
     $("stop-btn").disabled = true;
     try {
-      const r = await fetch("/api/daemon/stop", {method: "POST"});
+      const r = await fetch("api/daemon/stop", {method: "POST"});
       const d = await r.json();
       if (d.error) toast("Stop failed: " + d.error, "err");
       else toast("Daemon stopped", "ok");

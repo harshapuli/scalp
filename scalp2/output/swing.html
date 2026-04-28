@@ -105,12 +105,12 @@
 <body>
 
 <nav class="topnav">
-  <a href="/trade.html"><span>👤 Trade</span><span class="sub">scalp signals</span></a>
-  <a href="/swing.html" class="active"><span>📈 Swing</span><span class="sub">candidates</span></a>
-  <a href="/live.html"><span>💼 Live</span><span class="sub">positions</span></a>
-  <a href="/auto.html"><span>🤖 Auto</span><span class="sub">paper bot</span></a>
-  <a href="/review.html"><span>📓 Review</span><span class="sub">EOD analysis</span></a>
-  <a href="/prebreakout.html"><span>🌱 Pre-Breakout</span><span class="sub">factor stack</span></a>
+  <a href="trade.html"><span>👤 Trade</span><span class="sub">scalp signals</span></a>
+  <a href="swing.html" class="active"><span>📈 Swing</span><span class="sub">candidates</span></a>
+  <a href="live.html"><span>💼 Live</span><span class="sub">positions</span></a>
+  <a href="auto.html"><span>🤖 Auto</span><span class="sub">paper bot</span></a>
+  <a href="review.html"><span>📓 Review</span><span class="sub">EOD analysis</span></a>
+  <a href="prebreakout.html"><span>🌱 Pre-Breakout</span><span class="sub">factor stack</span></a>
 </nav>
 
 <main>
@@ -224,7 +224,7 @@
         if (!confirm(`Take ${tk}? Paper bracket order.`)) return;
         b.disabled = true; b.textContent = "submitting…";
         try {
-          const r = await fetch("/api/take", {
+          const r = await fetch("api/take", {
             method:"POST", headers:{"Content-Type":"application/json"},
             body: JSON.stringify({id}),
           });
@@ -245,7 +245,7 @@
 
   async function pull() {
     try {
-      const r = await fetch("/api/daemon/status", {cache:"no-store"});
+      const r = await fetch("api/daemon/status", {cache:"no-store"});
       const s = await r.json();
       renderStatus(s);
       renderColumns(s.setups || []);

@@ -101,12 +101,12 @@
 <body>
 
 <nav class="topnav">
-  <a href="/trade.html"><span>👤 Trade</span><span class="sub">scalp signals</span></a>
-  <a href="/swing.html"><span>📈 Swing</span><span class="sub">candidates</span></a>
-  <a href="/live.html"><span>💼 Live</span><span class="sub">positions</span></a>
-  <a href="/auto.html"><span>🤖 Auto</span><span class="sub">paper bot</span></a>
-  <a href="/review.html"><span>📓 Review</span><span class="sub">EOD analysis</span></a>
-  <a href="/prebreakout.html" class="active"><span>🌱 Pre-Breakout</span><span class="sub">live scanner</span></a>
+  <a href="trade.html"><span>👤 Trade</span><span class="sub">scalp signals</span></a>
+  <a href="swing.html"><span>📈 Swing</span><span class="sub">candidates</span></a>
+  <a href="live.html"><span>💼 Live</span><span class="sub">positions</span></a>
+  <a href="auto.html"><span>🤖 Auto</span><span class="sub">paper bot</span></a>
+  <a href="review.html"><span>📓 Review</span><span class="sub">EOD analysis</span></a>
+  <a href="prebreakout.html" class="active"><span>🌱 Pre-Breakout</span><span class="sub">live scanner</span></a>
 </nav>
 
 <main>
@@ -214,7 +214,7 @@
 
   async function pull() {
     try {
-      const r = await fetch("/api/prebreakout/scan", {cache:"no-store"});
+      const r = await fetch("api/prebreakout/scan", {cache:"no-store"});
       const d = await r.json();
       if (d.error) {
         $("status").innerHTML = `<span class="pill warn">scan failed: ${d.error}</span>`;

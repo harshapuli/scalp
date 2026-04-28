@@ -38,21 +38,58 @@ V4_BACKEND = ("localhost", 8084)
 # HTML to inject on scalp2 responses (right after <head>)
 SCALP_HEAD_INJECT = '<base href="/scalp/">'
 
-# HTML to inject on engine_v4 responses (right before </body>)
+# HTML to inject on engine_v4 responses (right before </body>).
+# Injects JS that adds a "Scalp" tab into the existing .topnav so it
+# matches the look of Today/Triggered/Watchlist/Catalyst/Live. Falls back
+# to a floating button if no .topnav element is found on the page.
 V4_BODY_INJECT = """
 <style>
-  #_scalp_btn {
+  #_scalp_floating {
     position: fixed; top: 10px; right: 14px; z-index: 9999;
     padding: 8px 14px; border-radius: 999px;
     background: linear-gradient(135deg, #d97757, #e88e6f); color: #fff;
     text-decoration: none; font-family: 'Poppins', Arial, sans-serif;
     font-weight: 600; font-size: 12px; letter-spacing: 0.04em;
     box-shadow: 0 4px 14px rgba(217, 119, 87, 0.35);
-    border: none; cursor: pointer;
+    border: none; cursor: pointer; display: none;
   }
-  #_scalp_btn:hover { transform: translateY(-1px); }
 </style>
-<a id="_scalp_btn" href="/scalp/trade.html">🚀 Scalp</a>
+<a id="_scalp_floating" href="/scalp/trade.html" target="_blank" rel="noopener">🚀 Scalp</a>
+<script>
+(function() {
+  function injectScalpNav() {
+    var nav = document.querySelector('.topnav');
+    if (nav && !nav.querySelector('a[href^="/scalp"]')) {
+      // Match the pattern of existing nav links (look at first <a> for class/structure)
+      var first = nav.querySelector('a');
+      if (first) {
+        var link = document.createElement('a');
+        link.href = '/scalp/trade.html';
+        link.target = '_blank';      // new tab
+        link.rel = 'noopener';
+        link.className = first.className.replace(/active/g, '').trim();
+        // Match the inner structure: <span>label</span><span class="sub">sublabel</span>
+        var sub = first.querySelector('.sub');
+        if (sub) {
+          link.innerHTML = '<span>🚀 Scalp</span><span class="sub">paper trader</span>';
+        } else {
+          link.textContent = '🚀 Scalp';
+        }
+        nav.appendChild(link);
+      }
+    } else if (!nav) {
+      // No topnav — show the floating button instead
+      var btn = document.getElementById('_scalp_floating');
+      if (btn) btn.style.display = 'inline-flex';
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', injectScalpNav);
+  } else {
+    injectScalpNav();
+  }
+})();
+</script>
 """
 
 
