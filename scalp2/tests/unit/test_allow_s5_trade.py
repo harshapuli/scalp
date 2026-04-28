@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from strategies.s5_gamma_reversal.allow_s5_trade import (
     allow_s5_trade, PASS_REASONS,
 )
-from features.types import Features
+from features.datatypes import Features
 
 
 # Minimal config matching spec §10.4 s5.* tree

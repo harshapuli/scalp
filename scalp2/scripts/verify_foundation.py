@@ -1,17 +1,10 @@
-"""
-scripts/verify_foundation.py — Sprint 1 acceptance script.
+"""scripts/verify_foundation.py — Sprint 1 Foundation Layer acceptance.
 
-Per spec §10.8 build recipe:
-  $ python -m scripts.verify_foundation
-    ✓ Polygon WS connects
-    ✓ Polygon REST returns 1mo SPY bars
-    ✓ UW client returns GEX for SPY
-    ✗ FND-3.1: UW GEX cadence verified ?  ← BLOCKER
-    ✓ Alpaca paper account balance
+Per spec §10.8 build recipe + FND-3.1 BLOCKER.
 
-Cannot proceed past Sprint 1 without FND-3.1 cleared.
-
-Run after `infra/secrets.py` loads /etc/trading/secrets.env.
+Note: Polygon is OPTIONAL (deferred per user direction; Alpaca Pro covers data).
+The verification checks Alpaca + UW only. If Polygon keys appear later, add the
+Polygon WS/REST checks here.
 """
 from __future__ import annotations
 
@@ -23,7 +16,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
 def check(name: str, fn) -> bool:
-    """Run one check, print ✓/✗, return True iff passed."""
     try:
         fn()
         print(f"  ✓ {name}")
@@ -32,74 +24,83 @@ def check(name: str, fn) -> bool:
         print(f"  ✗ {name}  (not yet implemented: {e})")
         return False
     except Exception as e:
-        print(f"  ✗ {name}  ({type(e).__name__}: {e})")
+        print(f"  ✗ {name}  ({type(e).__name__}: {str(e)[:120]})")
         return False
 
 
 def main() -> int:
+    from infra.secrets import load_secrets, status_report
     print("=" * 60)
     print("Sprint 1 Foundation Layer Verification")
     print("=" * 60)
+    load_secrets()
+    rpt = status_report()
+    print()
+    print(f"Secrets loaded from: {rpt['secrets_path']}")
+    for k, info in rpt["set_vars"].items():
+        mark = "✓" if info["set"] else "✗"
+        print(f"  {mark} {k} (length={info['length']})")
     print()
 
-    # Required env vars (FND-5)
-    print("Secrets (FND-5):")
-    secrets_ok = True
-    for v in ("POLYGON_API_KEY", "UW_API_TOKEN", "ALPACA_KEY_ID",
-              "ALPACA_SECRET", "ALPACA_ENDPOINT"):
-        if os.environ.get(v):
-            print(f"  ✓ {v} set")
-        else:
-            print(f"  ✗ {v} not set")
-            secrets_ok = False
-    print()
-
-    if not secrets_ok:
-        print("Secrets missing — populate /etc/trading/secrets.env (chmod 600)")
-        print("Cannot proceed with API checks.")
+    if not (os.environ.get("UW_API_TOKEN") and os.environ.get("ALPACA_KEY_ID")):
+        print("Critical secrets missing. Cannot proceed with API checks.")
         return 1
 
-    # Foundation API checks
-    print("API connectivity:")
-    from data_clients.polygon_ws import PolygonWS
-    from data_clients.polygon_rest import PolygonREST
     from data_clients.unusual_whales import UWClient
     from data_clients.alpaca import AlpacaClient
 
     results = []
-    results.append(check("Polygon WS connects",
-                         lambda: PolygonWS().connect()))
-    results.append(check("Polygon REST returns 1mo SPY bars",
-                         lambda: PolygonREST().historical_bars(
-                             "SPY", "2025-12-01", "2026-01-01")))
-    results.append(check("UW client returns GEX for SPY",
-                         lambda: UWClient().greek_exposure("SPY")))
 
-    # THE BLOCKER — Sprint 1 cannot complete without this
-    print()
-    print("Critical blocker (FND-3.1):")
-    blocker = check("UW GEX cadence verified (FND-3.1 BLOCKER)",
-                     lambda: UWClient().verify_gex_cadence())
+    # UW core
+    print("UW (FND-3):")
+    with UWClient() as uw:
+        results.append(check("UW client returns intraday GEX for SPY",
+                              lambda: uw.greek_exposure("SPY")))
+        results.append(check("UW flow_recent for SPY",
+                              lambda: uw.flow_recent("SPY")))
+
+        # FND-3.1 BLOCKER — the load-bearing test
+        print()
+        print("Critical blocker (FND-3.1):")
+        try:
+            cad = uw.verify_gex_cadence("SPY")
+            cm = cad.get("verified_cadence_min")
+            if cm is not None and cm <= 30:
+                print(f"  ✓ FND-3.1 RESOLVED — UW spot-exposures cadence ≈ {cm}min")
+                print(f"    snapshots/session={cad.get('snapshots_per_session')}, "
+                      f"recommended max_age={cad.get('recommended_max_age_min')}min")
+                blocker = True
+            else:
+                print(f"  ✗ FND-3.1 NOT RESOLVED — cadence={cm}min")
+                print(f"    {cad.get('evidence')}")
+                blocker = False
+        except Exception as e:
+            print(f"  ✗ FND-3.1 FAILED ({type(e).__name__}: {e})")
+            blocker = False
 
     print()
-    print("Alpaca:")
-    results.append(check("Alpaca paper account balance",
-                         lambda: AlpacaClient().get_account()))
+    print("Alpaca (FND-4 + data substitute for FND-1/2):")
+    with AlpacaClient() as a:
+        results.append(check("Alpaca account access",
+                              lambda: a.get_account()))
+        results.append(check("Alpaca positions list",
+                              lambda: a.get_positions()))
+        results.append(check("Alpaca SIP bars (1mo SPY 1m)",
+                              lambda: a.get_bars(
+                                  "SPY", "2026-04-01T00:00:00Z",
+                                  "2026-04-28T00:00:00Z",
+                                  timeframe="1Min", limit=100,
+                              )))
 
     print()
     print("=" * 60)
     if blocker and all(results):
         print("✓ Foundation Layer ready — Sprint 2 may begin")
         return 0
-    else:
-        if not blocker:
-            print("✗ FND-3.1 BLOCKER unresolved — Sprint 1 cannot complete")
-            print("  Read https://docs.unusualwhales.com/api/greek-exposure")
-            print("  + probe endpoint at 1-min cadence over a market session.")
-            print("  If EOD-only → S5 redesign required.")
-        else:
-            print("✗ Some Foundation checks failed — fix before Sprint 2")
-        return 1
+    print("✗ Foundation checks failed")
+    if not blocker:
+        print("  FND-3.1 BLOCKER unresolved — Sprint 1 cannot complete")
+    return 1
 
 
 if __name__ == "__main__":

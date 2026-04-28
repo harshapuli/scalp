@@ -50,21 +50,115 @@ DEFAULT_PERCENTILES = [5, 15, 25, 35, 45, 55, 65, 75, 85, 95]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Stubs — to implement in M3
+# EV-curve fitting (S5-35) + threshold picker (spec §10.5 pick_threshold)
 # ──────────────────────────────────────────────────────────────────────────────
+
+
+import statistics
 
 
 def fit_curve(kind: str,
               archive_fires_with_posteriors: list[tuple[float, float]],
-              percentiles: list[int] = None) -> EVCurve:
+              percentiles: Optional[list[int]] = None) -> EVCurve:
     """Fit an EV curve from (posterior, realized_pnl_pct) pairs.
 
-    TODO M3:
-      - Sort by posterior, bin into deciles (or `percentiles` arg)
-      - Per bin: compute ev_mean, ev_p25, ev_p75, n
-      - Return EVCurve
+    Sort by posterior, bin into N percentile windows, compute ev_mean,
+    ev_p25, ev_p75 per bin.
     """
-    raise NotImplementedError("M3 deliverable")
+    if not archive_fires_with_posteriors:
+        return EVCurve(
+            kind=kind,
+            fitted_at_utc=datetime.now(timezone.utc).isoformat(timespec="seconds") + "Z",
+            n_archive_fires=0,
+            points=[],
+        )
+
+    sorted_pairs = sorted(archive_fires_with_posteriors, key=lambda p: p[0])
+    pcts = percentiles or DEFAULT_PERCENTILES
+    n = len(sorted_pairs)
+    # Each percentile p in [0, 100] maps to a bucket centered on that percentile;
+    # the bucket size is total_n / n_buckets
+    bucket_size = max(1, n // len(pcts))
+    points: list[EVCurvePoint] = []
+    for i, p in enumerate(pcts):
+        lo = i * bucket_size
+        hi = (i + 1) * bucket_size if i < len(pcts) - 1 else n
+        bucket = sorted_pairs[lo:hi]
+        if not bucket:
+            continue
+        pnls = [pair[1] for pair in bucket]
+        try:
+            p25 = statistics.quantiles(pnls, n=4)[0] if len(pnls) >= 4 else min(pnls)
+            p75 = statistics.quantiles(pnls, n=4)[2] if len(pnls) >= 4 else max(pnls)
+        except statistics.StatisticsError:
+            p25, p75 = min(pnls), max(pnls)
+        points.append(EVCurvePoint(
+            percentile=float(p),
+            ev_mean=float(statistics.mean(pnls)),
+            ev_p25=float(p25),
+            ev_p75=float(p75),
+            n=len(bucket),
+        ))
+
+    return EVCurve(
+        kind=kind,
+        fitted_at_utc=datetime.now(timezone.utc).isoformat(timespec="seconds") + "Z",
+        n_archive_fires=n,
+        points=points,
+    )
+
+
+def pick_threshold(probabilities,
+                    labels,
+                    costs_per_trade: float,
+                    payoff_per_winner: float,
+                    threshold_low: float = 0.50,
+                    threshold_high: float = 0.85,
+                    threshold_extreme_warn_low: float = 0.51,
+                    threshold_extreme_warn_high: float = 0.83,
+                    min_validation_trades: int = 30) -> tuple[float, float, list[str]]:
+    """Spec §10.5 pick_threshold pseudocode.
+
+    Returns (best_thr, best_ev_per_trade, warnings).
+
+    Iterates threshold in [threshold_low, threshold_high] step 0.01.
+    Skips thresholds where traded count < min_validation_trades.
+    Warns if best threshold is at the extreme (≤0.51 or ≥0.83).
+    """
+    import numpy as np
+    probs = np.asarray(probabilities)
+    lbls = np.asarray(labels)
+
+    best_thr = threshold_low
+    best_ev = -float("inf")
+    warnings: list[str] = []
+
+    thr_arr = np.arange(threshold_low, threshold_high + 1e-9, 0.01)
+    for thr in thr_arr:
+        traded = probs >= thr
+        n_traded = int(traded.sum())
+        if n_traded < min_validation_trades:
+            continue
+        wins = int((traded & (lbls == 1)).sum())
+        losses = int((traded & (lbls == 0)).sum())
+        ev = (wins * payoff_per_winner
+              - losses * costs_per_trade  # losses cost full cost
+              - n_traded * costs_per_trade)
+        ev_per_trade = ev / n_traded
+        if ev_per_trade > best_ev:
+            best_thr, best_ev = float(thr), float(ev_per_trade)
+
+    if best_thr <= threshold_extreme_warn_low:
+        warnings.append(
+            f"threshold {best_thr:.2f} at lower extreme ≤ {threshold_extreme_warn_low}; "
+            "investigate calibration"
+        )
+    if best_thr >= threshold_extreme_warn_high:
+        warnings.append(
+            f"threshold {best_thr:.2f} at upper extreme ≥ {threshold_extreme_warn_high}; "
+            "investigate calibration"
+        )
+    return best_thr, best_ev, warnings
 
 
 def save_curve(curve: EVCurve) -> Path:

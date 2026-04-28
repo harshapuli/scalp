@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-from features.types import Features
+from features.datatypes import Features
 from strategies.s5_gamma_reversal.allow_s5_trade import _is_s5_setup_check
 
 

@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from features.types import Candidate
+from features.datatypes import Candidate
 
 
 REDIS_KEY_FMT = "pre_staged_{strategy}:{ticker}"

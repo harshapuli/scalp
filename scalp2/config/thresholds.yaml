@@ -12,7 +12,13 @@ polygon:
 
 uw:
   base_url: 'https://api.unusualwhales.com'
-  gex_max_age_min: 30           # tighten after FND-3.1 verification (BLOCKER)
+  # FND-3.1 RESOLVED 2026-04-27: spot-exposures runs at 1.0min cadence
+  # (520 snapshots/9.5h session, median interval 60s, max 695s).
+  # Recommended max_age = 3× median = 5min. S5 intraday strategy fully supported.
+  gex_max_age_min: 5
+  spot_exposures_endpoint: '/api/stock/{ticker}/spot-exposures'           # intraday
+  spot_exposures_strike_endpoint: '/api/stock/{ticker}/spot-exposures/strike'  # strike-level intraday
+  greek_exposure_history_endpoint: '/api/stock/{ticker}/greek-exposure-history'  # daily-EOD history
   schema_check_interval_min: 60
 
 alpaca:

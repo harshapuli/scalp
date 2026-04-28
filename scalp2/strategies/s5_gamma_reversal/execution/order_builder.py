@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
-from features.types import Candidate, Decision, VerticalOrder
+from features.datatypes import Candidate, Decision, VerticalOrder
 
 
 def build_s5_order(candidate: Candidate, chain, cfg: dict) -> Decision:

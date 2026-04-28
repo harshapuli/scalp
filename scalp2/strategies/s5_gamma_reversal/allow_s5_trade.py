@@ -36,7 +36,7 @@ from typing import Optional, Protocol
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-from features.types import Features, Decision, TRADE, PASS
+from features.datatypes import Features, Decision, TRADE, PASS
 
 
 # ──────────────────────────────────────────────────────────────────────────────

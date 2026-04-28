@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from features.types import ScalpState
+from features.datatypes import ScalpState
 
 CHANNEL = "scalp.price_trigger"
 
