@@ -77,12 +77,18 @@ def _svg_gauge(value: float, danger_at: float, label: str,
 # ──────────────────────────────────────────────────────────────────────────────
 
 
+def _fmt_signed_money(n: float) -> str:
+    """+$1,234 / -$1,234 / $0 — used everywhere money is shown with a sign."""
+    if not n:
+        return "$0"
+    return ("+$" if n > 0 else "-$") + f"{abs(n):,.0f}"
+
+
 def _header_bar(account: dict, daily_pnl: float, generated: str, mode: str) -> str:
     eq = account.get("equity", 0)
     bp = account.get("buying_power", 0)
     dt_count = account.get("daytrade_count", 0)
     pnl_class = "pos" if daily_pnl >= 0 else "neg"
-    pnl_sign = "+" if daily_pnl >= 0 else ""
     return f"""
 <div class="header-bar">
   <div class="header-left">
@@ -93,7 +99,7 @@ def _header_bar(account: dict, daily_pnl: float, generated: str, mode: str) -> s
     <div class="hb-stat"><span class="hb-label">Mode</span><span class="hb-value {('neg' if 'live' in mode.lower() else 'pos')}">{_e(mode.upper())}</span></div>
     <div class="hb-stat"><span class="hb-label">Equity</span><span class="hb-value" data-live="equity">${eq:,.0f}</span></div>
     <div class="hb-stat"><span class="hb-label">Buying Power</span><span class="hb-value" data-live="bp">${bp:,.0f}</span></div>
-    <div class="hb-stat"><span class="hb-label">Today P&L</span><span class="hb-value {pnl_class}" data-live="pnl">{pnl_sign}${daily_pnl:,.0f}</span></div>
+    <div class="hb-stat"><span class="hb-label">Today P&L</span><span class="hb-value {pnl_class}" data-live="pnl">{_fmt_signed_money(daily_pnl)}</span></div>
     <div class="hb-stat"><span class="hb-label">Day Trades</span><span class="hb-value" data-live="daytrade">{dt_count}/3</span></div>
   </div>
 </div>"""
@@ -378,12 +384,12 @@ def _positions_section(positions: list[dict]) -> str:
   <td class="num small">${p.get("avg_entry_price", 0):,.2f}</td>
   <td class="num small">${p.get("current_price", 0):,.2f}</td>
   <td class="num small">${p.get("market_value", 0):,.0f}</td>
-  <td class="num {cls}">${p.get("unrealized_pl", 0):+,.0f}</td>
+  <td class="num {cls}">{_fmt_signed_money(p.get("unrealized_pl", 0))}</td>
   <td class="num {cls}">{plpc:+.1f}%</td>
 </tr>""")
     return f"""
 <div class="section">
-  <h2>Open positions ({len(positions)}) · ${total_mv:,.0f} mkt value · <span class="{pl_class}">${total_pl:+,.0f}</span> unrealized</h2>
+  <h2>Open positions ({len(positions)}) · ${total_mv:,.0f} mkt value · <span class="{pl_class}">{_fmt_signed_money(total_pl)}</span> unrealized</h2>
   <table>
     <thead><tr><th>Symbol</th><th class="num">Qty</th><th class="num">Avg entry</th>
       <th class="num">Current</th><th class="num">Mkt value</th>
@@ -649,9 +655,15 @@ def render_trading_dashboard(ctx: dict) -> str:
   const LIVE_POLL_MS = 3000;
 
   function fmtMoney(n) {{
+    // Unsigned magnitude: "$1,234" — caller adds the sign.
     if (n == null) return "—";
-    const sign = n >= 0 ? "" : "-";
-    return sign + "$" + Math.abs(n).toLocaleString(undefined, {{minimumFractionDigits: 0, maximumFractionDigits: 0}});
+    return "$" + Math.abs(n).toLocaleString(undefined, {{minimumFractionDigits: 0, maximumFractionDigits: 0}});
+  }}
+  function fmtSignedMoney(n) {{
+    // Always shows sign: "+$1,234" / "-$1,234" / "$0".
+    if (n == null) return "—";
+    if (n === 0) return "$0";
+    return (n > 0 ? "+" : "-") + "$" + Math.abs(n).toLocaleString(undefined, {{minimumFractionDigits: 0, maximumFractionDigits: 0}});
   }}
   function fmtPct(n, digits=2) {{
     if (n == null) return "—";
@@ -760,7 +772,7 @@ def render_trading_dashboard(ctx: dict) -> str:
     if (eqEl) eqEl.textContent = fmtMoney(acct.equity || 0);
     if (bpEl) bpEl.textContent = fmtMoney(acct.buying_power || 0);
     if (pnlEl) {{
-      pnlEl.textContent = (dailyPnl >= 0 ? "+" : "") + fmtMoney(dailyPnl).replace("-$", "$");
+      pnlEl.textContent = fmtSignedMoney(dailyPnl);
       pnlEl.className = "hb-value " + (dailyPnl >= 0 ? "pos" : "neg");
     }}
     if (dtEl) dtEl.textContent = (acct.daytrade_count || 0) + "/3";
@@ -786,13 +798,13 @@ def render_trading_dashboard(ctx: dict) -> str:
         <td class="num small">$${{Number(p.avg_entry_price || 0).toFixed(2)}}</td>
         <td class="num small">$${{Number(p.current_price || 0).toFixed(2)}}</td>
         <td class="num small">${{fmtMoney(p.market_value || 0)}}</td>
-        <td class="num ${{cls}}">${{(p.unrealized_pl >= 0 ? "+" : "")}}${{fmtMoney(p.unrealized_pl || 0).replace("-$", "$")}}</td>
+        <td class="num ${{cls}}">${{fmtSignedMoney(p.unrealized_pl || 0)}}</td>
         <td class="num ${{cls}}">${{fmtPct(plpc, 1)}}</td>
       </tr>`;
     }}).join("");
 
     host.innerHTML = `<div class="section">
-      <h2>Open positions (${{positions.length}}) · ${{fmtMoney(totalMv)}} mkt value · <span class="${{plClass}}">${{(totalPl >= 0 ? "+" : "")}}${{fmtMoney(totalPl).replace("-$", "$")}}</span> unrealized</h2>
+      <h2>Open positions (${{positions.length}}) · ${{fmtMoney(totalMv)}} mkt value · <span class="${{plClass}}">${{fmtSignedMoney(totalPl)}}</span> unrealized</h2>
       <table>
         <thead><tr><th>Symbol</th><th class="num">Qty</th><th class="num">Avg entry</th>
           <th class="num">Current</th><th class="num">Mkt value</th>
