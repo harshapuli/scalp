@@ -289,6 +289,32 @@ class AlpacaClient:
         r.raise_for_status()
         return r.json()
 
+    def get_orders(self,
+                    status: str = "all",          # 'open', 'closed', 'all'
+                    after: Optional[str] = None,  # ISO timestamp lower bound
+                    until: Optional[str] = None,
+                    limit: int = 100,
+                    direction: str = "desc") -> list[dict]:
+        """List orders for the live-trades dashboard.
+
+        Returns Alpaca order dicts directly (each has: id, client_order_id,
+        symbol, side, qty, filled_qty, filled_avg_price, status, created_at,
+        submitted_at, filled_at, asset_class, order_class). Used by the
+        trader dashboard to surface today's actual fills + open orders."""
+        params = {
+            "status": status,
+            "limit": str(limit),
+            "direction": direction,
+            "nested": "true",  # include child legs for bracket / mleg orders
+        }
+        if after:
+            params["after"] = after
+        if until:
+            params["until"] = until
+        r = self._trading.get("/v2/orders", params=params)
+        r.raise_for_status()
+        return r.json()
+
     # ─── Market data: bars / trades / quotes (substitutes FND-1, FND-2) ───
 
     def get_bars(self,

@@ -5,9 +5,10 @@
 """
 from __future__ import annotations
 
+import os
 import sqlite3
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -56,15 +57,47 @@ def _gather_decisions(db_path: Path = DEFAULT_DB) -> list[dict]:
 
 
 def _gather_alpaca():
+    """Returns (account_dict, positions_list, today_orders_list).
+
+    today_orders are filtered to orders whose submitted_at falls on TODAY's
+    UTC date — this matches the "Live trades today" section heading.
+    """
     try:
         from data_clients.alpaca import AlpacaClient
         with AlpacaClient() as a:
             acct = a.get_account()
             positions = a.get_positions()
+            # Pull a wide window so we can client-side filter to today.
+            after = (datetime.now(tz=timezone.utc) - timedelta(hours=36)).isoformat(timespec="seconds")
+            try:
+                raw_orders = a.get_orders(status="all", after=after, limit=500)
+            except Exception as oe:
+                print(f"[render_trading] alpaca orders fetch failed: {oe}", file=sys.stderr)
+                raw_orders = []
+
+            # Pick the most recent session-date with order activity. That's
+            # "today" if the market's been live; otherwise it's whatever the
+            # last live session was. Either way it's the freshest data the
+            # trader cares about.
+            session_dates = sorted({
+                (o.get("submitted_at") or o.get("created_at") or "")[:10]
+                for o in raw_orders
+            } - {""}, reverse=True)
+            target_date = session_dates[0] if session_dates else \
+                datetime.now(tz=timezone.utc).date().isoformat()
+            today_orders = [
+                o for o in raw_orders
+                if (o.get("submitted_at") or o.get("created_at") or "")[:10] == target_date
+                or (o.get("filled_at") or "")[:10] == target_date
+            ]
+            # Tag the session date onto each order so the dashboard can label it.
+            for o in today_orders:
+                o["__session_date"] = target_date
             return {
                 "equity": acct.equity,
                 "buying_power": acct.buying_power,
                 "daytrade_count": acct.daytrade_count,
+                "is_live": a.is_live,
             }, [
                 {"symbol": p.symbol, "qty": p.qty,
                  "avg_entry_price": p.avg_entry_price,
@@ -73,10 +106,10 @@ def _gather_alpaca():
                  "unrealized_pl": p.unrealized_pl,
                  "unrealized_plpc": p.unrealized_plpc}
                 for p in positions
-            ]
+            ], today_orders
     except Exception as e:
         print(f"[render_trading] alpaca probe failed: {e}", file=sys.stderr)
-        return {}, []
+        return {}, [], []
 
 
 def main() -> int:
@@ -89,31 +122,56 @@ def main() -> int:
     bt_path = _latest_backtest()
     if bt_path is None:
         print("[render_trading] no backtest run found — run scripts/backtest_all.py first")
-        backtest_summary, per_ticker = {}, {}
+        backtest_summary, per_ticker, backtest_trades = {}, {}, []
     else:
         print(f"[render_trading] backtest source: {bt_path.name}")
-        backtest_summary, per_ticker = gather_backtest_summary(bt_path)
+        backtest_summary, per_ticker, backtest_trades = gather_backtest_summary(bt_path)
 
-    print("[render_trading] gathering today's decisions...")
+    print("[render_trading] gathering today's decisions (decision_log)...")
     decisions = _gather_decisions()
 
-    print("[render_trading] gathering Alpaca account + positions...")
-    account, positions = _gather_alpaca()
+    print("[render_trading] gathering Alpaca account + positions + live orders...")
+    account, positions, live_orders = _gather_alpaca()
+
+    # Mode = env override > inferred from Alpaca endpoint > default 'paper'
+    mode = os.environ.get("TRADING_MODE")
+    if not mode:
+        mode = "live" if account.get("is_live") else "paper"
 
     universe_rules = {
         "s2": cfg.get("s2", {}).get("universe_allowlist") or [],
         "s3": cfg.get("s3", {}).get("universe_allowlist"),    # None = all allowed
     }
 
+    cfg_caps = cfg.get("s5", {}).get("risk", {}) or {}
+
     ctx = {
         "generated_utc": datetime.now(tz=timezone.utc).isoformat(timespec="seconds") + "Z",
         "backtest_summary": backtest_summary,
         "per_ticker_breakdown": per_ticker,
+        "backtest_trades": backtest_trades,
         "today_decisions": decisions,
         "alpaca_account": account,
         "alpaca_positions": positions,
+        "live_trades": live_orders,
         "universe_rules": universe_rules,
+        "cfg_caps": cfg_caps,
+        "trading_mode": mode,
     }
+
+    # Identify which session date the live_orders represent (could be today
+    # or last live session if today is pre-open / weekend).
+    session_date = next(
+        (o.get("__session_date") for o in live_orders if o.get("__session_date")),
+        datetime.now(tz=timezone.utc).date().isoformat(),
+    )
+
+    print(f"[render_trading] context summary:")
+    print(f"  · backtest trades:    {len(backtest_trades)}")
+    print(f"  · today's decisions:  {len(decisions)} (decision_log)")
+    print(f"  · open positions:     {len(positions)}")
+    print(f"  · live orders shown:  {len(live_orders)} (session {session_date})")
+    print(f"  · trading mode:       {mode}")
 
     html = render_trading_dashboard(ctx)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
