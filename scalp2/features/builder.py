@@ -104,6 +104,7 @@ def build_features(*,
     if gex_snapshot:
         spot = gex_snapshot.spot_price or last_bar.c
         dist_pos = distance_to_major_pos_gex_atr(spot, gex_snapshot.major_pos_gex_strike, atr)
+        dist_neg = distance_to_major_pos_gex_atr(spot, gex_snapshot.major_neg_gex_strike, atr)
         gflip = gamma_flip_distance(spot, gex_snapshot.gamma_flip, atr)
         gex_age = gex_snapshot.age_min
         gex_strikes_count = len(gex_snapshot.gex_by_strike)
@@ -111,6 +112,7 @@ def build_features(*,
         gex_dte = 7
     else:
         dist_pos = 99.0
+        dist_neg = 99.0
         gflip = 99.0
         gex_age = 999
         gex_mag = 0.0
@@ -141,6 +143,7 @@ def build_features(*,
         aggressor_velocity=agg_vel, flip_strength=flip_str,
         distance_to_major_pos_gex_atr=dist_pos,
         distance_to_pos_gex_atr=dist_pos,
+        distance_to_neg_gex_atr=dist_neg,
         gex_magnitude_rank=gex_mag,
         gamma_flip_distance=gflip,
         strike_oi_rank=0.0,

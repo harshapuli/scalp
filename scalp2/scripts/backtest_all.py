@@ -131,6 +131,51 @@ def backtest_one_ticker(*,
     except Exception:
         gex_history = []
 
+    # ── PROXY GEX from Alpaca option chain OI (S5 enabler) ──
+    # Pull current chain ATM ±10%, infer major call/put walls, use as proxy
+    # +GEX/-GEX strikes for the entire backtest window. Static snapshot — OI
+    # changes daily but is sticky over weeks for major strikes.
+    proxy_gex_snapshot = None
+    try:
+        from data_clients.alpaca import infer_proxy_gex
+        from features.datatypes import GEXSnapshot
+        from datetime import date as _date, timedelta as _td
+
+        spot_estimate = bars_alp[len(bars_alp) // 2].c if bars_alp else None
+        end_date = _date.fromisoformat(end_iso[:10])
+        chain = alpaca.get_option_contracts_with_oi(
+            ticker,
+            expiration_min=end_date,
+            expiration_max=end_date + _td(days=21),
+            strike_pct_band=0.10,
+            spot_price=spot_estimate,
+        )
+        if chain:
+            major_pos, major_neg, net_gamma = infer_proxy_gex(chain, spot_estimate or 100.0)
+            # Find spot to estimate gamma flip (zero crossing of cumulative net gamma)
+            sorted_strikes = sorted(net_gamma.items())
+            cum = 0.0; gamma_flip = 0.0
+            for s, g in sorted_strikes:
+                cum_prev = cum
+                cum += g
+                if cum_prev < 0 and cum >= 0:
+                    gamma_flip = s
+                    break
+            proxy_gex_snapshot = GEXSnapshot(
+                ticker=ticker,
+                timestamp=datetime.now(tz=timezone.utc),
+                spot_price=0.0,                 # 0 → builder falls through to last_bar.c
+                gamma_flip=gamma_flip,
+                major_pos_gex_strike=major_pos,
+                major_neg_gex_strike=major_neg,
+                gex_by_strike={float(s): float(g) for s, g in net_gamma.items()},
+                age_min=0,
+            )
+            print(f"  [{ticker}] proxy GEX: major_pos={major_pos:.2f} major_neg={major_neg:.2f} "
+                    f"gamma_flip={gamma_flip:.2f} ({len(net_gamma)} strikes)")
+    except Exception as e:
+        print(f"  [{ticker}] proxy GEX failed: {type(e).__name__}: {str(e)[:100]}")
+
     ohlc_bars = [BarOHLC(o=b.o, h=b.h, l=b.l, c=b.c, v=b.v) for b in bars_alp]
     timestamps = [b.t for b in bars_alp]
 
@@ -190,12 +235,14 @@ def backtest_one_ticker(*,
         if i < 14:
             continue   # need ATR(14) prior bars
 
-        # Find latest GEX snapshot ≤ ts
-        gex_at_t = None
-        for snap in reversed(gex_history):
-            if snap.timestamp <= ts:
-                gex_at_t = snap
-                break
+        # GEX snapshot — prefer the proxy from Alpaca OI (has strikes), fallback
+        # to UW historical aggregate (no strikes, S5 will reject).
+        gex_at_t = proxy_gex_snapshot
+        if gex_at_t is None:
+            for snap in reversed(gex_history):
+                if snap.timestamp <= ts:
+                    gex_at_t = snap
+                    break
 
         try:
             f = build_features(

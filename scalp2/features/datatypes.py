@@ -81,6 +81,8 @@ class Features:
     option_volume_5d_avg: float           # ATM weekly avg daily volume
     option_open_interest: float
     option_spread_pct: float              # ATM weekly bid/ask spread
+    # Optional (default for backwards-compat with existing tests/fixtures):
+    distance_to_neg_gex_atr: float = 99.0  # signed distance to put wall (S5 long uses this)
 
     def hash(self) -> str:
         """SHA256 of canonical-ordered field tuple. Stable across runs (SCALP-1.T1)."""

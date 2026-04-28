@@ -74,7 +74,13 @@ swing:
 # === S5 SETUP & TRIGGER (v2.2 §14, §15) ===
 s5:
   setup:
-    near_gex_atr: 0.50
+    # near_gex_atr: 0.50 was the spec value (true intraday strike-level GEX).
+    # When using the proxy GEX (Alpaca OI-inferred call/put walls), strikes
+    # cluster wider apart than dynamic intraday GEX would. 1.5 ATR is a
+    # pragmatic compromise — still requires "near a major level" but not
+    # impossibly tight. Tighten back to 0.50 once true intraday GEX history
+    # is available.
+    near_gex_atr: 1.50
     extended_atr_min: 1.50
     at_liquidity_atr: 0.50
     gex_strike_dte_min: 6     # v2.2 §22b

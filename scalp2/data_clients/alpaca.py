@@ -413,6 +413,101 @@ class AlpacaClient:
         r.raise_for_status()
         return r.json()
 
+    def get_option_contracts_with_oi(self,
+                                       underlying: str,
+                                       expiration_min: date,
+                                       expiration_max: date,
+                                       strike_pct_band: float = 0.10,
+                                       spot_price: Optional[float] = None) -> list[dict]:
+        """Pull active option contracts via TRADING API (which returns OI).
+
+        Returns list of {symbol, strike, type, expiration, open_interest, close_price}.
+        Used to synthesize proxy GEX strikes from highest-OI call/put walls.
+
+        spot_price: if provided, filter strikes to ±strike_pct_band of spot. If None,
+                     no strike filter (returns full chain — slow).
+        """
+        params = {
+            "underlying_symbols": underlying,
+            "expiration_date_gte": expiration_min.isoformat(),
+            "expiration_date_lte": expiration_max.isoformat(),
+            "status": "active",
+            "limit": "1000",
+        }
+        if spot_price:
+            params["strike_price_gte"] = str(spot_price * (1 - strike_pct_band))
+            params["strike_price_lte"] = str(spot_price * (1 + strike_pct_band))
+
+        out = []
+        page_token = None
+        while True:
+            if page_token:
+                params["page_token"] = page_token
+            r = self._trading.get("/v2/options/contracts", params=params)
+            r.raise_for_status()
+            d = r.json()
+            for c in d.get("option_contracts", []):
+                try:
+                    out.append({
+                        "symbol": c.get("symbol"),
+                        "strike": float(c.get("strike_price")),
+                        "type": c.get("type"),    # 'call' | 'put'
+                        "expiration": c.get("expiration_date"),
+                        "open_interest": int(c.get("open_interest") or 0),
+                        "close_price": float(c.get("close_price") or 0),
+                    })
+                except Exception:
+                    continue
+            page_token = d.get("next_page_token")
+            if not page_token:
+                break
+        return out
+
+
+def infer_proxy_gex(chain: list[dict], spot_price: float
+                      ) -> tuple[float, float, dict[float, float]]:
+    """Synthesize proxy +GEX / -GEX strikes from option chain OI.
+
+    Method: aggregate OI across expirations per (strike, type). Highest call-OI
+    strike near spot ≈ major +GEX (call wall); highest put-OI strike ≈ major -GEX.
+    Net OI per strike (call_oi - put_oi) approximates per-strike net gamma sign.
+
+    Returns (major_pos_gex_strike, major_neg_gex_strike, net_gamma_by_strike).
+    """
+    if not chain:
+        return 0.0, 0.0, {}
+
+    call_oi_per_strike: dict[float, int] = {}
+    put_oi_per_strike: dict[float, int] = {}
+    for c in chain:
+        s = c["strike"]
+        oi = c.get("open_interest", 0)
+        if c["type"] == "call":
+            call_oi_per_strike[s] = call_oi_per_strike.get(s, 0) + oi
+        elif c["type"] == "put":
+            put_oi_per_strike[s] = put_oi_per_strike.get(s, 0) + oi
+
+    if not call_oi_per_strike and not put_oi_per_strike:
+        return 0.0, 0.0, {}
+
+    # Major call wall = highest call OI strike (proxy +GEX)
+    major_pos = (
+        max(call_oi_per_strike.items(), key=lambda kv: kv[1])[0]
+        if call_oi_per_strike else 0.0
+    )
+    # Major put wall = highest put OI strike (proxy -GEX)
+    major_neg = (
+        max(put_oi_per_strike.items(), key=lambda kv: kv[1])[0]
+        if put_oi_per_strike else 0.0
+    )
+    # Net gamma by strike = call OI - put OI (sign approximates)
+    all_strikes = set(call_oi_per_strike) | set(put_oi_per_strike)
+    net_gamma = {
+        s: call_oi_per_strike.get(s, 0) - put_oi_per_strike.get(s, 0)
+        for s in all_strikes
+    }
+    return float(major_pos), float(major_neg), net_gamma
+
 
 if __name__ == "__main__":
     import sys

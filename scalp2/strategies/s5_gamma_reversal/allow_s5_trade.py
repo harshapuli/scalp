@@ -76,10 +76,19 @@ def features_to_ml_vector(f: Features):
 def _is_s5_setup_check(f: Features, cfg: dict) -> Optional[str]:
     """Returns pass_reason if setup fails, None if passes (gate 1)."""
     s = cfg["s5"]["setup"]
-    if f.distance_to_major_pos_gex_atr > s["near_gex_atr"]:
+    # near GEX = within `near_gex_atr` of EITHER the call wall (+GEX) OR put
+    # wall (-GEX). S5 short fades the call wall; S5 long fades the put wall.
+    # Take the smaller absolute distance.
+    dist_pos = abs(f.distance_to_major_pos_gex_atr)
+    dist_neg = abs(getattr(f, "distance_to_neg_gex_atr", 99.0))
+    nearest_wall = min(dist_pos, dist_neg)
+    if nearest_wall > s["near_gex_atr"]:
         return "not_near_gex"
-    extended = (f.extension_from_vwap_atr >= s["extended_atr_min"]
-                or f.extension_from_prior_close_atr >= s["extended_atr_min"])
+    # extended = MAGNITUDE check (long S5 = TANK_REVERSE = extension is NEGATIVE
+    # = price extended down into put wall; short S5 = SURGE_REVERSE = extension
+    # is POSITIVE = price extended up into call wall). Both directions qualify.
+    extended = (abs(f.extension_from_vwap_atr) >= s["extended_atr_min"]
+                or abs(f.extension_from_prior_close_atr) >= s["extended_atr_min"])
     if not extended:
         return "not_extended"
     if f.near_htf_level_atr > s["at_liquidity_atr"]:
