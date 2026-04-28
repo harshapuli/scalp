@@ -598,14 +598,19 @@ def main() -> int:
     t3 = threading.Thread(target=_pb_loop, args=(60,), daemon=True)
     t3.start()
 
-    # Auto-start the paper trader in scan-only mode so /trade.html shows
-    # FORMING/TRADE cards without the user having to click "Start" first.
-    # /auto.html flips auto_submit=True to enable autonomous execution.
+    # Auto-start the paper trader in FULL AUTO mode (auto_submit=True).
+    # Per user direction 2026-04-28: "your paper trading is up to you, manual
+    # is me" — the daemon must execute autonomously by default, not wait for
+    # a toggle on /auto.html. Phase guards (warmup vs open) still apply, so
+    # nothing fires pre-market.
+    # Override via env: SCALP2_AUTO_SUBMIT=0 to boot in scan-only.
     try:
         from scripts.paper_trader import TRADER, DEFAULT_UNIVERSE
+        auto = os.environ.get("SCALP2_AUTO_SUBMIT", "1") == "1"
         TRADER.start(tickers=list(DEFAULT_UNIVERSE), poll_seconds=60,
-                      auto_submit=False)
-        _log(f"paper trader auto-started (scan-only) · {len(DEFAULT_UNIVERSE)} tickers · poll 60s")
+                      auto_submit=auto)
+        mode = "AUTO" if auto else "scan-only"
+        _log(f"paper trader auto-started ({mode}) · {len(DEFAULT_UNIVERSE)} tickers · poll 60s")
     except Exception as e:
         _log(f"paper trader auto-start FAILED: {e}")
 
