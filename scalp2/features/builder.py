@@ -82,10 +82,21 @@ def build_features(*,
     vol_div = volume_divergence_ratio(cur_v, pri_v)
     climax_v = climax_vol_ratio(bars)
 
-    # ── Aggressor (Lee-Ready) ──
-    classified = classify_trades(trades, quotes) if trades and quotes else []
-    cutoff_ep = timestamp.timestamp()
-    agg_recent, agg_prior = aggressor_recent_prior(classified, cutoff_ep, window_seconds=300)
+    # ── Aggressor (Lee-Ready or bar-direction proxy if no trades feed) ──
+    if trades and quotes:
+        classified = classify_trades(trades, quotes)
+        cutoff_ep = timestamp.timestamp()
+        agg_recent, agg_prior = aggressor_recent_prior(classified, cutoff_ep, window_seconds=300)
+    else:
+        # Backtest fallback — derive from bar close-vs-open sign over last 5 / 5-10 bars
+        def _bar_dir_avg(b_window):
+            if not b_window:
+                return 0.0
+            signs = [(1 if b.c > b.o else (-1 if b.c < b.o else 0)) for b in b_window]
+            return sum(signs) / len(signs)
+
+        agg_recent = _bar_dir_avg(bars[-5:])
+        agg_prior = _bar_dir_avg(bars[-10:-5]) if len(bars) >= 10 else 0.0
     agg_vel = aggressor_velocity(agg_recent, agg_prior, dt_seconds=60.0)
     flip_str = flip_strength(agg_recent, agg_prior)
 
