@@ -290,6 +290,61 @@ def analyze_day(date_str: Optional[str] = None,
     except Exception:
         pass
 
+    # 8. Intraday timeseries — captured every 5min by the snapshot thread
+    intraday_account: list[dict] = []
+    intraday_per_ticker: dict[str, list[dict]] = {}
+    intraday_uw: dict[str, list[dict]] = {}
+    try:
+        from journal.intraday_snapshot import (
+            load_account_timeseries, load_all_ticker_timeseries,
+            load_all_uw_timeseries,
+        )
+        intraday_account = load_account_timeseries(DB_PATH, date_str)
+        intraday_per_ticker = load_all_ticker_timeseries(DB_PATH, date_str)
+        intraday_uw = load_all_uw_timeseries(DB_PATH, date_str)
+        n_flow_total = sum(
+            sum(s.get("n_flow_records", 0) for s in slist)
+            for slist in intraday_uw.values()
+        )
+        print(f"[eod]   intraday: account_snaps={len(intraday_account)} "
+              f"ticker_snaps={sum(len(v) for v in intraday_per_ticker.values())} "
+              f"uw_dumps={sum(len(v) for v in intraday_uw.values())} "
+              f"flow_records_total={n_flow_total}")
+    except Exception as e:
+        print(f"[eod] intraday timeseries unavailable: {e}", file=sys.stderr)
+
+    # Compress per-ticker timeseries into useful summaries
+    ticker_evolution: dict[str, dict] = {}
+    for tk, snaps in intraday_per_ticker.items():
+        if not snaps:
+            continue
+        gex_pos_series = [s.get("gex_pos_strike") for s in snaps if s.get("gex_pos_strike")]
+        gex_neg_series = [s.get("gex_neg_strike") for s in snaps if s.get("gex_neg_strike")]
+        flip_series = [s.get("gex_gamma_flip") for s in snaps if s.get("gex_gamma_flip")]
+        iv_series = [s.get("iv_percentile") for s in snaps if s.get("iv_percentile") is not None]
+        states_seen = sorted({s.get("scalp_state") for s in snaps if s.get("scalp_state")})
+
+        ticker_evolution[tk] = {
+            "n_snapshots": len(snaps),
+            "first_seen": snaps[0]["ts"],
+            "last_seen": snaps[-1]["ts"],
+            "states_traversed": states_seen,
+            "gex_pos_strike_range": [min(gex_pos_series), max(gex_pos_series)] if gex_pos_series else None,
+            "gex_neg_strike_range": [min(gex_neg_series), max(gex_neg_series)] if gex_neg_series else None,
+            "gamma_flip_range": [min(flip_series), max(flip_series)] if flip_series else None,
+            "iv_pct_range": [min(iv_series), max(iv_series)] if iv_series else None,
+            "max_active_setups": max((s.get("n_active_setups", 0) for s in snaps), default=0),
+            "setup_appearances": sum(1 for s in snaps if s.get("n_active_setups", 0) > 0),
+        }
+
+    # Account equity curve
+    equity_curve = [
+        {"ts": s["ts"], "equity": s.get("equity"),
+         "unrealized_pl": s.get("unrealized_pl"),
+         "n_positions": s.get("n_positions")}
+        for s in intraday_account
+    ]
+
     review = {
         "date": date_str,
         "generated_utc": datetime.now(tz=timezone.utc).isoformat(timespec="seconds") + "Z",
@@ -301,6 +356,10 @@ def analyze_day(date_str: Optional[str] = None,
             "n_missed": len(missed),
             "n_alpaca_orders": len(orders),
             "fired_tickers": fired_tickers,
+            "n_intraday_snapshots_account": len(intraday_account),
+            "n_intraday_snapshots_per_ticker": {
+                tk: len(snaps) for tk, snaps in intraday_per_ticker.items()
+            },
         },
         "account": day_pnl,
         "per_strategy": per_strategy,
@@ -310,6 +369,13 @@ def analyze_day(date_str: Optional[str] = None,
         "setups_full": setups,
         "alpaca_orders": orders,
         "uw_snapshots": uw_snapshots,
+        # Intraday timeseries
+        "ticker_evolution": ticker_evolution,
+        "equity_curve": equity_curve,
+        "intraday_per_ticker": intraday_per_ticker,
+        "intraday_account": intraday_account,
+        # NEW: raw UW dumps (full GEX strike maps + flow records list + IV term)
+        "intraday_uw": intraday_uw,
     }
 
     out_path.write_text(json.dumps(review, default=str, indent=2))

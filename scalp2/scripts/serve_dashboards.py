@@ -101,6 +101,39 @@ def _pb_stale(cached: dict) -> bool:
         return True
 
 
+def _intraday_snapshot_loop(interval_s: int = 300) -> None:
+    """Every 5 min, journal the daemon view + Alpaca account + raw UW dumps
+    (full GEX strike map, flow records list, IV term structure, earnings
+    summary) into dev_journal.db. Heavy UW endpoints rotate every 5th call
+    to stay rate-limit safe."""
+    from scripts.paper_trader import TRADER, DB_PATH
+    from journal.intraday_snapshot import run_snapshot
+    try:
+        from data_clients.unusual_whales import UWClient
+        uw = UWClient()
+    except Exception as e:
+        _log(f"intraday snapshot: UW unavailable ({e}), heavy endpoints skipped")
+        uw = None
+
+    while not _stop_event.is_set():
+        try:
+            with _LIVE_LOCK:
+                acct = (_LIVE_STATE or {}).get("account") or {}
+                positions = list((_LIVE_STATE or {}).get("positions") or [])
+            r = run_snapshot(DB_PATH, TRADER,
+                              alpaca_account=acct, positions=positions,
+                              uw_client=uw)
+            if r.get("n_tickers", 0) or r.get("n_uw_dumps", 0):
+                _log(f"intraday snapshot: tickers={r['n_tickers']} "
+                      f"uw_dumps={r['n_uw_dumps']} heavy={r['heavy_tick']}")
+        except Exception as e:
+            _log(f"intraday snapshot failed: {e}")
+        for _ in range(interval_s):
+            if _stop_event.is_set():
+                return
+            time.sleep(1)
+
+
 def _pb_loop(interval_s: int) -> None:
     """Refresh prebreakout scan in the background. Cheap when nothing's
     coiling (most tickers fail compression). Caches the full ranked result."""
@@ -597,6 +630,9 @@ def main() -> int:
     # Pre-breakout scanner — runs every 60s
     t3 = threading.Thread(target=_pb_loop, args=(60,), daemon=True)
     t3.start()
+    # Intraday snapshot — runs every 5 min, journals daemon state to SQLite
+    t4 = threading.Thread(target=_intraday_snapshot_loop, args=(300,), daemon=True)
+    t4.start()
 
     # Auto-start the paper trader in FULL AUTO mode (auto_submit=True).
     # Per user direction 2026-04-28: "your paper trading is up to you, manual
