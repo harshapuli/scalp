@@ -137,6 +137,10 @@ def backtest_one_ticker(*,
     outcomes: list[TradeOutcome] = []
     pass_hist: dict[str, dict[str, int]] = {s: {} for s in strategies}
     prior_state: Optional[ScalpState] = None
+    last_session_date: Optional = None
+    bars_into_session: int = 0
+    session_open_per_date: dict = {}    # session_date → open price
+    daily_atr_per_date: dict = {}       # session_date → daily ATR (from prior session)
 
     # Cache one flow snapshot up front (intraday flow doesn't help over 30-day backtest)
     try:
@@ -144,9 +148,47 @@ def backtest_one_ticker(*,
     except Exception:
         flow = []
 
+    n_session_resets = 0
     for i, (b, ts) in enumerate(zip(ohlc_bars, timestamps)):
-        if i < 30:
-            continue   # warm up bars
+        cur_session_date = ts.date()
+        # Session-boundary reset at NYSE open (13:30 UTC EDT or 14:30 UTC EST)
+        # — not UTC midnight. This makes a "session" run 09:30 ET → 16:00 ET +
+        # any aftermarket bars before the next day's reset.
+        is_session_open = (
+            (ts.hour == 13 and ts.minute == 30)
+            or (ts.hour == 14 and ts.minute == 30)
+        )
+        if is_session_open and last_session_date != cur_session_date:
+            prior_state = None
+            bars_into_session = 0
+            n_session_resets += 1
+            last_session_date = cur_session_date
+        bars_into_session += 1
+
+        # Track session open (first bar at/after 13:30 UTC for US markets)
+        if cur_session_date not in session_open_per_date and (
+            (ts.hour == 13 and ts.minute >= 30) or (ts.hour == 14 and ts.minute >= 30)
+        ):
+            session_open_per_date[cur_session_date] = b.o
+
+        # SKIP premarket / aftermarket bars entirely — only classify + dispatch
+        # during regular trading hours (13:30-20:00 UTC = 09:30-16:00 ET).
+        # Strategies depend on OR / GEX / aggressor data that's only valid
+        # during regular session.
+        if not (
+            (ts.hour == 13 and ts.minute >= 30)
+            or (14 <= ts.hour <= 19)
+            or (ts.hour == 20 and ts.minute == 0)
+        ):
+            continue
+
+        # Warm up: need at least 5 bars into the session for valid setup eval
+        if last_session_date != cur_session_date:
+            continue   # haven't seen the session-open marker yet
+        if bars_into_session < 5:
+            continue
+        if i < 14:
+            continue   # need ATR(14) prior bars
 
         # Find latest GEX snapshot ≤ ts
         gex_at_t = None
@@ -211,12 +253,42 @@ def backtest_one_ticker(*,
             from strategies.s3_momentum.setup import S3SetupContext
             from scalp_brain.scores import reversal_score as rev_score
             direction = "long" if new_state.name == "SURGE_CONTINUATION" else "short"
+
+            # REAL session return — find first 13:30+ UTC bar of this session
+            session_open_today = session_open_per_date.get(cur_session_date)
+            if session_open_today is None:
+                # search backwards for first bar of this session at 13:30+ UTC
+                for j in range(i, max(-1, i - 100), -1):
+                    if (timestamps[j].date() == cur_session_date
+                            and timestamps[j].hour >= 13):
+                        session_open_today = ohlc_bars[j].o
+                        break
+                if session_open_today is None:
+                    session_open_today = ohlc_bars[max(0, i - 30)].o
+
+            session_return = (b.c - session_open_today) / atr if atr > 0 else 0.0
+
+            # Use higher_lows / lower_highs from bars in current session only
+            sess_bars = []
+            for j in range(i, max(-1, i - 30), -1):
+                if timestamps[j].date() != cur_session_date:
+                    break
+                sess_bars.insert(0, ohlc_bars[j])
+            higher_lows = lower_highs = 0
+            if len(sess_bars) >= 6:
+                tail = sess_bars[-6:]
+                for k in range(1, len(tail)):
+                    if tail[k].l > tail[k - 1].l:
+                        higher_lows += 1
+                    if tail[k].h < tail[k - 1].h:
+                        lower_highs += 1
+
             ctx = S3SetupContext(
                 ticker=ticker,
-                session_return_atr=f.extension_from_prior_close_atr,
+                session_return_atr=session_return,
                 vwap_distance_atr=f.extension_from_vwap_atr,
-                consecutive_higher_lows=4 if direction == "long" and not f.pullback_break else 0,
-                consecutive_lower_highs=4 if direction == "short" and not f.pullback_break else 0,
+                consecutive_higher_lows=higher_lows,
+                consecutive_lower_highs=lower_highs,
                 aggressor_avg_30m=f.aggressor_recent,
                 near_htf_level_atr=f.near_htf_level_atr,
                 distance_to_pos_gex_atr=abs(f.distance_to_major_pos_gex_atr),
@@ -245,17 +317,46 @@ def backtest_one_ticker(*,
             from strategies.s2_orb.setup import S2SetupContext
             from strategies.s2_orb.opening_range import OpeningRange
 
-            # Minimal stub OR (open of session = first bar's open)
-            session_open = ohlc_bars[max(0, i - 30)].o
+            # REAL Opening Range from 09:30-09:34 ET bars (=13:30-13:34 UTC EDT)
+            or_high = float("-inf"); or_low = float("inf"); or_n = 0
+            session_first_close = None
+            # Search the full current session backwards (sessions can be 1000+ bars
+            # including premarket / aftermarket; UTC date covers 8pm ET → 8pm ET).
+            for j in range(i, -1, -1):
+                if timestamps[j].date() != cur_session_date:
+                    break
+                hh, mm = timestamps[j].hour, timestamps[j].minute
+                if (hh == 13 and 30 <= mm <= 34) or (hh == 14 and 30 <= mm <= 34):
+                    or_high = max(or_high, ohlc_bars[j].h)
+                    or_low = min(or_low, ohlc_bars[j].l)
+                    or_n += 1
+                if hh in (13, 14) and mm == 30:
+                    session_first_close = ohlc_bars[j].c
+            if or_n < 1 or or_high == float("-inf"):
+                # No OR window in this ticker's bars (after-hours-only data?)
+                pass_hist["S2"]["no_or_window"] = pass_hist["S2"].get("no_or_window", 0) + 1
+                continue
+
             or_ = OpeningRange(
-                ticker=ticker, high=session_open * 1.005, low=session_open * 0.995,
-                mid=session_open, computed_at=ts,
+                ticker=ticker, high=or_high, low=or_low,
+                mid=(or_high + or_low) / 2.0, computed_at=ts,
             )
+
+            # Prior session close — search backwards for last bar of prior session
+            prior_close = ohlc_bars[max(0, i - 30)].c
+            for j in range(i - 1, max(-1, i - 500), -1):
+                if timestamps[j].date() < cur_session_date:
+                    prior_close = ohlc_bars[j].c
+                    break
+            sess_open = session_open_per_date.get(cur_session_date, ohlc_bars[max(0, i - 30)].o)
+            gap_pct = (sess_open - prior_close) / prior_close if prior_close > 0 else 0.0
+
+            avg_min_vol = sum(x.v for x in ohlc_bars[max(0, i - 30):i]) / 30 if i >= 30 else 1.0
             ctx = S2SetupContext(
                 ticker=ticker, last_close=b.c,
-                last_bar_volume=b.v, avg_minute_volume_30bar=sum(x.v for x in ohlc_bars[max(0, i-30):i])/30,
-                gap_pct=0.025,                     # placeholder (need prior close)
-                pre_market_volume_ratio=5.5,       # placeholder
+                last_bar_volume=b.v, avg_minute_volume_30bar=avg_min_vol,
+                gap_pct=gap_pct,
+                pre_market_volume_ratio=5.5,       # need premkt-bars feed; assume eligible
                 opening_range=or_, earnings_blackout=False,
             )
             d = allow_s2_trade(
@@ -276,6 +377,7 @@ def backtest_one_ticker(*,
             else:
                 pass_hist["S2"][d.pass_reason] = pass_hist["S2"].get(d.pass_reason, 0) + 1
 
+    print(f"  [{ticker}] sessions={n_session_resets+1}")
     return outcomes, pass_hist
 
 
