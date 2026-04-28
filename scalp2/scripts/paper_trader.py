@@ -229,8 +229,8 @@ class PaperTrader:
         cfg = load_thresholds()
         from data_clients.alpaca import AlpacaClient
         try:
-            from data_clients.unusual_whales import UnusualWhalesClient
-            uw = UnusualWhalesClient()
+            from data_clients.unusual_whales import UWClient
+            uw = UWClient()
         except Exception as e:
             print(f"[paper_trader] UW client unavailable: {e} — S4 will not fire")
             uw = None
@@ -718,6 +718,56 @@ class PaperTrader:
             }
             self.status.orders.appendleft(err)
             return {"ok": False, **err}
+
+    def force_test_tick(self, ticker: str) -> dict:
+        """Run one synchronous evaluation pass for `ticker`, bypassing the
+        phase gate (works even when market is closed). Used by /api/test_tick
+        to verify wiring end-to-end before tomorrow's open.
+
+        Returns a dict describing what happened: state, strategies evaluated,
+        decisions, setup rows produced.
+        """
+        from infra.config_loader import load_thresholds
+        from infra.secrets import load_secrets
+        load_secrets()
+        cfg = load_thresholds()
+        from data_clients.alpaca import AlpacaClient
+        try:
+            from data_clients.unusual_whales import UWClient
+            uw = UWClient()
+        except Exception:
+            uw = None
+
+        result = {"ticker": ticker, "ok": True, "ts": datetime.now(tz=timezone.utc).isoformat(timespec="seconds") + "Z"}
+        try:
+            with AlpacaClient() as alp:
+                # Run one tick synchronously through the scan logic
+                loop = asyncio.new_event_loop()
+                try:
+                    asyncio.set_event_loop(loop)
+                    now = datetime.now(tz=timezone.utc)
+                    # Capture the current setups for diff
+                    before_ids = {sid for sid, r in self.status.setups.items() if r.get("ticker") == ticker}
+                    changed = loop.run_until_complete(
+                        self._tick_one(alp, uw, ticker, cfg, now)
+                    )
+                    after_setups = [
+                        {**r} for sid, r in self.status.setups.items()
+                        if r.get("ticker") == ticker
+                    ]
+                    state = self._prior_state.get(ticker)
+                    result.update({
+                        "state": state.name if state else "UNKNOWN",
+                        "score": (state.score if state else 0.0),
+                        "state_changed": bool(changed),
+                        "setups_after": after_setups,
+                        "setups_count": len(after_setups),
+                    })
+                finally:
+                    loop.close()
+        except Exception as e:
+            result.update({"ok": False, "error": f"{type(e).__name__}: {e}"})
+        return result
 
     def take_setup(self, signal_id: str) -> dict:
         """Public entry point for the /api/take HTTP handler. Submits the

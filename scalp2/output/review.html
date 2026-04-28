@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>scalp 2 — EOD review</title>
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;500&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink:#141413; --bg:#faf9f5; --panel:#fff; --hair:#e8e6dc;
+    --dim:#6b6a65; --mid:#b0aea5;
+    --accent:#d97757; --accent-soft:#fceee7; --blue:#6a9bcc; --blue-soft:#e4edf6;
+    --bull:#3d7c5e; --bear:#b03528; --warn:#a16207;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font:13px/1.4 'Lora',Georgia,serif; background:var(--bg); color:var(--ink);
+    padding-bottom:env(safe-area-inset-bottom); }
+  h2, h3, .poppins { font-family:'Poppins',Arial,sans-serif; letter-spacing:-.01em; }
+
+  .topnav { position:sticky; top:0; z-index:20; display:flex; gap:4px;
+    padding:8px 10px; background:var(--bg); border-bottom:1px solid var(--hair);
+    overflow-x:auto; white-space:nowrap; }
+  .topnav a { font-family:'Poppins',Arial,sans-serif; display:inline-flex; align-items:center; gap:5px;
+    padding:7px 12px; font-size:12px; font-weight:500; color:var(--dim); text-decoration:none;
+    border-radius:999px; border:1px solid transparent; }
+  .topnav a.active { color:var(--ink); background:var(--accent-soft); border-color:rgba(217,119,87,0.3); }
+  .topnav a .sub { font-size:10px; color:var(--mid); font-weight:400; }
+  .topnav a.active .sub { color:var(--accent); }
+
+  main { max-width:980px; margin:0 auto; padding:14px 12px 30px; }
+  h2 { font-size:14px; color:var(--accent); margin:18px 0 10px; font-weight:700; }
+  h3 { font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.08em;
+    margin:16px 0 8px; font-weight:600; }
+
+  .controls { display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:8px 0 14px;
+    border-bottom:1px solid var(--hair); margin-bottom:14px; }
+  .controls label { font-size:11px; color:var(--dim); text-transform:uppercase;
+    letter-spacing:.06em; font-family:'Poppins',Arial,sans-serif; }
+  input[type=date] { padding:6px 10px; border:1px solid var(--hair); border-radius:6px;
+    font-family:'Lora',Georgia,serif; font-size:13px; background:#fff; color:var(--ink); }
+  button { padding:6px 14px; font-family:'Poppins',Arial,sans-serif; font-weight:600;
+    font-size:11px; letter-spacing:.04em; border:none; border-radius:6px; cursor:pointer; }
+  button.run { background:var(--accent); color:#fff; }
+  button.run:disabled { opacity:.5; cursor:wait; }
+
+  .summary { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));
+    gap:10px; margin-bottom:14px; }
+  .stat { background:var(--panel); border:1px solid var(--hair); border-radius:8px; padding:10px 12px; }
+  .stat .lbl { font-family:'Poppins',Arial,sans-serif; font-size:9px; color:var(--dim);
+    text-transform:uppercase; letter-spacing:.06em; }
+  .stat .val { font-family:'Poppins',Arial,sans-serif; font-size:20px; font-weight:700;
+    font-variant-numeric:tabular-nums; }
+
+  .strat-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:10px; }
+  .strat { background:var(--panel); border:1px solid var(--hair); border-radius:8px; padding:10px 12px; }
+  .strat-name { font-family:'Poppins',Arial,sans-serif; font-weight:700; font-size:13px;
+    color:var(--accent); }
+  .strat-counts { font-family:'Poppins',Arial,sans-serif; font-size:11px; color:var(--ink);
+    font-variant-numeric:tabular-nums; margin-top:4px; }
+  .strat-reasons { font-size:10px; color:var(--dim); margin-top:6px; line-height:1.6; }
+
+  .trade-card { background:var(--panel); border:1px solid var(--hair); border-radius:10px;
+    padding:12px 14px; margin-bottom:8px; }
+  .trade-card.aligned { border-left:3px solid var(--bull); }
+  .trade-card.unaligned { border-left:3px solid var(--bear); }
+  .tc-head { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:6px; }
+  .tk { font-family:'Poppins',Arial,sans-serif; font-weight:700; font-size:16px; }
+  .pill { font-family:'Poppins',Arial,sans-serif; font-size:9px; font-weight:700; letter-spacing:.05em;
+    padding:2px 7px; border-radius:3px; }
+  .pill.strat { background:var(--accent-soft); color:var(--accent); }
+  .pill.long { background:rgba(61,124,94,.15); color:var(--bull); }
+  .pill.short { background:rgba(176,53,40,.15); color:var(--bear); }
+  .pill.aligned { background:rgba(61,124,94,.15); color:var(--bull); }
+  .pill.unaligned { background:rgba(176,53,40,.15); color:var(--bear); }
+
+  .tc-meta { display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr));
+    gap:6px; margin:6px 0; font-family:'Poppins',Arial,sans-serif; font-size:11px;
+    font-variant-numeric:tabular-nums; }
+  .tc-meta div .lbl { font-size:9px; color:var(--dim); text-transform:uppercase; }
+  .tc-meta div .val { font-weight:600; }
+
+  .uw-block { background:#f7f6ef; border-radius:6px; padding:8px 10px; margin-top:6px;
+    font-family:'Poppins',Arial,sans-serif; font-size:10px; color:var(--dim); }
+  .uw-block code { font-family:'SF Mono',Menlo,monospace; font-size:10px;
+    background:#fff; padding:1px 4px; border-radius:2px; }
+
+  details { background:var(--panel); border:1px solid var(--hair); border-radius:8px;
+    margin-top:10px; padding:10px 14px; }
+  details summary { font-family:'Poppins',Arial,sans-serif; font-weight:600; cursor:pointer;
+    font-size:12px; color:var(--accent); }
+  details pre { font-family:'SF Mono',Menlo,monospace; font-size:10px; line-height:1.4;
+    background:#1a1a18; color:#e8e6dc; padding:10px; border-radius:6px;
+    overflow:auto; max-height:400px; }
+
+  .empty { text-align:center; color:var(--mid); font-style:italic; padding:30px 12px; }
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <a href="/trade.html"><span>👤 Trade</span><span class="sub">scalp signals</span></a>
+  <a href="/swing.html"><span>📈 Swing</span><span class="sub">candidates</span></a>
+  <a href="/live.html"><span>💼 Live</span><span class="sub">positions</span></a>
+  <a href="/auto.html"><span>🤖 Auto</span><span class="sub">paper bot</span></a>
+  <a href="/review.html" class="active"><span>📓 Review</span><span class="sub">EOD analysis</span></a>
+  <a href="/prebreakout.html"><span>🌱 Pre-Breakout</span><span class="sub">factor stack</span></a>
+</nav>
+
+<main>
+  <div class="controls">
+    <label>Date</label>
+    <input type="date" id="date">
+    <button class="run" id="run">▶ Run review</button>
+    <span id="status" style="font-size:11px; color:var(--dim);"></span>
+  </div>
+
+  <div id="summary"></div>
+  <div id="content"><div class="empty">Pick a date and click Run.</div></div>
+</main>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const fmtMoney = n => n == null ? "—" : "$" + Number(n).toLocaleString(undefined, {maximumFractionDigits:0});
+  const fmtPct = n => n == null ? "—" : (n * 100).toFixed(1) + "%";
+
+  // Default to today
+  $("date").value = new Date().toISOString().slice(0, 10);
+
+  function renderSummary(r) {
+    const s = r.summary || {};
+    const a = r.account || {};
+    const tickers = (s.fired_tickers || []).join(", ") || "—";
+    $("summary").innerHTML = `
+      <h2>${r.date} · ${s.fired_tickers ? s.fired_tickers.length : 0} tickers fired</h2>
+      <div class="summary">
+        <div class="stat"><div class="lbl">Decisions</div><div class="val">${s.n_decisions || 0}</div></div>
+        <div class="stat"><div class="lbl">Trades fired</div><div class="val">${s.n_trades_fired || 0}</div></div>
+        <div class="stat"><div class="lbl">Setups tracked</div><div class="val">${s.n_setups_tracked || 0}</div></div>
+        <div class="stat"><div class="lbl">Taken</div><div class="val">${s.n_setups_taken || 0}</div></div>
+        <div class="stat"><div class="lbl">Missed</div><div class="val">${s.n_missed || 0}</div></div>
+        <div class="stat"><div class="lbl">Alpaca orders</div><div class="val">${s.n_alpaca_orders || 0}</div></div>
+        <div class="stat"><div class="lbl">Equity</div><div class="val">${fmtMoney(a.equity)}</div></div>
+      </div>
+      <div style="font-size:11px; color:var(--dim); margin-top:6px;">
+        Tickers: <code style="font-size:10px; background:var(--hair); padding:1px 5px; border-radius:3px;">${tickers}</code>
+      </div>
+    `;
+  }
+
+  function renderStrategies(r) {
+    const ps = r.per_strategy || {};
+    if (!Object.keys(ps).length) return "";
+    const items = Object.entries(ps).map(([s, m]) => {
+      const reasons = Object.entries(m.pass_reasons || {})
+        .sort((a,b) => b[1] - a[1])
+        .slice(0, 4)
+        .map(([k, v]) => `${k.replace(/_/g, " ")}: <b>${v}</b>`)
+        .join("<br>");
+      return `<div class="strat">
+        <div class="strat-name">${s}</div>
+        <div class="strat-counts">⚡ ${m.n_trade} TRADE · ⏸ ${m.n_pass} PASS</div>
+        <div class="strat-reasons">${reasons || "—"}</div>
+      </div>`;
+    }).join("");
+    return `<h3>Per-strategy breakdown</h3><div class="strat-grid">${items}</div>`;
+  }
+
+  function renderTradeReviews(r) {
+    const trs = r.trade_reviews || [];
+    if (!trs.length) {
+      return `<h3>Trade reviews</h3><div class="empty">No TRADE decisions today.</div>`;
+    }
+    const cards = trs.map(t => {
+      const fa = t.flow_alignment || {};
+      const aligned = fa.aligned_with_trade;
+      const dir = (t.direction || "").toLowerCase();
+      const fill = t.alpaca_fill || {};
+      const gex = t.gex_at_close || {};
+      return `<div class="trade-card ${aligned ? 'aligned' : 'unaligned'}">
+        <div class="tc-head">
+          <span class="tk">${t.ticker}</span>
+          <span class="pill strat">${t.strategy || "—"}</span>
+          <span class="pill ${dir}">${dir.toUpperCase()}</span>
+          <span class="pill ${aligned ? 'aligned' : 'unaligned'}">
+            ${aligned ? '✓ flow aligned' : '✗ flow against'}
+          </span>
+          <span style="margin-left:auto; font-size:10px; color:var(--dim);">${(t.decision_at || '').substring(11, 19)} UTC</span>
+        </div>
+        <div class="tc-meta">
+          <div><div class="lbl">ML prob</div><div class="val">${t.ml_prob != null ? t.ml_prob.toFixed(3) : '—'}</div></div>
+          <div><div class="lbl">EV</div><div class="val">${t.expected_value != null ? '$' + t.expected_value.toFixed(2) : '—'}</div></div>
+          <div><div class="lbl">Net call $</div><div class="val">${fmtMoney(fa.net_call_premium || 0)}</div></div>
+          <div><div class="lbl">Net put $</div><div class="val">${fmtMoney(fa.net_put_premium || 0)}</div></div>
+          <div><div class="lbl">Flow records</div><div class="val">${fa.n_flow_records || 0}</div></div>
+        </div>
+        <div class="uw-block">
+          <b>UW context</b> · spot <code>${gex.spot_price ? '$' + gex.spot_price.toFixed(2) : '—'}</code>
+          · γ-flip <code>${gex.gamma_flip ? '$' + gex.gamma_flip.toFixed(2) : '—'}</code>
+          · +GEX <code>${gex.major_pos_gex_strike ? '$' + gex.major_pos_gex_strike.toFixed(0) : '—'}</code>
+          · -GEX <code>${gex.major_neg_gex_strike ? '$' + gex.major_neg_gex_strike.toFixed(0) : '—'}</code>
+          ${fill.order_id ? `<br><b>Alpaca fill</b> · qty=${fill.filled_qty} @ $${fill.filled_avg_price} · status=${fill.status}` : '<br><b>No matching Alpaca fill</b>'}
+        </div>
+      </div>`;
+    }).join("");
+    return `<h3>Trade reviews (${trs.length})</h3>${cards}`;
+  }
+
+  function renderRawDump(r) {
+    return `<details>
+      <summary>📦 Raw review JSON (UW snapshots, decisions, setups, orders)</summary>
+      <pre>${JSON.stringify(r, null, 2)}</pre>
+    </details>`;
+  }
+
+  async function runReview(force = false) {
+    const date = $("date").value;
+    if (!date) return;
+    $("run").disabled = true;
+    $("status").textContent = "running…";
+    try {
+      const url = `/api/review?date=${date}${force ? '&force=1' : ''}`;
+      const r = await fetch(url);
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}));
+        throw new Error(e.error || `status ${r.status}`);
+      }
+      const review = await r.json();
+      renderSummary(review);
+      $("content").innerHTML = renderStrategies(review)
+        + renderTradeReviews(review)
+        + renderRawDump(review);
+      $("status").textContent = "done · " + (review.generated_utc || "").substring(0, 19);
+    } catch (e) {
+      $("status").textContent = "FAILED: " + e.message;
+    } finally {
+      $("run").disabled = false;
+    }
+  }
+
+  $("run").addEventListener("click", () => runReview(true));
+  // Auto-run on load
+  runReview(false);
+</script>
+
+</body>
+</html>

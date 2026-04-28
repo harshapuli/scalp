@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#faf9f5">
+<title>scalp 2 — swing</title>
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;500&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink:#141413; --bg:#faf9f5; --panel:#fff; --hair:#e8e6dc;
+    --dim:#6b6a65; --mid:#b0aea5;
+    --accent:#d97757; --accent-soft:#fceee7;
+    --blue:#6a9bcc; --blue-soft:#e4edf6;
+    --bull:#3d7c5e; --bear:#b03528; --warn:#a16207;
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; font:13px/1.4 'Lora',Georgia,serif; background:var(--bg); color:var(--ink);
+    padding-bottom:env(safe-area-inset-bottom); }
+  h2, .poppins { font-family:'Poppins',Arial,sans-serif; letter-spacing:-.01em; }
+
+  .topnav { position:sticky; top:0; z-index:20; display:flex; gap:4px;
+    padding:8px 10px; background:var(--bg); border-bottom:1px solid var(--hair);
+    overflow-x:auto; white-space:nowrap; }
+  .topnav a { font-family:'Poppins',Arial,sans-serif; display:inline-flex; align-items:center; gap:5px;
+    padding:7px 12px; font-size:12px; font-weight:500; color:var(--dim); text-decoration:none;
+    border-radius:999px; border:1px solid transparent; }
+  .topnav a.active { color:var(--ink); background:var(--accent-soft); border-color:rgba(217,119,87,0.3); }
+  .topnav a .sub { font-size:10px; color:var(--mid); font-weight:400; }
+  .topnav a.active .sub { color:var(--accent); }
+
+  main { max-width:960px; margin:0 auto; padding:8px 10px 24px; }
+
+  .status { font-family:'Poppins',Arial,sans-serif; font-size:11px; color:var(--dim);
+    padding:4px 4px 10px; }
+  .status .dot { width:7px; height:7px; border-radius:50%; display:inline-block; margin-right:5px; }
+  .status .dot.on { background:var(--bull); animation:pulse 1.5s infinite; }
+  .status .dot.off { background:var(--mid); }
+  @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.4 } }
+
+  /* Stage column header */
+  .columns { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+  @media (max-width:680px) { .columns { grid-template-columns:1fr; } }
+
+  .stage-col { background:var(--panel); border:1px solid var(--hair); border-radius:10px;
+    padding:10px 12px; }
+  .stage-col h2 { font-size:10px; color:var(--dim); text-transform:uppercase; letter-spacing:.08em;
+    margin:0 0 8px; font-weight:600; display:flex; justify-content:space-between; align-items:center; }
+  .stage-col .count { color:var(--ink); font-weight:700; background:var(--hair);
+    padding:1px 8px; border-radius:999px; font-size:10px; }
+
+  .stage-col.inducement { border-color:#cdd5e0; }
+  .stage-col.setup { border-color:#93c5fd; background:linear-gradient(180deg, #f5f9ff 0%, #fff 100%); }
+  .stage-col.trigger { border-color:rgba(217,119,87,.5); background:linear-gradient(180deg, var(--accent-soft) 0%, #fff 100%); }
+
+  .candidate { background:#fff; border:1px solid var(--hair); border-radius:8px;
+    padding:10px 12px; margin-bottom:6px; }
+  .candidate.trade { border-color:rgba(217,119,87,.5); box-shadow:0 2px 8px rgba(217,119,87,.12); }
+
+  .cand-head { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:6px; }
+  .tick { font-family:'Poppins',Arial,sans-serif; font-size:16px; font-weight:700; }
+  .strat { font-family:'Poppins',Arial,sans-serif; font-size:9px; font-weight:700; letter-spacing:.05em;
+    padding:2px 6px; border-radius:3px; background:var(--accent-soft); color:var(--accent); }
+  .dir { font-family:'Poppins',Arial,sans-serif; font-size:9px; font-weight:700; letter-spacing:.05em;
+    padding:2px 6px; border-radius:3px; color:#fff; }
+  .dir.long { background:linear-gradient(135deg, var(--bull), #4d9b75); }
+  .dir.short { background:linear-gradient(135deg, var(--bear), #d04638); }
+
+  .plan-mini { display:grid; grid-template-columns:repeat(3,1fr); gap:4px;
+    background:#f7f6ef; border-radius:5px; padding:6px; margin:6px 0;
+    font-family:'Poppins',Arial,sans-serif; font-variant-numeric:tabular-nums; font-size:11px; }
+  .plan-mini .lbl { font-size:8px; color:var(--dim); text-transform:uppercase; }
+  .plan-mini .val { font-weight:600; }
+  .plan-mini .val.tgt { color:var(--bull); }
+  .plan-mini .val.stp { color:var(--bear); }
+
+  .age { font-family:'Poppins',Arial,sans-serif; font-size:10px; color:var(--dim); }
+  .reason { font-family:'Poppins',Arial,sans-serif; font-size:10px; color:var(--dim); margin-top:4px; }
+
+  .take-btn { width:100%; padding:9px; margin-top:6px; font-family:'Poppins',Arial,sans-serif;
+    font-weight:700; font-size:12px; letter-spacing:.04em; border:none; border-radius:6px;
+    color:#fff; background:linear-gradient(135deg, var(--accent), #e88e6f);
+    box-shadow:0 2px 8px rgba(217,119,87,.3); cursor:pointer; }
+  .take-btn:active { transform:translateY(1px); }
+  .take-btn:disabled { opacity:.5; cursor:wait; }
+
+  .empty { text-align:center; color:var(--mid); font-style:italic; font-size:11px;
+    padding:14px 6px; }
+
+  .toast { position:fixed; bottom:14px; left:12px; right:12px; padding:12px 16px; border-radius:10px;
+    font-family:'Poppins',Arial,sans-serif; font-size:13px; box-shadow:0 4px 14px rgba(0,0,0,.18);
+    z-index:50; opacity:0; transform:translateY(20px); transition:opacity .25s, transform .25s; }
+  .toast.show { opacity:1; transform:translateY(0); }
+  .toast.ok { background:var(--bull); color:#fff; }
+  .toast.err { background:var(--bear); color:#fff; }
+
+  /* Lifecycle legend */
+  .legend { font-family:'Poppins',Arial,sans-serif; font-size:11px; color:var(--dim);
+    background:var(--panel); border:1px solid var(--hair); border-radius:8px;
+    padding:8px 12px; margin-top:14px; }
+  .legend b { color:var(--ink); font-weight:600; }
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <a href="/trade.html"><span>👤 Trade</span><span class="sub">scalp signals</span></a>
+  <a href="/swing.html" class="active"><span>📈 Swing</span><span class="sub">candidates</span></a>
+  <a href="/live.html"><span>💼 Live</span><span class="sub">positions</span></a>
+  <a href="/auto.html"><span>🤖 Auto</span><span class="sub">paper bot</span></a>
+  <a href="/review.html"><span>📓 Review</span><span class="sub">EOD analysis</span></a>
+  <a href="/prebreakout.html"><span>🌱 Pre-Breakout</span><span class="sub">factor stack</span></a>
+</nav>
+
+<main>
+  <div class="status" id="status">connecting…</div>
+
+  <div class="columns">
+    <div class="stage-col inducement">
+      <h2>1. Inducement <span class="count" id="n-inducement">0</span></h2>
+      <div id="col-inducement"><div class="empty">none</div></div>
+    </div>
+    <div class="stage-col setup">
+      <h2>2. Setup <span class="count" id="n-setup">0</span></h2>
+      <div id="col-setup"><div class="empty">none</div></div>
+    </div>
+    <div class="stage-col trigger">
+      <h2>3. Trigger ⚡ <span class="count" id="n-trigger">0</span></h2>
+      <div id="col-trigger"><div class="empty">none</div></div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <b>Swing lifecycle:</b>
+    cards move left → right as a setup matures.
+    <b>Inducement</b>: state just changed to a trigger state, not yet evaluated as TRADE.
+    <b>Setup</b>: gate evaluated FORMING — waiting for one or more conditions.
+    <b>Trigger</b>: all gates passed, ready to take. Tap to submit Alpaca paper bracket.
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const fmtPx = n => n == null ? "—" : "$" + Number(n).toFixed(2);
+  const ago = iso => {
+    if (!iso) return "—";
+    const ms = Date.now() - new Date(iso).getTime();
+    if (ms < 5000) return "just now";
+    if (ms < 60000) return Math.floor(ms/1000) + "s";
+    if (ms < 3_600_000) return Math.floor(ms/60000) + "m";
+    return Math.floor(ms/3_600_000) + "h";
+  };
+  function toast(msg, kind = "ok") {
+    const t = $("toast"); t.textContent = msg;
+    t.className = "toast show " + kind;
+    setTimeout(() => t.classList.remove("show"), 3500);
+  }
+
+  // Lifecycle bucketing — derived from setup row state + age:
+  //   stage='TRADE'              → Trigger (ready to take)
+  //   stage='FORMING' + age<60s  → Inducement (just appeared)
+  //   stage='FORMING' + age>=60s → Setup (forming, waiting on a gate)
+  function bucketOf(s) {
+    if (s.stage === "TRADE") return "trigger";
+    const created = s.created_at ? new Date(s.created_at).getTime() : Date.now();
+    const ageS = (Date.now() - created) / 1000;
+    return ageS < 60 ? "inducement" : "setup";
+  }
+
+  function renderStatus(s) {
+    const phase = s.phase || (s.market_open ? "open" : "closed");
+    const last = s.last_tick_at ? `· tick ${ago(s.last_tick_at)}` : "";
+    const auto = s.auto_submit ? "· AUTO" : "";
+    const n = (s.setups || []).length;
+    $("status").innerHTML = `
+      <span class="dot ${s.running ? "on" : "off"}"></span>
+      ${s.running ? "scanning" : "stopped"} · ${phase} ${last} ${auto} ·
+      <b>${n}</b> active candidate${n === 1 ? "" : "s"}
+    `;
+  }
+
+  function renderCandidate(s) {
+    const dir = (s.direction || "").toLowerCase();
+    const dirEmoji = dir === "long" ? "🐂" : "🐻";
+    const isTrade = s.stage === "TRADE";
+    const reason = s.stage === "FORMING" && s.pass_reason
+      ? `⏳ ${s.pass_reason.replace(/_/g, " ")}`
+      : `⚡ all gates passed`;
+    const takeBtn = isTrade
+      ? `<button class="take-btn" data-id="${s.id}" data-tk="${s.ticker}">⚡ TAKE — ${s.qty}× ${s.ticker}</button>`
+      : "";
+    return `<div class="candidate ${isTrade ? "trade" : ""}">
+      <div class="cand-head">
+        <span class="tick">${s.ticker}</span>
+        <span class="strat">${s.strategy}</span>
+        <span class="dir ${dir}">${dirEmoji} ${dir.toUpperCase()}</span>
+        <span class="age" style="margin-left:auto">⌚ ${ago(s.created_at)}</span>
+      </div>
+      <div class="plan-mini">
+        <div><span class="lbl">Entry</span><span class="val">${fmtPx(s.entry)}</span></div>
+        <div><span class="lbl">Stop</span><span class="val stp">${fmtPx(s.stop)}</span></div>
+        <div><span class="lbl">Target</span><span class="val tgt">${fmtPx(s.target)}</span></div>
+      </div>
+      <div class="reason">${reason}</div>
+      ${takeBtn}
+    </div>`;
+  }
+
+  function renderColumns(setups) {
+    const buckets = { inducement: [], setup: [], trigger: [] };
+    for (const s of setups) buckets[bucketOf(s)].push(s);
+    for (const k of ["inducement", "setup", "trigger"]) {
+      $(`n-${k}`).textContent = buckets[k].length;
+      $(`col-${k}`).innerHTML = buckets[k].length
+        ? buckets[k].map(renderCandidate).join("")
+        : `<div class="empty">none</div>`;
+    }
+    document.querySelectorAll(".take-btn").forEach(b => {
+      b.addEventListener("click", async () => {
+        const id = b.dataset.id; const tk = b.dataset.tk;
+        if (!confirm(`Take ${tk}? Paper bracket order.`)) return;
+        b.disabled = true; b.textContent = "submitting…";
+        try {
+          const r = await fetch("/api/take", {
+            method:"POST", headers:{"Content-Type":"application/json"},
+            body: JSON.stringify({id}),
+          });
+          const d = await r.json();
+          if (!d.ok) {
+            toast("FAILED: " + (d.error || "unknown"), "err");
+            b.disabled = false; b.textContent = `⚡ TAKE — ${tk}`;
+          } else {
+            toast(`✓ ${tk} submitted`, "ok"); pull();
+          }
+        } catch (e) {
+          toast("FAILED: " + e, "err");
+          b.disabled = false; b.textContent = `⚡ TAKE — ${tk}`;
+        }
+      });
+    });
+  }
+
+  async function pull() {
+    try {
+      const r = await fetch("/api/daemon/status", {cache:"no-store"});
+      const s = await r.json();
+      renderStatus(s);
+      renderColumns(s.setups || []);
+    } catch (e) { console.warn("pull failed", e); }
+  }
+  pull();
+  setInterval(pull, 3000);
+</script>
+</body>
+</html>

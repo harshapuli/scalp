@@ -274,6 +274,82 @@ class _QuietHandler(http.server.SimpleHTTPRequestHandler):
             from scripts.paper_trader import TRADER
             return _send_json(self, TRADER.status.to_dict())
 
+        # /api/diag — connection probes + DB stats + daemon health
+        if path == "/api/diag":
+            from scripts.paper_trader import TRADER, DB_PATH
+            import sqlite3
+            probes: dict = {}
+            # Alpaca probe
+            try:
+                from data_clients.alpaca import AlpacaClient
+                with AlpacaClient() as a:
+                    acct = a.get_account()
+                    probes["alpaca"] = {
+                        "ok": True, "is_live": a.is_live,
+                        "equity": acct.equity, "bp": acct.buying_power,
+                        "daytrade": acct.daytrade_count,
+                    }
+            except Exception as e:
+                probes["alpaca"] = {"ok": False, "error": str(e)}
+            # UW probe
+            try:
+                from data_clients.unusual_whales import UWClient
+                uw = UWClient()
+                # Light test — fetch flow_recent for SPY (typically returns quickly)
+                recs = uw.flow_recent("SPY")
+                probes["uw"] = {"ok": True, "spy_flow_records": len(recs)}
+            except Exception as e:
+                probes["uw"] = {"ok": False, "error": str(e)}
+            # SQLite probe
+            try:
+                con = sqlite3.connect(str(DB_PATH))
+                tables = [r[0] for r in con.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()]
+                setups_n = con.execute("SELECT COUNT(*) FROM setups").fetchone()[0]
+                decisions_n = con.execute("SELECT COUNT(*) FROM decision_log").fetchone()[0]
+                con.close()
+                probes["sqlite"] = {
+                    "ok": True, "tables": tables,
+                    "setups_rows": setups_n,
+                    "decisions_rows": decisions_n,
+                }
+            except Exception as e:
+                probes["sqlite"] = {"ok": False, "error": str(e)}
+            # Daemon health
+            s = TRADER.status.to_dict()
+            probes["daemon"] = {
+                "running": s["running"], "phase": s.get("phase"),
+                "tickers": len(s["tickers"]),
+                "setups": len(s.get("setups") or []),
+                "auto_submit": s["auto_submit"],
+                "last_tick_at": s.get("last_tick_at"),
+            }
+            return _send_json(self, probes)
+
+        # /api/prebreakout?ticker=X&side=CALL — composite pre-breakout score
+        # 501 stub. Per design doc, M1-M7 (~33h) of build before this is real.
+        if path == "/api/prebreakout":
+            return _send_json(self, {
+                "error": "not implemented",
+                "status": "ui_scaffold_only",
+                "next_build": "M1 Polygon aux client (4h) → M2 F1-F4 (8h) → "
+                              "M3 UW wrapper (4h) → M4 F5-F6 (6h) → "
+                              "M5 composite scorer (3h) → M7 audit page (4h)",
+            }, 501)
+
+        # /api/review?date=YYYY-MM-DD — daily EOD review (cached unless force=1)
+        if path == "/api/review":
+            from journal.eod_analyzer import analyze_day
+            qs = parse_qs(parsed.query)
+            date_str = (qs.get("date") or [""])[0] or None
+            force = (qs.get("force") or ["0"])[0] == "1"
+            try:
+                review = analyze_day(date_str, force=force)
+                return _send_json(self, review)
+            except Exception as e:
+                return _send_json(self, {"error": f"{type(e).__name__}: {e}"}, 500)
+
         # /api/setups — current per-ticker setup cards (FORMING + TRADE)
         # This is what /trade.html polls every 3s.
         if path == "/api/setups":
@@ -371,6 +447,18 @@ class _QuietHandler(http.server.SimpleHTTPRequestHandler):
             body = _read_post_body(self)
             r = TRADER.set_auto_submit(bool(body.get("auto_submit", False)))
             _log(f"daemon auto_submit: {r}")
+            return _send_json(self, r)
+
+        # /api/test_tick — force-evaluate one ticker NOW (bypass phase gate).
+        # Use this to verify the patrol wiring end-to-end before market open.
+        if path == "/api/test_tick":
+            from scripts.paper_trader import TRADER
+            body = _read_post_body(self)
+            tk = (body.get("ticker") or "").strip().upper()
+            if not tk:
+                return _send_json(self, {"error": "ticker required"}, 400)
+            r = TRADER.force_test_tick(tk)
+            _log(f"test_tick {tk}: state={r.get('state')} setups={r.get('setups_count')}")
             return _send_json(self, r)
 
         # /api/take — manual: submit a TRADE setup card via id
