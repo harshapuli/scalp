@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#faf9f5">
+<title>scalp 2 — live positions</title>
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;500&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink:#141413; --bg:#faf9f5; --panel:#fff; --hair:#e8e6dc;
+    --dim:#6b6a65; --mid:#b0aea5;
+    --accent:#d97757; --accent-soft:#fceee7;
+    --bull:#3d7c5e; --bear:#b03528;
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; font:13px/1.4 'Lora',Georgia,serif; background:var(--bg); color:var(--ink);
+    padding-bottom:env(safe-area-inset-bottom); }
+  h2, .poppins { font-family:'Poppins',Arial,sans-serif; letter-spacing:-.01em; }
+
+  .topnav { position:sticky; top:0; z-index:20; display:flex; gap:4px;
+    padding:8px 10px; background:var(--bg); border-bottom:1px solid var(--hair); }
+  .topnav a { font-family:'Poppins',Arial,sans-serif; display:inline-flex; align-items:center; gap:5px;
+    padding:7px 12px; font-size:12px; font-weight:500; color:var(--dim); text-decoration:none;
+    border-radius:999px; border:1px solid transparent; }
+  .topnav a.active { color:var(--ink); background:var(--accent-soft); border-color:rgba(217,119,87,0.3); }
+  .topnav a .sub { font-size:10px; color:var(--mid); font-weight:400; }
+  .topnav a.active .sub { color:var(--accent); }
+
+  main { max-width:720px; margin:0 auto; padding:8px 10px 24px; }
+
+  /* Top stats row */
+  .stats { display:flex; gap:14px; flex-wrap:wrap; padding:8px 4px 14px;
+    border-bottom:1px solid var(--hair); margin-bottom:14px; }
+  .stat { display:flex; flex-direction:column; }
+  .stat .lbl { font-family:'Poppins',Arial,sans-serif; font-size:9px; color:var(--dim);
+    text-transform:uppercase; letter-spacing:.06em; }
+  .stat .val { font-family:'Poppins',Arial,sans-serif; font-size:15px; font-weight:600;
+    font-variant-numeric:tabular-nums; }
+  .stat .val.pos { color:var(--bull); }
+  .stat .val.neg { color:var(--bear); }
+
+  /* Position rows — TICKER · CALL/PUT $strike · $price */
+  .pos { display:grid; grid-template-columns:auto 1fr auto auto; gap:10px; align-items:center;
+    padding:10px 12px; background:var(--panel); border:1px solid var(--hair);
+    border-radius:8px; margin-bottom:6px; }
+  .pos-tk { font-family:'Poppins',Arial,sans-serif; font-size:14px; font-weight:700; color:var(--ink);
+    min-width:54px; }
+  .pos-mid { font-family:'Poppins',Arial,sans-serif; font-size:12px; color:var(--ink);
+    font-variant-numeric:tabular-nums; display:flex; align-items:center; gap:6px; }
+  .pos-cp { font-family:'Poppins',Arial,sans-serif; font-size:9px; font-weight:700;
+    padding:3px 7px; border-radius:3px; letter-spacing:.04em; }
+  .pos-cp.call { background:rgba(61,124,94,.15); color:var(--bull); }
+  .pos-cp.put { background:rgba(176,53,40,.15); color:var(--bear); }
+  .pos-cp.equity { background:var(--hair); color:var(--dim); }
+  .pos-strike { font-weight:600; font-variant-numeric:tabular-nums; }
+  .pos-px { font-family:'Poppins',Arial,sans-serif; font-size:13px; font-weight:600;
+    font-variant-numeric:tabular-nums; text-align:right; color:var(--ink); min-width:60px; }
+  .pos-pl { font-family:'Poppins',Arial,sans-serif; font-size:11px; font-weight:600;
+    font-variant-numeric:tabular-nums; text-align:right; min-width:64px; }
+  .pos-pl.gain { color:var(--bull); }
+  .pos-pl.loss { color:var(--bear); }
+  .close-btn { padding:5px 10px; margin-left:6px; font-family:'Poppins',Arial,sans-serif;
+    font-size:10px; font-weight:600; background:transparent; color:var(--bear);
+    border:1px solid var(--bear); border-radius:4px; cursor:pointer; }
+  .close-btn:hover { background:var(--bear); color:#fff; }
+
+  .empty { text-align:center; color:var(--mid); font-style:italic; font-size:12px;
+    padding:24px 8px; }
+
+  .danger { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .danger-btn { padding:6px 14px; font-family:'Poppins',Arial,sans-serif; font-weight:600;
+    font-size:11px; background:transparent; color:var(--bear); border:1px solid var(--bear);
+    border-radius:6px; cursor:pointer; letter-spacing:.04em; }
+  .danger-btn:hover { background:var(--bear); color:#fff; }
+
+  .toast { position:fixed; bottom:14px; left:12px; right:12px; padding:12px 16px; border-radius:10px;
+    font-family:'Poppins',Arial,sans-serif; font-size:13px; box-shadow:0 4px 14px rgba(0,0,0,.18);
+    z-index:50; opacity:0; transform:translateY(20px); transition:opacity .25s, transform .25s; }
+  .toast.show { opacity:1; transform:translateY(0); }
+  .toast.ok { background:var(--bull); color:#fff; }
+  .toast.err { background:var(--bear); color:#fff; }
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <a href="/trade.html"><span>👤 Trade</span><span class="sub">tap to take</span></a>
+  <a href="/live.html" class="active"><span>💼 Live</span><span class="sub">positions</span></a>
+  <a href="/auto.html"><span>🤖 Auto</span><span class="sub">paper bot</span></a>
+</nav>
+
+<main>
+  <div class="stats" id="stats"></div>
+
+  <div class="danger">
+    <h2 style="margin:0; font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.08em;">
+      Open positions <span style="color:var(--ink); font-weight:700;" id="pos-n">0</span>
+    </h2>
+    <button class="danger-btn" id="close-all-btn">⚠ CLOSE ALL</button>
+  </div>
+
+  <div id="positions"><div class="empty">Loading…</div></div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const fmtMoney = n => n == null ? "—" : "$" + Math.abs(n).toLocaleString(undefined, {maximumFractionDigits:0});
+  const fmtSigned = n => n == null ? "—" : (n === 0 ? "$0" : (n > 0 ? "+$" : "-$") + Math.abs(n).toLocaleString(undefined, {maximumFractionDigits:0}));
+
+  function toast(msg, kind = "ok") {
+    const t = $("toast");
+    t.textContent = msg;
+    t.className = "toast show " + kind;
+    setTimeout(() => t.classList.remove("show"), 3500);
+  }
+
+  function parseOcc(sym) {
+    const m = (sym || "").match(/^([A-Z]{1,6})\d{6}([CP])(\d{8})$/);
+    if (!m) return null;
+    return { root: m[1], cp: m[2] === "C" ? "CALL" : "PUT", strike: parseInt(m[3], 10) / 1000 };
+  }
+
+  function renderStats(state) {
+    const a = state.account || {};
+    const positions = state.positions || [];
+    const dailyPnl = positions.reduce((s, p) => s + (p.unrealized_pl || 0), 0);
+    const totalMv = positions.reduce((s, p) => s + Math.abs(p.market_value || 0), 0);
+    const cls = dailyPnl >= 0 ? "pos" : "neg";
+    $("stats").innerHTML = `
+      <div class="stat"><span class="lbl">Mode</span><span class="val">${a.is_live ? "LIVE" : "PAPER"}</span></div>
+      <div class="stat"><span class="lbl">Equity</span><span class="val">${fmtMoney(a.equity || 0)}</span></div>
+      <div class="stat"><span class="lbl">Mkt value</span><span class="val">${fmtMoney(totalMv)}</span></div>
+      <div class="stat"><span class="lbl">Unrealized</span><span class="val ${cls}">${fmtSigned(dailyPnl)}</span></div>
+      <div class="stat"><span class="lbl">Day trades</span><span class="val">${a.daytrade_count || 0}/3</span></div>
+    `;
+  }
+
+  function renderPositions(positions) {
+    $("pos-n").textContent = positions.length ? `(${positions.length})` : "(none)";
+    if (!positions.length) {
+      $("positions").innerHTML = `<div class="empty">No open positions.</div>`;
+      return;
+    }
+    positions.sort((a, b) => (a.symbol > b.symbol ? 1 : -1));
+    $("positions").innerHTML = positions.map(p => {
+      const occ = parseOcc(p.symbol);
+      const pnl = p.unrealized_pl || 0;
+      const cls = pnl >= 0 ? "gain" : "loss";
+      const px = "$" + Number(p.current_price || 0).toFixed(2);
+      let tk, mid;
+      if (occ) {
+        tk = occ.root;
+        const cpCls = occ.cp === "CALL" ? "call" : "put";
+        mid = `<span class="pos-cp ${cpCls}">${occ.cp}</span><span class="pos-strike">$${occ.strike}</span><span style="color:var(--mid); font-size:10px">×${p.qty}</span>`;
+      } else {
+        tk = p.symbol;
+        mid = `<span class="pos-cp equity">EQ</span><span class="pos-strike">×${p.qty}</span>`;
+      }
+      return `<div class="pos">
+        <div class="pos-tk">${tk}</div>
+        <div class="pos-mid">${mid}</div>
+        <div>
+          <div class="pos-px">${px}</div>
+          <div class="pos-pl ${cls}">${fmtSigned(pnl)}</div>
+        </div>
+        <button class="close-btn" data-sym="${p.symbol}">close</button>
+      </div>`;
+    }).join("");
+    document.querySelectorAll(".close-btn").forEach(b => {
+      b.addEventListener("click", async () => {
+        const sym = b.dataset.sym;
+        if (!confirm(`Close: ${sym}?`)) return;
+        b.disabled = true;
+        try {
+          const r = await fetch("/api/close", {
+            method:"POST", headers:{"Content-Type":"application/json"},
+            body: JSON.stringify({symbol: sym}),
+          });
+          const d = await r.json();
+          if (d.error) toast("Failed: " + d.error, "err");
+          else toast("Close submitted: " + sym, "ok");
+          pull();
+        } catch (e) { toast("Failed: " + e, "err"); }
+      });
+    });
+  }
+
+  $("close-all-btn").addEventListener("click", async () => {
+    if (!confirm("CLOSE ALL OPEN POSITIONS on the paper account?\n(also cancels open orders)")) return;
+    try {
+      const r = await fetch("/api/close_all", {method:"POST"});
+      const d = await r.json();
+      if (d.error) toast("Close-all failed: " + d.error, "err");
+      else toast("Close-all submitted", "ok");
+      pull();
+    } catch (e) { toast("Close-all failed: " + e, "err"); }
+  });
+
+  async function pull() {
+    try {
+      const r = await fetch("/api/live", {cache:"no-store"});
+      const state = await r.json();
+      renderStats(state);
+      renderPositions(state.positions || []);
+    } catch (e) { console.warn("pull failed", e); }
+  }
+
+  pull();
+  setInterval(pull, 3000);
+</script>
+
+</body>
+</html>

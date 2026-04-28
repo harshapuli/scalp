@@ -30,10 +30,28 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 
-# Default universe — small focused set for live paper trading. Bigger lists
-# blow API quota and make the decision feed unreadable.
-DEFAULT_UNIVERSE = ("SPY", "QQQ", "IWM", "NVDA", "AAPL", "TSLA", "META",
-                     "MSFT", "AMD", "AMZN")
+# Default universe — load from latest backtest run JSON so live trading is
+# scoped to exactly the tickers we validated. Falls back to a small default
+# if the file is missing (fresh checkout, smoke test).
+def _load_backtest_universe() -> tuple[str, ...]:
+    import json as _json
+    bt_dir = PROJECT_ROOT / "data" / "backtest"
+    if not bt_dir.exists():
+        return ("SPY", "QQQ", "IWM", "NVDA", "AAPL", "TSLA", "META", "MSFT", "AMD", "AMZN")
+    runs = sorted(bt_dir.glob("run_37tickers_v*_*.json")) or sorted(bt_dir.glob("run_*.json"))
+    if not runs:
+        return ("SPY", "QQQ", "IWM", "NVDA", "AAPL", "TSLA", "META", "MSFT", "AMD", "AMZN")
+    try:
+        d = _json.loads(runs[-1].read_text())
+        tickers = tuple(d.get("meta", {}).get("tickers") or ())
+        if tickers:
+            return tickers
+    except Exception:
+        pass
+    return ("SPY", "QQQ", "IWM", "NVDA", "AAPL", "TSLA", "META", "MSFT", "AMD", "AMZN")
+
+
+DEFAULT_UNIVERSE = _load_backtest_universe()
 
 
 @dataclass
@@ -47,17 +65,12 @@ class DaemonStatus:
     last_decision: Optional[dict] = None
     tickers: list[str] = field(default_factory=lambda: list(DEFAULT_UNIVERSE))
     decisions: deque = field(default_factory=lambda: deque(maxlen=80))
-    # Current per-ticker setup view, keyed by ticker. Each entry:
-    #   { id, ticker, strategy, direction, state, score,
-    #     stage: 'FORMING' | 'TRADE',
-    #     entry, stop, target, qty, pass_reason, last_evaluated_at }
-    # Cards on /trade.html stack-render this dict; empty when state is NEUTRAL
-    # or no strategy gate is in scope.
     setups: dict = field(default_factory=dict)
     orders: deque = field(default_factory=lambda: deque(maxlen=20))
     taken_signal_ids: set = field(default_factory=set)                 # de-dup
     error: Optional[str] = None
     market_open: bool = False
+    phase: str = "closed"   # 'closed' | 'warmup' | 'open'
     poll_seconds: int = 60
 
     def to_dict(self) -> dict:
@@ -82,19 +95,39 @@ class DaemonStatus:
             "orders": list(self.orders),
             "error": self.error,
             "market_open": self.market_open,
+            "phase": self.phase,
             "poll_seconds": self.poll_seconds,
         }
 
 
-# NYSE regular session: 09:30-16:00 ET = 13:30-20:00 UTC (EDT) / 14:30-21:00 (EST).
-# We use EDT for the user's current period (Apr 2026 → DST in effect).
+# NYSE regular session: 09:30-16:00 ET = 13:30-20:00 UTC (EDT)
+#                                       = 14:30-21:00 UTC (EST)
+# Pre-market warm-up window: 60 min before open so the daemon can read bars,
+# classify state, and populate FORMING cards before regular session starts.
+#
+# User intent (2026-04-28): "getting ready and start from 6:30 AM PST" —
+#   6:30 AM PT = 9:30 AM ET = 13:30 UTC EDT (auto-submission begins)
+#   5:30 AM PT = 8:30 AM ET = 12:30 UTC EDT (warm-up scanning begins)
 def _market_is_open(now_utc: datetime) -> bool:
-    t = now_utc.timetz()
+    """Regular session — auto-submission allowed."""
     if now_utc.weekday() >= 5:
         return False
-    open_t = dt_time(13, 30, tzinfo=timezone.utc)   # 09:30 EDT
-    close_t = dt_time(20, 0, tzinfo=timezone.utc)   # 16:00 EDT
-    return open_t <= t.replace(tzinfo=timezone.utc) <= close_t
+    t = now_utc.replace(tzinfo=timezone.utc).timetz()
+    open_t = dt_time(13, 30, tzinfo=timezone.utc)   # 09:30 EDT / 06:30 PT
+    close_t = dt_time(20, 0, tzinfo=timezone.utc)   # 16:00 EDT / 13:00 PT
+    return open_t <= t <= close_t
+
+
+def _market_is_warmup(now_utc: datetime) -> bool:
+    """Pre-market warm-up — scan, populate FORMING cards, but DO NOT auto-submit.
+    Manual TAKE through /api/take is also blocked here so we don't fire
+    against thin pre-market liquidity."""
+    if now_utc.weekday() >= 5:
+        return False
+    t = now_utc.replace(tzinfo=timezone.utc).timetz()
+    warm_t = dt_time(12, 30, tzinfo=timezone.utc)   # 05:30 PT — 1h pre-open
+    open_t = dt_time(13, 30, tzinfo=timezone.utc)
+    return warm_t <= t < open_t
 
 
 class PaperTrader:
@@ -173,22 +206,36 @@ class PaperTrader:
 
     async def _scan_loop(self) -> None:
         """Main daemon loop. Polls Alpaca every poll_seconds for each ticker
-        in the universe, evaluates strategies, submits orders on TRADE."""
+        in the universe, evaluates strategies, submits orders on TRADE.
+
+        After each tick, drops setup cards that haven't been refreshed in 30
+        min — covers the case where a state stays trigger for many bars but
+        the user has long since moved on, and also handles daemon-restart
+        cleanup.
+        """
         from infra.config_loader import load_thresholds
         from infra.secrets import load_secrets
         load_secrets()
         cfg = load_thresholds()
         from data_clients.alpaca import AlpacaClient
 
+        STALE_SETUP_MIN = 30
+
         alp = AlpacaClient()
         try:
             while not self._stop_event.is_set():
                 now = datetime.now(tz=timezone.utc)
                 self.status.market_open = _market_is_open(now)
+                if self.status.market_open:
+                    self.status.phase = "open"
+                elif _market_is_warmup(now):
+                    self.status.phase = "warmup"
+                else:
+                    self.status.phase = "closed"
                 self.status.last_tick_at = now.isoformat(timespec="seconds") + "Z"
 
-                if not self.status.market_open:
-                    # Sleep faster outside hours; nothing to do until 13:30 UTC
+                # Scan during regular session AND warm-up. Closed → sleep.
+                if self.status.phase == "closed":
                     await self._interruptible_sleep(min(60, self.status.poll_seconds))
                     continue
 
@@ -200,6 +247,11 @@ class PaperTrader:
                         changed = await self._tick_one(alp, ticker, cfg, now)
                         if changed:
                             changes_this_tick += 1
+                        # Refresh last_evaluated_at on existing setup even when
+                        # state didn't change — keeps the card alive
+                        existing = self.status.setups.get(ticker)
+                        if existing:
+                            existing["last_evaluated_at"] = now.isoformat(timespec="seconds") + "Z"
                     except Exception as e:
                         self._add_decision({
                             "ts": now.isoformat(timespec="seconds") + "Z",
@@ -207,6 +259,18 @@ class PaperTrader:
                             "decision": "ERROR",
                             "reason": f"{type(e).__name__}: {e}",
                         })
+
+                # Drop setups not refreshed in STALE_SETUP_MIN min
+                cutoff = now.timestamp() - (STALE_SETUP_MIN * 60)
+                for tk in list(self.status.setups.keys()):
+                    s = self.status.setups[tk]
+                    last_iso = (s.get("last_evaluated_at") or "").rstrip("Z")
+                    try:
+                        last_ts = datetime.fromisoformat(last_iso).timestamp()
+                    except Exception:
+                        last_ts = now.timestamp()
+                    if last_ts < cutoff:
+                        self.status.setups.pop(tk, None)
 
                 self.status.last_state_changes = changes_this_tick
                 await self._interruptible_sleep(self.status.poll_seconds)
@@ -352,8 +416,18 @@ class PaperTrader:
         qty = max(1, int(risk_dollars / risk_per_share))
 
         stage = "TRADE" if decision.decision == "TRADE" else "FORMING"
-        signal_id = f"{strategy}-{features.ticker}-{features.bar_idx}"
+        # Stable signal id — same across bars so long as strategy+direction
+        # don't flip. This way `taken_signal_ids` dedup works properly and the
+        # `created_at` timestamp on the card stays anchored to first detection.
+        signal_id = f"{strategy}-{features.ticker}-{direction}"
         now_iso = datetime.now(tz=timezone.utc).isoformat(timespec="seconds") + "Z"
+
+        # Preserve created_at if same signal id already exists
+        prior_setup = self.status.setups.get(features.ticker)
+        if prior_setup and prior_setup.get("id") == signal_id:
+            created_at = prior_setup.get("created_at") or now_iso
+        else:
+            created_at = now_iso
 
         setup_row = {
             "id": signal_id,
@@ -371,6 +445,7 @@ class PaperTrader:
             "target": round(target, 2),
             "qty": qty,
             "atr": round(atr, 2),
+            "created_at": created_at,
             "last_evaluated_at": now_iso,
         }
         # Card persists until state goes back to NEUTRAL (or another state replaces it)
@@ -385,10 +460,11 @@ class PaperTrader:
         })
         self.status.last_decision = setup_row
 
-        # Auto-submit only if /auto turned the toggle on
-        if stage == "TRADE" and self.status.auto_submit:
+        # Auto-submit only when /auto toggle is on AND we're in regular session
+        # (not warm-up — pre-market liquidity is too thin for our brackets).
+        if (stage == "TRADE" and self.status.auto_submit
+                and self.status.phase == "open"):
             await self._submit_from_setup(alp, setup_row)
-            # Mark taken so /trade hides the card
             self.status.taken_signal_ids.add(signal_id)
 
     async def _submit_from_setup(self, alp, setup: dict) -> dict:
@@ -439,6 +515,9 @@ class PaperTrader:
             return {"ok": False, "error": "already taken"}
         if setup.get("stage") != "TRADE":
             return {"ok": False, "error": f"signal is {setup.get('stage')}; not TRADE"}
+        if self.status.phase != "open":
+            return {"ok": False,
+                     "error": f"market {self.status.phase} — wait for regular session"}
         # Submit synchronously (no asyncio in this path — Alpaca client is sync)
         from data_clients.alpaca import AlpacaClient
         try:

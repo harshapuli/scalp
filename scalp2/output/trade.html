@@ -5,20 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#faf9f5">
-<title>scalp 2</title>
+<title>scalp 2 — trades</title>
 <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;500&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
     --ink:#141413; --bg:#faf9f5; --panel:#fff; --hair:#e8e6dc;
     --dim:#6b6a65; --mid:#b0aea5;
     --accent:#d97757; --accent-soft:#fceee7;
-    --bull:#3d7c5e; --bear:#b03528; --warn:#a16207;
-    --bull-soft:#e7ece0; --bear-soft:#f9e0dd;
+    --bull:#3d7c5e; --bear:#b03528;
   }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  body { margin:0; font:14px/1.4 'Lora',Georgia,serif; background:var(--bg); color:var(--ink);
+  body { margin:0; font:13px/1.4 'Lora',Georgia,serif; background:var(--bg); color:var(--ink);
     padding-bottom:env(safe-area-inset-bottom); }
-  h1, h2, h3, .poppins { font-family:'Poppins',Arial,sans-serif; letter-spacing:-.01em; }
+  h2, .poppins { font-family:'Poppins',Arial,sans-serif; letter-spacing:-.01em; }
 
   .topnav { position:sticky; top:0; z-index:20; display:flex; gap:4px;
     padding:8px 10px; background:var(--bg); border-bottom:1px solid var(--hair); }
@@ -29,34 +28,31 @@
   .topnav a .sub { font-size:10px; color:var(--mid); font-weight:400; }
   .topnav a.active .sub { color:var(--accent); }
 
-  main { max-width:540px; margin:0 auto; padding:10px 12px 24px; }
+  main { max-width:1100px; margin:0 auto; padding:8px 10px 24px; }
 
-  /* Status strip — single line */
   .status { font-family:'Poppins',Arial,sans-serif; font-size:11px; color:var(--dim);
-    padding:6px 0 12px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-  .status .dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
+    padding:4px 4px 10px; }
+  .status .dot { width:7px; height:7px; border-radius:50%; display:inline-block; margin-right:5px; }
   .status .dot.on { background:var(--bull); animation:pulse 1.5s infinite; }
   .status .dot.off { background:var(--mid); }
   @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.4 } }
 
-  /* Section headers */
-  h2 { font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.08em;
-    margin:18px 0 8px; font-weight:600; }
-  h2 .n { color:var(--ink); font-weight:700; }
+  /* Cards in a responsive grid: 2 cols on desktop, 1 on mobile */
+  .grid { display:grid; gap:10px; grid-template-columns:1fr; }
+  @media (min-width:680px) { .grid { grid-template-columns:1fr 1fr; } }
 
-  /* Trade cards */
-  .card { background:var(--panel); border:1px solid var(--hair); border-radius:12px;
-    padding:12px 14px; margin-bottom:8px; }
-  .card.trade { border-color:rgba(217,119,87,.5); box-shadow:0 4px 12px rgba(217,119,87,.12); }
+  .card { background:var(--panel); border:1px solid var(--hair); border-radius:10px;
+    padding:12px 14px; }
+  .card.trade { border-color:rgba(217,119,87,.5); box-shadow:0 3px 10px rgba(217,119,87,.12); }
 
-  .card-head { display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin-bottom:8px; }
-  .tick { font-family:'Poppins',Arial,sans-serif; font-size:20px; font-weight:700; color:var(--ink); }
-  .stage { font-family:'Poppins',Arial,sans-serif; font-size:9px; font-weight:700; letter-spacing:.06em;
-    padding:3px 8px; border-radius:4px; text-transform:uppercase; }
+  .card-head { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:8px; }
+  .tick { font-family:'Poppins',Arial,sans-serif; font-size:18px; font-weight:700; color:var(--ink); }
+  .stage { font-family:'Poppins',Arial,sans-serif; font-size:9px; font-weight:700; letter-spacing:.05em;
+    padding:3px 7px; border-radius:3px; text-transform:uppercase; }
   .stage.forming { background:#dbeafe; color:#1e3a8a; }
   .stage.trade { background:linear-gradient(135deg, var(--accent), #e88e6f); color:#fff; }
-  .strat, .dir { font-family:'Poppins',Arial,sans-serif; font-size:9px; font-weight:700; letter-spacing:.06em;
-    padding:3px 8px; border-radius:4px; }
+  .strat, .dir { font-family:'Poppins',Arial,sans-serif; font-size:9px; font-weight:700; letter-spacing:.05em;
+    padding:3px 7px; border-radius:3px; }
   .strat { background:var(--accent-soft); color:var(--accent); }
   .dir.long { background:linear-gradient(135deg, var(--bull), #4d9b75); color:#fff; }
   .dir.short { background:linear-gradient(135deg, var(--bear), #d04638); color:#fff; }
@@ -71,31 +67,45 @@
   .plan .val.stp { color:var(--bear); }
 
   .reason { font-family:'Poppins',Arial,sans-serif; font-size:11px; color:var(--dim); margin-top:6px; }
-  .reason b { color:var(--ink); font-weight:600; }
 
-  .take-btn { width:100%; padding:13px; margin-top:8px; font-family:'Poppins',Arial,sans-serif;
-    font-weight:700; font-size:14px; letter-spacing:.04em; border:none; border-radius:8px;
+  .take-btn { width:100%; padding:12px; margin-top:8px; font-family:'Poppins',Arial,sans-serif;
+    font-weight:700; font-size:14px; letter-spacing:.04em; border:none; border-radius:7px;
     color:#fff; background:linear-gradient(135deg, var(--accent), #e88e6f);
-    box-shadow:0 4px 12px rgba(217,119,87,.3); min-height:46px; cursor:pointer; }
+    box-shadow:0 4px 12px rgba(217,119,87,.3); min-height:44px; cursor:pointer; }
   .take-btn:active { transform:translateY(1px); }
   .take-btn:disabled { opacity:.5; cursor:wait; }
 
-  /* Position rows */
-  .pos { display:grid; grid-template-columns:1fr auto auto; gap:10px; align-items:center;
-    padding:10px 12px; background:var(--panel); border:1px solid var(--hair);
-    border-radius:8px; margin-bottom:6px; }
-  .pos-sym { font-family:'SF Mono',Menlo,monospace; font-size:12px; color:var(--ink);
-    overflow:hidden; text-overflow:ellipsis; }
-  .pos-meta { font-family:'Poppins',Arial,sans-serif; font-variant-numeric:tabular-nums;
-    font-size:11px; color:var(--dim); }
-  .pos-pnl { font-family:'Poppins',Arial,sans-serif; font-weight:600; font-variant-numeric:tabular-nums;
-    font-size:13px; text-align:right; min-width:70px; }
-  .pos-pnl.pos { color:var(--bull); }
-  .pos-pnl.neg { color:var(--bear); }
-  .pos-pct { font-family:'Poppins',Arial,sans-serif; font-size:10px; }
-
   .empty { text-align:center; color:var(--mid); font-style:italic; font-size:12px;
-    padding:20px 12px; }
+    padding:40px 8px; grid-column:1 / -1; }
+
+  /* Universe legend — chips of tickers being scanned */
+  .legend {
+    margin:14px 0 4px; padding:10px 12px;
+    background:var(--panel); border:1px solid var(--hair); border-radius:10px;
+  }
+  .legend-head {
+    font-family:'Poppins',Arial,sans-serif; font-size:10px; color:var(--dim);
+    text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px;
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .legend-head b { color:var(--ink); font-weight:700; }
+  .legend-chips { display:flex; flex-wrap:wrap; gap:4px; }
+  .chip {
+    font-family:'Poppins',Arial,sans-serif; font-size:10px; font-weight:600;
+    padding:3px 7px; border-radius:3px;
+    background:var(--hair); color:var(--dim); letter-spacing:.02em;
+  }
+  .chip.active { background:var(--accent-soft); color:var(--accent); }
+  .chip.trade { background:linear-gradient(135deg, var(--accent), #e88e6f); color:#fff; }
+
+  /* Phase pill in status row */
+  .phase-pill {
+    font-family:'Poppins',Arial,sans-serif; font-size:10px; font-weight:600;
+    letter-spacing:.04em; padding:2px 7px; border-radius:3px; text-transform:uppercase;
+  }
+  .phase-pill.open { background:rgba(61,124,94,.15); color:var(--bull); }
+  .phase-pill.warmup { background:#fef3c7; color:var(--warn); }
+  .phase-pill.closed { background:var(--hair); color:var(--mid); }
 
   .toast { position:fixed; bottom:14px; left:12px; right:12px; padding:12px 16px; border-radius:10px;
     font-family:'Poppins',Arial,sans-serif; font-size:13px; box-shadow:0 4px 14px rgba(0,0,0,.18);
@@ -109,20 +119,23 @@
 
 <nav class="topnav">
   <a href="/trade.html" class="active"><span>👤 Trade</span><span class="sub">tap to take</span></a>
+  <a href="/live.html"><span>💼 Live</span><span class="sub">positions</span></a>
   <a href="/auto.html"><span>🤖 Auto</span><span class="sub">paper bot</span></a>
 </nav>
 
 <main>
   <div class="status" id="status">connecting…</div>
 
-  <h2>Trades <span class="n" id="trades-n"></span></h2>
-  <div id="trades">
+  <div class="grid" id="trades">
     <div class="empty">Waiting for setups…</div>
   </div>
 
-  <h2>Stocks we're trading <span class="n" id="stocks-n"></span></h2>
-  <div id="stocks">
-    <div class="empty">No positions.</div>
+  <div class="legend" id="legend" style="display:none">
+    <div class="legend-head">
+      <span>Universe — <b id="legend-n">0</b> tickers scanned (from latest backtest)</span>
+      <span id="legend-meta"></span>
+    </div>
+    <div class="legend-chips" id="legend-chips"></div>
   </div>
 </main>
 
@@ -131,7 +144,6 @@
 <script>
   const $ = id => document.getElementById(id);
   const fmtPx = n => n == null ? "—" : "$" + Number(n).toFixed(2);
-  const fmtSigned = n => n == null ? "—" : (n === 0 ? "$0" : (n > 0 ? "+$" : "-$") + Math.abs(n).toLocaleString(undefined, {maximumFractionDigits:0}));
   const ago = iso => {
     if (!iso) return "—";
     const ms = Date.now() - new Date(iso).getTime();
@@ -148,37 +160,45 @@
     setTimeout(() => t.classList.remove("show"), 3500);
   }
 
-  // OCC-symbol → underlying ticker
-  function underlyingOf(sym) {
-    const m = (sym || "").match(/^([A-Z]{1,6})\d{6}[CP]\d{8}$/);
-    return m ? m[1] : sym;
-  }
-  // OCC → human-readable: AAPL260508C00277500 → AAPL May08 $277.5C
-  function prettyOcc(sym) {
-    const m = (sym || "").match(/^([A-Z]{1,6})(\d{2})(\d{2})(\d{2})([CP])(\d{8})$/);
-    if (!m) return sym;
-    const [_, root, yy, mm, dd, cp, strikeRaw] = m;
-    const strike = parseInt(strikeRaw, 10) / 1000;
-    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    return `${root} ${months[parseInt(mm,10)-1]}${parseInt(dd,10)} $${strike}${cp}`;
+  function renderStatus(s) {
+    const phase = s.phase || (s.market_open ? "open" : "closed");
+    const phasePill = `<span class="phase-pill ${phase}">${phase === "warmup" ? "warm-up" : phase}</span>`;
+    const scanning = s.running ? "scanning" : "stopped";
+    const last = s.last_tick_at ? `· tick ${ago(s.last_tick_at)}` : "";
+    const auto = s.auto_submit ? "· AUTO" : "";
+    const n = (s.setups || []).length;
+    $("status").innerHTML = `
+      <span class="dot ${s.running ? "on" : "off"}"></span>
+      ${scanning} ${phasePill} ${last} ${auto} · <b>${n}</b> setup${n === 1 ? "" : "s"}
+    `;
   }
 
-  function renderStatus(setupsState, liveState) {
-    const market = setupsState.market_open ? "market open" : "closed";
-    const scanning = setupsState.running ? "scanning" : "stopped";
-    const last = setupsState.last_tick_at ? `tick ${ago(setupsState.last_tick_at)}` : "—";
-    const auto = setupsState.auto_submit ? "AUTO ON" : "manual";
-    $("status").innerHTML = `
-      <span class="dot ${setupsState.running ? "on" : "off"}"></span>
-      ${scanning} · ${market} · ${last} · ${auto}
-    `;
+  function renderLegend(s) {
+    const tickers = s.tickers || [];
+    if (!tickers.length) {
+      $("legend").style.display = "none";
+      return;
+    }
+    $("legend").style.display = "block";
+    $("legend-n").textContent = tickers.length;
+    // active set = tickers that currently have a setup
+    const active = new Map((s.setups || []).map(x => [x.ticker, x.stage]));
+    $("legend-chips").innerHTML = tickers.map(t => {
+      const stage = active.get(t);
+      const cls = stage === "TRADE" ? "trade" : stage === "FORMING" ? "active" : "";
+      return `<span class="chip ${cls}" title="${stage || 'idle'}">${t}</span>`;
+    }).join("");
+    const formingN = [...active.values()].filter(v => v === "FORMING").length;
+    const tradeN = [...active.values()].filter(v => v === "TRADE").length;
+    $("legend-meta").innerHTML = (formingN || tradeN)
+      ? `<b>${tradeN}</b> trade · <b>${formingN}</b> forming`
+      : `<span style="opacity:.6">all idle</span>`;
   }
 
   function renderTrades(setups) {
     const host = $("trades");
-    $("trades-n").textContent = setups && setups.length ? `(${setups.length})` : "";
     if (!setups || !setups.length) {
-      host.innerHTML = `<div class="empty">No setups right now.</div>`;
+      host.innerHTML = `<div class="empty">No setups right now. Daemon scans every 60s — cards appear when a ticker enters a trigger state.</div>`;
       return;
     }
     host.innerHTML = setups.map(s => {
@@ -187,10 +207,15 @@
       const dir = (s.direction || "").toLowerCase();
       const dirEmoji = dir === "long" ? "🐂" : "🐻";
       const reason = s.stage === "FORMING"
-        ? `⏳ <b>${(s.pass_reason || "").replace(/_/g, " ")}</b> · ${s.state.toLowerCase()} (${(s.score || 0).toFixed(2)})`
-        : `⚡ all gates passed · ${s.state.toLowerCase()} (${(s.score || 0).toFixed(2)})`;
+        ? `⏳ ${(s.pass_reason || "").replace(/_/g, " ")}`
+        : `⚡ all gates passed`;
       const takeBtn = s.stage === "TRADE"
         ? `<button class="take-btn" data-id="${s.id}" data-tk="${s.ticker}">⚡ TAKE — ${s.qty}× ${s.ticker} ${dir.toUpperCase()}</button>`
+        : "";
+      // Format "fired Xs/Xm/Xh ago" with absolute UTC time on hover
+      const created = s.created_at;
+      const fmtCreated = created
+        ? `<span class="signal-time" title="${created}">⌚ fired ${ago(created)} ago</span>`
         : "";
       return `<div class="card ${stageCls}">
         <div class="card-head">
@@ -198,6 +223,7 @@
           <span class="stage ${stageCls}">${stageEmoji} ${s.stage}</span>
           <span class="strat">${s.strategy}</span>
           <span class="dir ${dir}">${dirEmoji} ${dir.toUpperCase()}</span>
+          ${fmtCreated}
         </div>
         <div class="plan">
           <div><span class="lbl">Entry</span><span class="val">${fmtPx(s.entry)}</span></div>
@@ -216,7 +242,7 @@
         b.disabled = true; b.textContent = "submitting…";
         try {
           const r = await fetch("/api/take", {
-            method: "POST", headers: {"Content-Type":"application/json"},
+            method:"POST", headers:{"Content-Type":"application/json"},
             body: JSON.stringify({id}),
           });
           const d = await r.json();
@@ -235,55 +261,15 @@
     });
   }
 
-  function renderStocks(positions) {
-    const host = $("stocks");
-    $("stocks-n").textContent = positions && positions.length ? `(${positions.length})` : "";
-    if (!positions || !positions.length) {
-      host.innerHTML = `<div class="empty">No positions.</div>`;
-      return;
-    }
-    // Aggregate option legs by underlying for compactness
-    const grouped = {};
-    for (const p of positions) {
-      const u = underlyingOf(p.symbol);
-      if (!grouped[u]) grouped[u] = { underlying: u, legs: [], pl: 0, mv: 0 };
-      grouped[u].legs.push(p);
-      grouped[u].pl += p.unrealized_pl || 0;
-      grouped[u].mv += Math.abs(p.market_value || 0);
-    }
-    const list = Object.values(grouped).sort((a, b) => a.pl - b.pl); // worst first
-
-    host.innerHTML = list.map(g => {
-      const cls = g.pl >= 0 ? "pos" : "neg";
-      const pct = g.mv > 0 ? (g.pl / g.mv * 100) : 0;
-      const legSummary = g.legs.length === 1
-        ? prettyOcc(g.legs[0].symbol)
-        : `${g.legs.length} legs · $${g.mv.toLocaleString(undefined,{maximumFractionDigits:0})} mv`;
-      return `<div class="pos">
-        <div>
-          <div class="poppins" style="font-size:14px; font-weight:700;">${g.underlying}</div>
-          <div class="pos-meta">${legSummary}</div>
-        </div>
-        <div class="pos-pnl ${cls}">${fmtSigned(g.pl)}</div>
-        <div class="pos-pnl ${cls} pos-pct">${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%</div>
-      </div>`;
-    }).join("");
-  }
-
   async function pull() {
     try {
-      const [setupsR, liveR] = await Promise.all([
-        fetch("/api/setups", {cache:"no-store"}),
-        fetch("/api/live", {cache:"no-store"}),
-      ]);
-      const setupsState = await setupsR.json();
-      const liveState = await liveR.json();
-      renderStatus(setupsState, liveState);
-      renderTrades(setupsState.setups);
-      renderStocks(liveState.positions || []);
-    } catch (e) {
-      console.warn("pull failed", e);
-    }
+      // /api/daemon/status includes tickers (universe) + setups + phase
+      const r = await fetch("/api/daemon/status", {cache:"no-store"});
+      const s = await r.json();
+      renderStatus(s);
+      renderTrades(s.setups);
+      renderLegend(s);
+    } catch (e) { console.warn("pull failed", e); }
   }
 
   pull();
