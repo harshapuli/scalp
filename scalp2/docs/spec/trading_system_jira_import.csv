@@ -1,0 +1,806 @@
+Issue Type,Issue Key,Summary,Description,Epic Link,Parent,Story Points,Priority,Labels,Components,Sprint
+Epic,FND-E1,Foundation: Data Clients & Infrastructure,"Polygon, UW, Alpaca clients. Secrets management. Fixture system. Required by Scalp Brain, Swing Brain, and S5 Strategy.",,,,Critical,"foundation,infra",trading-system,
+Epic,FND-E2,Foundation: API Contracts & Change Monitoring,Documentation of every API endpoint. UW change monitoring. Pre-Phase-1 BLOCKER: verify UW GEX update cadence.,,,,Critical,"foundation,api",trading-system,
+Epic,SCALP-E1,Scalp Brain: 7-State Classifier Core,"Implement the 7-state classifier (NEUTRAL, SURGE_IGNITION/CONTINUATION/CLIMAX/REVERSE, TANK_*) per v2.2 sec B4. Live + replay.",,,,Critical,"scalp,core,build-scalp-brain",trading-system,
+Epic,SCALP-E2,Scalp Brain: Score Formulas,"Implement reversal_score, ignition_score, continuation_score, climax_score per v2.2 sec B4 formulas.",,,,Critical,"scalp,scores,build-scalp-brain",trading-system,
+Epic,SCALP-E3,Scalp Brain: Replay & Fixture Determinism,Historical replay reproducing same state sequence and scores deterministically. Required for S5 sub-edge validation.,,,,High,"scalp,replay,build-scalp-brain",trading-system,
+Epic,SCALP-E4,Scalp Brain: Pubsub Publisher,Publish state changes to Redis pubsub channel scalp.price_trigger. Subscribed by Swing Brain.,,,,Critical,"scalp,integration,build-scalp-brain",trading-system,
+Epic,SWING-E1,Swing Brain: 7-Stage Lifecycle State Machine (S5-only),Implement the 7-stage lifecycle (Inducement -> Setup -> Trigger -> Entry -> Manage -> Exit -> Journal) for S5 candidates only. Per v2.2.,,,,Critical,"swing,lifecycle,build-swing-brain",trading-system,
+Epic,SWING-E2,Swing Brain: Pre-staging & Candidate Registry,"Scan for S5 setup conditions, pre-stage candidates with TTL, manage state transitions. Listen on scalp.price_trigger.",,,,Critical,"swing,pre-staging,build-swing-brain",trading-system,
+Epic,S5-E1,S5 Phase 0: Sub-edge Validation,"Validate gamma proximity, reversal microstructure, composed S5, and ML-gated S5 as separate sub-edges.",,,,Critical,"s5,phase-0,validation",trading-system,
+Epic,S5-E3,S5 Phase 2: Rules-Only Backtest,"Deterministic S5 setup gate, scalp reversal trigger, fake-breakout reject. 12mo backtest. Pass: net positive EV.",,,,High,"s5,phase-2,backtest",trading-system,
+Epic,S5-E4,S5 Phase 3: Build ML Transition Model,"ML transition probability model: trade-outcome labeling, training, calibration, EV-curve threshold, registry. Per v2.2 sec 16-20 + ChatGPT review.",,,,High,"s5,phase-3,ml,build-ml-transition-model",trading-system,
+Epic,S5-E5,S5 Phase 4: ML-Filtered Backtest Comparison,Compare rules-only vs ML-gated backtest on identical-cost holdout. Pass: ML improves net EV by >= 15%.,,,,High,"s5,phase-4,backtest,ml",trading-system,
+Epic,S5-E6,S5 Phase 5: Paper Trading (60 days),Live alerts to Alpaca paper API for 60 trading days. Pass: realized hit rate within 15pp of backtest.,,,,High,"s5,phase-5,paper-trade",trading-system,
+Epic,S5-E7,S5 Phase 6: Live Ramp 0.25x Kelly,First 30 real-money S5 trades at quarter-Kelly * 0.25 sizing.,,,,High,"s5,phase-6,live",trading-system,
+Epic,S5-E8,S5 Phase 7: Ramp 0.50x and Full Quarter-Kelly,"Next 30 trades at 0.50x, then full quarter-Kelly after 100 cumulative live trades.",,,,High,"s5,phase-7,live",trading-system,
+Epic,S5-E9,"S5 Cross-cutting: Risk, Journal, Observability","Risk manager, decision log, attribution dashboards, alerting.",,,,High,"s5,risk,observability",trading-system,
+Epic,S5-E11,S5 Cross-cutting: Integration & Operations,"Cost recalibration, brain handoff verification, per-phase rollback, allow_s5_trade canonical gate.",,,,Critical,"s5,integration,operations",trading-system,
+Story,FND-1,Polygon WebSocket client for 1m bars and trades,"AS a developer
+I WANT a stable Polygon WebSocket client
+SO THAT scalp brain receives real-time bars and ticks reliably.
+
+ACCEPTANCE CRITERIA:
+- Connects to wss://socket.polygon.io/stocks
+- Subscribes to AM.* (1m bars), T.* (trades), Q.* (NBBO)
+- Auto-reconnect with exponential backoff
+- Buffer survives 30s reconnects without data loss
+- Heartbeat with alert on >5min silence",FND-E1,,5,Critical,,data-clients,
+Sub-task,FND-1.1,Auth + subscribe handshake,"Auth message, subscribe message, parse responses.",,FND-1,2,Medium,,,
+Sub-task,FND-1.2,Reconnect logic with backoff,"Exponential 1s, 2s, 4s, 8s, max 60s. Log every reconnect.",,FND-1,2,Medium,,,
+Sub-task,FND-1.3,Message buffer for downstream consumers,AsyncQueue per channel; backpressure handling.,,FND-1,1,Medium,,,
+Test,FND-1.T1,TEST: reconnect after forced disconnect,"GIVEN active WS, WHEN killed mid-stream, THEN reconnects within 5s and resumes subscriptions.",,FND-1,,Medium,,tests,
+Test,FND-1.T2,TEST: aggressor classification matches Lee-Ready,"Send synthetic trades above/at/below midpoint; verify classification = +1, 0, -1.",,FND-1,,Medium,,tests,
+Story,FND-2,Polygon REST client for historical bars and chains,"AS a developer
+I WANT historical bars and option chain snapshots via REST
+SO THAT backtests and replays work without WS dependency.
+
+ACCEPTANCE CRITERIA:
+- /v2/aggs/ticker/{symbol}/range/1/minute/{from}/{to} pagination
+- Options chain snapshot at any historical timestamp
+- Rate-limit aware
+- Results cached to S3/parquet",FND-E1,,5,Critical,,data-clients,
+Test,FND-2.T1,TEST: pagination retrieves all bars,"1 trading year of SPY 1m bars. Total ~98,280 (within 1%).",,FND-2,,Medium,,tests,
+Test,FND-2.T2,TEST: rate limit respected,"100 requests in 10s with rate=5/min. Throttle, no 429.",,FND-2,,Medium,,tests,
+Story,FND-3,Unusual Whales API client,"AS a developer
+I WANT a typed UW API client covering all S5 endpoints
+SO THAT swing brain and ML labeling work reliably.
+
+ACCEPTANCE CRITERIA:
+- /api/stock/{ticker}/flow-recent
+- /api/stock/{ticker}/flow-historical
+- /api/stock/{ticker}/greek-exposure
+- /api/stock/{ticker}/greek-exposure-history
+- /api/stock/{ticker}/dark-pool-prints
+- /api/stock/{ticker}/iv-term-structure
+- /api/stock/{ticker}/earnings/flow-summary
+- Bearer token via env var
+- Each method returns typed dataclass",FND-E1,,8,Critical,,data-clients,
+Sub-task,FND-3.1,[BLOCKER] Verify UW GEX endpoint update cadence,Read UW docs and confirm /greek-exposure update frequency. Real-time: 30min holds. 5min: tighten to 10min. EOD only: S5 redesign required. Cannot proceed past Sprint 1 without this answer.,,FND-3,2,Critical,blocker,,
+Sub-task,FND-3.2,Implement typed flow endpoints,flow-recent + flow-historical with FlowRecord dataclass.,,FND-3,2,Medium,,,
+Sub-task,FND-3.3,Implement typed GEX endpoints,greek-exposure + greek-exposure-history with GEXSnapshot dataclass.,,FND-3,2,Medium,,,
+Sub-task,FND-3.4,Implement IV term and earnings flow endpoints,"iv-term-structure, earnings/flow-summary.",,FND-3,2,Medium,,,
+Test,FND-3.T1,TEST: GEX freshness check enforced,"GIVEN GEX older than verified cadence + buffer, WHEN candidate evaluated, THEN rejected with 'gex_stale'.",,FND-3,,Medium,,tests,
+Test,FND-3.T2,TEST: signed_flow matches Pan-Poteshman,"5 calls bought $1M each, 2 puts bought $300K. Verify call_buy=$5M, put_buy=$0.6M, net=$4.4M.",,FND-3,,Medium,,tests,
+Test,FND-3.T3,TEST: rate limit handling on burst,50 parallel requests; 429s retried with backoff; final results all succeed.,,FND-3,,Medium,,tests,
+Story,FND-4,Alpaca client for paper and live execution,"AS a developer
+I WANT an Alpaca client handling equity brackets, multi-leg verticals, trade WS
+SO THAT execution layer can submit and track positions.
+
+ACCEPTANCE CRITERIA:
+- POST /v2/orders for equity brackets
+- POST /v2/orders with order_class=mleg for verticals
+- WS /stream subscription to trade_updates
+- Paper/live switching via env var
+- Idempotency via client_order_id",FND-E1,,5,Critical,,execution,
+Test,FND-4.T1,TEST: vertical leg construction,"GIVEN long $470 call and short $475 call, WHEN order built, THEN legs payload correct.",,FND-4,,Medium,,tests,
+Test,FND-4.T2,TEST: idempotent submission,Same client_order_id twice; second must not duplicate.,,FND-4,,Medium,,tests,
+Story,FND-5,Secrets management,"AS a developer
+I WANT API keys stored securely and rotated easily
+SO THAT a leaked key incident can be remediated quickly.
+
+ACCEPTANCE CRITERIA:
+- Keys in /etc/trading/secrets.env (chmod 600)
+- Never logged, never echoed
+- Documented rotation procedure
+- Pre-commit hook prevents key-pattern commits",FND-E1,,2,Critical,,security,
+Test,FND-5.T1,TEST: pre-commit hook blocks key patterns,Attempt commit with 'sk-ant-...' or 'PKx...'; hook rejects.,,FND-5,,Medium,,tests,
+Story,FND-6,Fixture management for replay determinism,"AS a developer
+I WANT historical bars, GEX, flow records cached as immutable fixtures
+SO THAT replays are deterministic across machines.
+
+ACCEPTANCE CRITERIA:
+- Historical data downloaded to S3 with content-addressed paths
+- Fixture loader validates checksums
+- Replays read only from fixtures, never live API",FND-E1,,3,High,,data,
+Story,FND-10,API contract documentation for all third-party integrations,"AS a developer
+I WANT a single source of truth for every API
+SO THAT future maintainers know exactly what each endpoint provides.
+
+ACCEPTANCE CRITERIA:
+- Markdown doc per provider (UW, Polygon, Alpaca, FRED)
+- For each endpoint: URL, method, auth, params, response schema, rate limit, update cadence
+- Stored in /docs/api/
+- Reviewed quarterly",FND-E2,,3,High,,docs,
+Story,FND-11,UW API change monitoring,"AS a developer
+I WANT automated monitoring of UW API schema and cadence drift
+SO THAT production doesn't break silently when UW deprecates a field or changes update frequency.
+
+ACCEPTANCE CRITERIA:
+- Subscribe to UW changelog / status page
+- Daily integration test against UW staging or smoke-test endpoints
+- Alert on schema diff: missing fields, type changes, new required fields
+- Alert if /greek-exposure cadence diverges from verified value
+- Document UW endpoint contracts in /docs/api/uw.md with last-verified date",FND-E2,,5,High,,operations,
+Sub-task,FND-11.1,Implement schema drift detection,"Daily job: fetch sample response, diff JSON schema against committed fixture. Alert on diff.",,FND-11,3,Medium,,,
+Sub-task,FND-11.2,Implement cadence monitoring,"Track inter-arrival time of GEX snapshots. If 95th p > 2x verified for 1h, alert.",,FND-11,2,Medium,,,
+Test,FND-11.T1,TEST: schema diff alert on simulated change,Simulate UW response missing 'gex_by_strike'. Alert fires within 1 daily cycle.,,FND-11,,Medium,,tests,
+Story,SCALP-1,Implement Features object for scalp brain (per-bar feature builder),"AS a developer
+I WANT a per-bar Features object computed deterministically from bars+trades+UW data
+SO THAT scalp classifier sees consistent inputs.
+
+ACCEPTANCE CRITERIA:
+- Per v2.2 sec 18 spec: price structure, volume, aggressor, gamma, options flow features
+- Computed at bar close only (no intra-bar peeking)
+- Features object hashable; hash stored in any decision logs
+- Live and replay paths produce identical Features for same bar",SCALP-E1,,8,Critical,,features,
+Sub-task,SCALP-1.1,Price structure features,"extension_from_vwap_atr, failed_extension_atr, pullback_break, wick_pct.",,SCALP-1,2,Medium,,,
+Sub-task,SCALP-1.2,Volume features,"volume_divergence_ratio, current_push_vol, prior_push_vol, climax_vol_ratio.",,SCALP-1,2,Medium,,,
+Sub-task,SCALP-1.3,Aggressor features,"aggressor_recent, aggressor_prior, aggressor_velocity, flip_strength.",,SCALP-1,1,Medium,,,
+Sub-task,SCALP-1.4,Gamma features,"distance_to_pos_gex_atr, gex_magnitude_rank, gamma_flip_distance, strike_oi_rank, gex_strike_dte.",,SCALP-1,2,Medium,,,
+Sub-task,SCALP-1.5,Options flow features,"net_signed_premium_5m, call_ask_pct, put_ask_pct, sweep_count, flow_flip.",,SCALP-1,1,Medium,,,
+Test,SCALP-1.T1,TEST: feature hash stable across runs,"Same inputs, two runs, same hash. No randomness, no datetime.now() leakage.",,SCALP-1,,Medium,,tests,
+Test,SCALP-1.T2,TEST: no look-ahead in any feature,Mock future bar; feature value at T does not change.,,SCALP-1,,Medium,,tests,
+Story,SCALP-2,Implement 7-state classifier per v2.2 sec B4,"AS a developer
+I WANT a state classifier emitting one of 7 states per bar
+SO THAT swing brain and ML can consume canonical state.
+
+ACCEPTANCE CRITERIA:
+States per v2.2 sec B4:
+- NEUTRAL
+- SURGE_IGNITION (long ignition into resistance)
+- SURGE_CONTINUATION (long continuation up)
+- SURGE_CLIMAX (exhaustion at top)
+- SURGE_REVERSE (top reversal forming)
+- TANK_IGNITION (short ignition into support)
+- TANK_CONTINUATION (short continuation down)
+- TANK_CLIMAX (exhaustion at bottom)
+- TANK_REVERSE (bottom reversal forming)
+Classifier evaluates per-bar Features and returns single state. Threshold logic per v2.2 sec B4.",SCALP-E1,,8,Critical,,state-machine,
+Sub-task,SCALP-2.1,Implement state transition rules,"Input: prior_state, Features. Output: new_state. Encode v2.2 sec B4 transition rules.",,SCALP-2,3,Medium,,,
+Sub-task,SCALP-2.2,Implement sticky state with hysteresis,States persist for minimum N bars unless invalidation conditions met. Per v2.2 sec B4.,,SCALP-2,2,Medium,,,
+Sub-task,SCALP-2.3,"Implement state metadata: entry_bar, age_bars, score_at_entry",Each state instance carries metadata for downstream consumers.,,SCALP-2,2,Medium,,,
+Test,SCALP-2.T1,TEST: transition NEUTRAL -> SURGE_IGNITION fires correctly,"GIVEN extension_from_vwap_atr crosses threshold, WHEN classifier runs, THEN state = SURGE_IGNITION.",,SCALP-2,,Medium,,tests,
+Test,SCALP-2.T2,TEST: SURGE_REVERSE requires prior CONTINUATION or CLIMAX,Cannot transition NEUTRAL -> SURGE_REVERSE directly. Must pass through CONTINUATION or CLIMAX.,,SCALP-2,,Medium,,tests,
+Test,SCALP-2.T3,TEST: state hysteresis prevents flip-flopping,Inject synthetic noise crossing thresholds; verify state holds for minimum age.,,SCALP-2,,Medium,,tests,
+Story,SCALP-10,Implement reversal_score formula per v2.2 sec B4.3,"AS a developer
+I WANT a reversal_score in [0, 1] computed per bar
+SO THAT S5 trigger and ML model consume canonical reversal strength.
+
+ACCEPTANCE CRITERIA:
+- Formula per v2.2 sec B4.3 (weighted combination of features)
+- Components: failed_extension, wick_pct, aggressor_flip_strength, volume_divergence, flow_flip
+- Output in [0, 1]
+- Computed at bar close only",SCALP-E2,,5,Critical,,scores,
+Sub-task,SCALP-10.1,Implement long-direction reversal_score (TANK_REVERSE),"For tank-bottom reversals: failed lower extension, lower wick, aggressor flip up, climax volume.",,SCALP-10,2,Medium,,,
+Sub-task,SCALP-10.2,Implement short-direction reversal_score (SURGE_REVERSE),"For surge-top reversals: failed upper extension, upper wick, aggressor flip down, climax volume.",,SCALP-10,2,Medium,,,
+Sub-task,SCALP-10.3,Calibrate weights per backtest,Initial weights from v2.2 spec; refine via grid search on historical labeled bars.,,SCALP-10,1,Medium,,,
+Test,SCALP-10.T1,TEST: reversal_score = 0 in NEUTRAL state,"When no reversal microstructure present, score must be near 0.",,SCALP-10,,Medium,,tests,
+Test,SCALP-10.T2,TEST: textbook surge-top fires reversal_score >= 0.55,"Synthetic SPY surge-top: 2 ATR extension, upper wick 0.45, aggressor flip from +0.7 to -0.4, climax volume. Score >= 0.55.",,SCALP-10,,Medium,,tests,
+Story,SCALP-11,"Implement ignition_score, continuation_score, climax_score","AS a developer
+I WANT scores for ignition, continuation, climax states
+SO THAT all 7 states have quantitative thresholds, not just binary classifier.
+
+ACCEPTANCE CRITERIA:
+- ignition_score per v2.2 sec B4.1
+- continuation_score per v2.2 sec B4.2
+- climax_score per v2.2 sec B4.4
+- All scores in [0, 1]
+- Used by classifier for state decisions and by downstream consumers",SCALP-E2,,5,High,,scores,
+Test,SCALP-11.T1,TEST: ignition_score peaks on first push from base,Synthetic 1.5 ATR push from prior_close with high volume and aggressor +0.8. ignition_score >= 0.7.,,SCALP-11,,Medium,,tests,
+Test,SCALP-11.T2,TEST: climax_score peaks on parabolic move,Synthetic 3 ATR extension with declining volume on each push. climax_score >= 0.7.,,SCALP-11,,Medium,,tests,
+Story,SCALP-20,Historical replay harness for scalp brain,"AS a quant researcher
+I WANT to replay any historical date range and reproduce every state and score
+SO THAT S5 sub-edge validation and ML training are reproducible.
+
+ACCEPTANCE CRITERIA:
+- Given a date range, replay produces identical state sequence each run
+- All inputs from S3-cached fixtures, not live API
+- Output: per-bar (state, score, features_hash) consumable by downstream
+- Replay 12mo top-100 names completes in < 1 hour",SCALP-E3,,5,High,,replay,
+Test,SCALP-20.T1,TEST: replay determinism over 5 runs,Replay same week 5 times. State sequence and feature hashes byte-identical.,,SCALP-20,,Medium,,tests,
+Story,SCALP-21,Live <-> replay parity test,"AS a developer
+I WANT a parity check that live state stream matches replay output for same bars
+SO THAT we trust live behavior matches what backtests predicted.
+
+ACCEPTANCE CRITERIA:
+- Capture 1 trading day live state stream
+- Replay same day from fixture
+- Diff: state and score must match exactly per bar
+- Any divergence is a bug; fix before proceeding",SCALP-E3,,3,High,,replay,
+Test,SCALP-21.T1,TEST: live and replay match byte-for-byte,"After 1 trading day, parity diff = 0 bars different.",,SCALP-21,,Medium,,tests,
+Story,SCALP-30,Publish state changes to Redis channel scalp.price_trigger,"AS a developer
+I WANT scalp brain to publish state changes to Redis pubsub
+SO THAT swing brain can subscribe and elevate pre-staged candidates.
+
+ACCEPTANCE CRITERIA:
+- Channel: scalp.price_trigger
+- Schema: {ticker, state, score, timestamp, sequence_number}
+- Publish on EVERY state change (not every bar)
+- Sequence number per ticker for downstream re-ordering
+- Async publish: must not block scalp classifier on Redis latency
+- Latency target: pubsub round-trip < 100ms p99",SCALP-E4,,5,Critical,,integration,
+Sub-task,SCALP-30.1,Implement state-change detection,Compare new_state vs prior_state; publish only on change.,,SCALP-30,2,Medium,,,
+Sub-task,SCALP-30.2,Implement sequence number tracking per ticker,Monotonic counter per ticker; included in every message.,,SCALP-30,2,Medium,,,
+Sub-task,SCALP-30.3,Implement async publisher with backpressure,"If Redis slow, queue messages; do not block classifier.",,SCALP-30,1,Medium,,,
+Test,SCALP-30.T1,TEST: publish only on state change,Run classifier across 100 bars with 5 state changes; verify exactly 5 messages published.,,SCALP-30,,Medium,,tests,
+Test,SCALP-30.T2,TEST: round-trip latency < 100ms p99,Synthetic 100 messages; measure round-trip from publish to subscriber receive. p99 < 100ms.,,SCALP-30,,Medium,,tests,
+Test,SCALP-30.T3,TEST: sequence numbers monotonic per ticker,"Publish 50 messages for SPY; verify sequence 1, 2, 3, ..., 50 with no gaps or duplicates.",,SCALP-30,,Medium,,tests,
+Story,SWING-1,Implement 7-stage lifecycle state machine for S5,"AS a developer
+I WANT a 7-stage state machine: Inducement -> Setup -> Trigger -> Entry -> Manage -> Exit -> Journal
+SO THAT S5 candidates have explicit lifecycle states observable in production.
+
+ACCEPTANCE CRITERIA:
+- States: INDUCEMENT, SETUP, TRIGGER, ENTRY, MANAGE, EXIT, JOURNAL
+- Each state has documented entry/exit conditions per v2.2
+- State transitions logged to candidate_transitions table
+- Each candidate has unique ID, state, age in current state, predecessor states",SWING-E1,,8,Critical,,state-machine,
+Sub-task,SWING-1.1,Implement S5 INDUCEMENT detection,Inducement: GEX strike accumulation pattern over multi-day. Watch for divergent flow accumulating against price.,,SWING-1,2,Medium,,,
+Sub-task,SWING-1.2,Implement S5 SETUP gate (per v2.2 sec 14),"is_s5_setup() returning True when ALL conditions met: near_gex, extended, at_liquidity, no_event, gex_strike_ok, gex_fresh.",,SWING-1,3,Medium,,,
+Sub-task,SWING-1.3,Implement S5 TRIGGER reception,"Subscribe to scalp.price_trigger; on matching state (TANK_REVERSE/SURGE_REVERSE) for ticker with pre-staged S5 candidate, transition to TRIGGER.",,SWING-1,2,Medium,,,
+Sub-task,SWING-1.4,Implement S5 ENTRY -> MANAGE transition,"ENTRY: order submitted via allow_s5_trade. MANAGE: position held, monitor for stop/target/IV crush/timeout.",,SWING-1,1,Medium,,,
+Test,SWING-1.T1,TEST: state machine refuses invalid transitions,"GIVEN candidate in SETUP state, WHEN attempted transition to MANAGE (skipping TRIGGER and ENTRY), THEN raises InvalidTransitionError.",,SWING-1,,Medium,,tests,
+Test,SWING-1.T2,TEST: every transition logged,Run candidate through full lifecycle; assert candidate_transitions has 6 rows (one per transition).,,SWING-1,,Medium,,tests,
+Story,SWING-2,Implement S5 setup gate with all v2.2 conditions,"AS a developer
+I WANT is_s5_setup() returning True only when ALL setup conditions met
+SO THAT pre-staging the swing candidate is unambiguous.
+
+ACCEPTANCE CRITERIA:
+- near_gex (distance_to_major_pos_gex_atr <= 0.50)
+- extended (extension_from_vwap_atr >= 1.50 OR from_prior_close)
+- at_liquidity (near_htf_level_atr <= 0.50)
+- no_event (no earnings or FOMC blackout)
+- gex_strike_ok (major_gex_strike_dte >= 6)
+- gex_fresh (gex_snapshot_age_min <= 30)",SWING-E1,,3,Critical,,rules,
+Test,SWING-2.T1,TEST: gex_strike_dte rejects near-OPEX,"GIVEN setup with major_gex_strike_dte=4, WHEN is_s5_setup runs, THEN False with 'gex_strike_too_close_to_expiry'.",,SWING-2,,Medium,,tests,
+Test,SWING-2.T2,TEST: stale GEX rejects setup,"GIVEN gex_snapshot_age_min=45, WHEN is_s5_setup runs, THEN False with 'gex_stale'.",,SWING-2,,Medium,,tests,
+Test,SWING-2.T3,TEST: all six conditions required,"Parametrized: flip each condition false, verify rejection with correct reason.",,SWING-2,,Medium,,tests,
+Story,SWING-3,Implement local-strike-pierce check (v2.2 sec 15),"AS a developer
+I WANT s5_trigger_with_pierce_check() rejecting candidates where price pierced gamma strike pre-trigger
+SO THAT we don't fade after gamma sign already flipped locally.
+
+ACCEPTANCE CRITERIA:
+- After scalp.price_trigger arrives, check recent_bars window
+- Long setup: invalidate if recent_low < gamma_strike - 0.25*ATR
+- Short setup: invalidate if recent_high > gamma_strike + 0.25*ATR
+- Confirmation candle must be CLOSED (not forming)",SWING-E1,,3,Critical,,rules,
+Test,SWING-3.T1,TEST: pierce check invalidates short setup,"GIVEN gamma_strike=$890, ATR=$2, recent_high=$890.60, WHEN trigger evaluated, THEN False with 'gamma_pierced'.",,SWING-3,,Medium,,tests,
+Story,SWING-4,Implement fake-breakout reject layer,"AS a developer
+I WANT fake_breakout_reject() filtering ignition candidates
+SO THAT we don't trade wick-driven false signals.
+
+ACCEPTANCE CRITERIA:
+- Wick: upper_wick/range > 0.40 (long) or lower_wick/range > 0.40 (short)
+- Aggressor collapse: aggressor_pct < 0.45 (long) or > 0.55 (short)
+- Flow contradicts: net_signed_premium 5m > $300K opposite
+- Volume drops > 30% next bar — REMOVED (redundant)",SWING-E1,,2,High,,rules,
+Test,SWING-4.T1,TEST: wick rule rejects upper-heavy bar on long,"GIVEN long ignition with upper_wick = 50% of range, WHEN reject runs, THEN True 'wick_excessive'.",,SWING-4,,Medium,,tests,
+Test,SWING-4.T2,TEST: flow-contradicts rejects opposing flow,"GIVEN long candidate with net_signed_premium_5m = -$500K, WHEN evaluated, THEN True 'flow_contradicts'.",,SWING-4,,Medium,,tests,
+Story,SWING-10,Implement candidate scanner: scan top-100 names for S5 setups,"AS a developer
+I WANT a scanner running every 5 minutes during market hours
+SO THAT S5 candidates are pre-staged before scalp trigger fires.
+
+ACCEPTANCE CRITERIA:
+- Scan top-100 liquid optionable names every 5 minutes
+- For each name, run is_s5_setup() (SWING-2)
+- If True, create Candidate object with TTL
+- Persist to redis: pre_staged_s5 indexed by ticker
+- TTL: 30 minutes default; refresh on scanner re-run if still True",SWING-E2,,5,Critical,,scanner,
+Sub-task,SWING-10.1,Implement scanner loop,"Async loop: every 5 min during market hours, run is_s5_setup on universe.",,SWING-10,2,Medium,,,
+Sub-task,SWING-10.2,Implement Candidate dataclass and Redis persistence,"Candidate: {id, ticker, direction, gamma_strike, atr, setup_features, created_at, expires_at}.",,SWING-10,2,Medium,,,
+Sub-task,SWING-10.3,Implement TTL handling,Candidates auto-expire after 30 min. Refresh ttl on scanner re-run if still valid.,,SWING-10,1,Medium,,,
+Test,SWING-10.T1,TEST: scanner runs on schedule,Verify scanner fires every 5 min during market hours; no fire outside market hours.,,SWING-10,,Medium,,tests,
+Test,SWING-10.T2,TEST: expired candidates removed,Create candidate with TTL 30s; wait 31s; verify candidate gone from registry.,,SWING-10,,Medium,,tests,
+Story,SWING-11,Implement subscriber to scalp.price_trigger channel,"AS a developer
+I WANT swing brain to subscribe to scalp pubsub and elevate pre-staged candidates on matching state
+SO THAT cross-brain handoff actually works in production.
+
+ACCEPTANCE CRITERIA:
+- Async subscriber consuming scalp.price_trigger
+- On message: lookup pre-staged candidate for {ticker}
+- If candidate exists AND direction matches state (TANK_REVERSE -> long, SURGE_REVERSE -> short): elevate to TRIGGER
+- If no pre-staged candidate or direction mismatch: ignore message
+- Failure mode: if scalp brain unreachable for >60s during market hours, alert; pre-staged candidates expire normally
+- Latency target: subscriber receive to TRIGGER state transition < 200ms",SWING-E2,,8,Critical,,integration,
+Sub-task,SWING-11.1,Implement async subscriber,Subscribe to Redis channel scalp.price_trigger; consume messages; deserialize.,,SWING-11,3,Medium,,,
+Sub-task,SWING-11.2,Implement candidate lookup and elevation,"On message, look up Redis pre_staged_s5:{ticker}; if match, transition state to TRIGGER.",,SWING-11,3,Medium,,,
+Sub-task,SWING-11.3,Implement health monitor,"If no scalp.price_trigger messages received in 60s during market hours, fire alert. Resume on reconnect.",,SWING-11,2,Medium,,,
+Test,SWING-11.T1,TEST: end-to-end handoff fires TRIGGER,"GIVEN pre-staged S5 long candidate for SPY, WHEN scalp publishes TANK_REVERSE state for SPY, THEN swing candidate transitions to TRIGGER within 200ms.",,SWING-11,,Medium,,tests,
+Test,SWING-11.T2,TEST: direction mismatch does not trigger,"GIVEN pre-staged S5 long for SPY, WHEN scalp publishes SURGE_REVERSE for SPY (wrong direction), THEN candidate stays in SETUP.",,SWING-11,,Medium,,tests,
+Test,SWING-11.T3,TEST: graceful degradation when scalp down,"GIVEN scalp disconnected for 5 minutes, WHEN pre-staged candidate at gamma proximity, THEN no TRIGGER fires, candidate expires at TTL, alert logged.",,SWING-11,,Medium,,tests,
+Story,SWING-12,Implement bias map for daily directional context,"AS a developer
+I WANT a daily bias_map maintained per ticker (Conviction-style)
+SO THAT swing brain can reject S5 candidates contradicting daily bias.
+
+ACCEPTANCE CRITERIA:
+- Per-ticker daily bias: BULLISH / BEARISH / NEUTRAL
+- Computed once per day at market open from previous-day GEX, flow, term structure
+- Stored in Redis: bias_map:{ticker} with 1-day TTL
+- S5 candidates check bias as soft filter (allow but flag anti-bias trades)",SWING-E2,,5,High,,bias,
+Sub-task,SWING-12.1,Implement daily bias computation,"From prior-day UW data: net call/put flow, GEX direction, term structure slope. Logistic combine.",,SWING-12,3,Medium,,,
+Sub-task,SWING-12.2,Persist bias to Redis with daily TTL,Set bias_map:{ticker} at market open; expire 24h.,,SWING-12,2,Medium,,,
+Test,SWING-12.T1,TEST: bias matches obvious case,"Synthetic ticker with prior-day net call buy 5x put buy, GEX up, term contango. Verify bias = BULLISH.",,SWING-12,,Medium,,tests,
+Story,S5-1,Validate gamma proximity as standalone sub-edge,"AS a quant researcher
+I WANT to measure forward returns following 'price within 0.5 ATR of major +GEX strike' alone
+SO THAT I know whether gamma proximity adds edge on top of microstructure reversal.
+
+ACCEPTANCE CRITERIA:
+- Pull 12 months of UW GEX history for top-100 names
+- For every bar where gamma_proximity met, record forward return at +60 bars
+- Compute hit rate vs random sampling baseline
+- Output: notebook with per-symbol attribution",S5-E1,,5,High,"phase-0,sub-edge",,
+Sub-task,S5-1.1,Pull UW GEX historical for top-100 names,Fetch /api/stock/{ticker}/greek-exposure-history days=252. Store to S3.,,S5-1,2,Medium,,,
+Sub-task,S5-1.2,Build gamma_proximity feature on minute bars,"For every minute bar in 12mo, compute distance_to_major_pos_gex_atr. Persist parquet.",,S5-1,2,Medium,,,
+Sub-task,S5-1.3,Forward return attribution,"For bars with gamma_proximity <= 0.5, compute forward_return at +60 bars. Compare to baseline. t-stat.",,S5-1,1,Medium,,,
+Test,S5-1.T1,TEST: gamma_proximity has no look-ahead,"GIVEN bars at time T, WHEN gamma_proximity computed for T, THEN uses only GEX snapshots dated <= T.",,S5-1,,Medium,,tests,
+Story,S5-2,Validate reversal microstructure as standalone sub-edge,"AS a quant researcher
+I WANT to measure forward returns following SURGE_REVERSE/TANK_REVERSE state alone
+SO THAT I know microstructure standalone edge.
+
+ACCEPTANCE CRITERIA:
+- For every bar where reversal_score >= 0.55, record forward return at +30 bars
+- Compare hit rate to baseline
+- Document per-symbol and per-time-of-day breakdown",S5-E1,,5,High,"phase-0,sub-edge",,
+Test,S5-2.T1,TEST: reversal_score is bar-close only,Verify reversal_score at bar T uses only data finalized at T's close.,,S5-2,,Medium,,tests,
+Story,S5-3,Validate composed S5 vs microstructure alone,"AS a quant researcher
+I WANT to confirm gamma adds material lift on top of reversal microstructure
+SO THAT we know S5 is real and not just filtered reversals.
+
+ACCEPTANCE CRITERIA:
+- Compare composed S5 hit rate vs reversal-only on identical universe
+- Composed S5 must outperform by >= 5pp hit rate or >= 0.30R per-trade
+- If gamma adds nothing, drop the filter, rebrand",S5-E1,,3,High,"phase-0,sub-edge",,
+Story,S5-4,Validate ML-gated S5 vs composed alone (Phase 0 final gate),"AS a quant researcher
+I WANT to confirm ML adds >= 15% net EV improvement
+SO THAT we don't ship ML for marginal gain.
+
+ACCEPTANCE CRITERIA:
+- This story can only START after S5-E4 ML model exists
+- Compare ML-gated EV vs rules-only EV on holdout
+- Below 15%: keep rules-only",S5-E1,,3,High,"phase-0,sub-edge,ml",,
+Story,S5-23,Run rules-only backtest on 12-month history,"AS a quant researcher
+I WANT a rules-only backtest report for S5
+SO THAT we know deterministic edge before adding ML.
+
+ACCEPTANCE CRITERIA:
+- 12 months historical, top-100 names
+- Output: hit rate, avg R, net Sharpe, max DD, total trades
+- Cost model per v2.2 sec A5.2
+- PASS gate: net positive EV after costs",S5-E3,,5,High,,backtest,
+Test,S5-23.T1,TEST: backtest equity curve reproducible,Run twice; equity curves byte-identical.,,S5-23,,Medium,,tests,
+Test,S5-23.T2,TEST: trade-by-trade attribution available,Every trade has source candidate_id linkable to features hash.,,S5-23,,Medium,,tests,
+Story,S5-30,Define ML labeler — TRADE OUTCOME (per ChatGPT review),"AS a quant researcher
+I WANT label_s5_trade_outcome() producing forward labels representing whether the simulated production trade succeeds after costs
+SO THAT the ML model is trained on profitable trades, not reversal-state transitions.
+
+ACCEPTANCE CRITERIA:
+- Renamed from label_s5_transition() — production label is trade outcome
+- Label 1 ONLY if simulated trade reaches target before stop AND survives modeled costs/slippage
+- Label 0 for: stop hit, timeout, IV crush, invalidation, unfilled
+- Decision-time-only constraints: ATR, GEX, spread, IV all snapshotted at decision time
+- Future bars: bars[row.idx+1 : row.idx+1+N] strictly
+- Both labels stored: label_reversal_next_N AND label_trade_success",S5-E4,,8,Critical,"build-ml-transition-model,ml",,
+Sub-task,S5-30.1,Implement decision_time_atr helper,"atr_at(bars, idx, period=20). Asserts no future data accessed.",,S5-30,1,Medium,,,
+Sub-task,S5-30.2,Implement decision_time_gex helper,"gex_at(gex_history, timestamp). Returns latest snapshot with ts <= timestamp.",,S5-30,1,Medium,,,
+Sub-task,S5-30.3,Implement label_s5_trade_outcome simulator,"Simulate: entry at next-bar open + slippage, exit at first of target/stop/timeout/IV-crush/invalidation. Apply cost model. Return 1 if net P&L > 0.",,S5-30,3,Medium,,,
+Sub-task,S5-30.4,Implement label_reversal_next_N (kept for sub-edge attribution),Original reversal-state label retained alongside trade_success.,,S5-30,1,Medium,,,
+Test,S5-30.T1,TEST: labeler rejects future-data ATR,"GIVEN ATR using bars[idx+1], WHEN labeler called, THEN raises LookAheadError.",,S5-30,,Medium,,tests,
+Test,S5-30.T2,TEST: label_trade_success matches production execution,"Synthetic: entry $185.50, target $187.50, stop $185.00, cost 6%, future bars high $187.80 then low $186.80. Label = 1.",,S5-30,,Medium,,tests,
+Test,S5-30.T3,TEST: rejects winning reversal that loses money,GIVEN reversal occurred but vertical IV crushed 35% pre-target. label_reversal=1 BUT label_trade_success=0.,,S5-30,,Medium,,tests,
+Story,S5-31,Build training dataset with execution-aware features,"AS a quant researcher
+I WANT a labeled dataset including execution-aware features and both label types
+SO THAT the trained model can reject signals killed by spread, liquidity, IV friction.
+
+ACCEPTANCE CRITERIA:
+- Replay 12 months, emit Candidate row when is_s5_setup()=True
+- Compute v2.2 sec 18 features
+- Compute label_trade_success per S5-30
+- Compute label_reversal_next_N
+- ADD execution features:
+  bid_ask_spread_pct, option_volume, option_open_interest,
+  iv_percentile, front_iv_change, skew_slope,
+  entry_distance_from_gamma, strike_oi_rank, time_since_ignition
+- Persist to parquet with schema v2 stamp
+- Sample size handling per S5-31a escalation ladder",S5-E4,,5,Critical,"build-ml-transition-model,ml",,
+Test,S5-31.T1,TEST: execution features computable for >= 95% of rows,"GIVEN candidate dataset, WHEN execution features computed, THEN spread, volume, OI populated for >= 95%.",,S5-31,,Medium,,tests,
+Story,S5-31a,Sample-size escalation ladder,"AS a quant researcher
+I WANT explicit escalation when 12mo data yields insufficient candidates
+SO THAT we don't paint into a corner.
+
+ACCEPTANCE CRITERIA:
+- Step 1: < 200/direction in 12mo: manual approval to expand to 24mo
+- Step 2: < 200 in 24mo: manual approval to expand top-100 -> top-200 universe
+- Step 3: < 200: manual approval to relax gates (at_liquidity 0.5->0.75; gex_strike_dte 6->4)
+- Step 4: still < 200: retire ML, ship rules-only S5; file decision in /docs/decisions/ml-retired.md
+- Each step is manual decision point, not automatic relaxation",S5-E4,,2,High,"build-ml-transition-model,ml",,
+Story,S5-32,Train logistic regression baseline,"AS a quant researcher
+I WANT a logistic regression baseline
+SO THAT we have an interpretable sanity check before tree models.
+
+ACCEPTANCE CRITERIA:
+- StandardScaler + LR with L2
+- Feature importance via coefficients
+- Walk-forward CV per v2.2 sec 20
+- Output: AUC, Brier, calibration curve",S5-E4,,3,High,"build-ml-transition-model,ml",,
+Test,S5-32.T1,TEST: baseline AUC on training >= 0.55,"Below 0.55, features insufficient; revisit feature engineering before LightGBM.",,S5-32,,Medium,,tests,
+Story,S5-33,Train LightGBM with top-decile precision tracking,"AS a quant researcher
+I WANT a LightGBM model evaluated on top-decile precision and feature stability, not just AUC
+SO THAT we know the model ranks BEST candidates correctly.
+
+ACCEPTANCE CRITERIA:
+- LightGBM with early stopping
+- Optuna hyperparameter search (50 trials, log all)
+- Walk-forward CV (5 folds) with embargo
+- Track per-fold: top_decile_precision, precision_at_threshold, feature_stability (Spearman across folds)
+- If feature_stability_min < 0.6, flag for review
+- Output: AUC, Brier, top-decile precision, feature importance, SHAP",S5-E4,,8,Critical,"build-ml-transition-model,ml",,
+Sub-task,S5-33.1,Walk-forward split with embargo,"5 folds, 1% embargo around overlapping label windows.",,S5-33,2,Medium,,,
+Sub-task,S5-33.2,Hyperparameter search via Optuna,"50 trials, log all parameter sets and OOF scores.",,S5-33,3,Medium,,,
+Sub-task,S5-33.3,Feature importance and SHAP,Top-20 features by importance; SHAP summary plot.,,S5-33,2,Medium,,,
+Test,S5-33.T1,TEST: walk-forward never trains on future,"Verify train fold's max ts < test fold's min ts - embargo, every fold.",,S5-33,,Medium,,tests,
+Test,S5-33.T2,TEST: feature stability across folds,Spearman rank correlation of feature_importance vectors across 5 folds. Min pairwise >= 0.6.,,S5-33,,Medium,,tests,
+Story,S5-34,Calibrate with Brier and reliability-bin validation,"AS a quant researcher
+I WANT calibrated probabilities AND a check that calibration didn't move predictions to safe middle
+SO THAT EV-based threshold uses meaningful probabilities.
+
+ACCEPTANCE CRITERIA:
+- Isotonic regression on validation fold
+- Brier improves baseline by >= 10%
+- Reliability bins populated: each decile contains >= 5 samples
+- Calibration slope in [0.85, 1.15]",S5-E4,,3,High,"build-ml-transition-model,ml",,
+Test,S5-34.T1,TEST: calibration improves Brier,Calibrated_brier < uncalibrated_brier by >= 5%.,,S5-34,,Medium,,tests,
+Test,S5-34.T2,TEST: reliability bins populated,Each decile has >= 5 samples post-calibration.,,S5-34,,Medium,,tests,
+Test,S5-34.T3,"TEST: calibration slope in [0.85, 1.15]","Linear regression of observed_p on predicted_p has slope in [0.85, 1.15].",,S5-34,,Medium,,tests,
+Story,S5-35,EV-curve threshold with minimum trade count,"AS a quant researcher
+I WANT pick_threshold() with minimum trade count guardrails
+SO THAT we don't pick a knife-edge threshold from 12 lucky trades.
+
+ACCEPTANCE CRITERIA:
+- Iterate thr in [0.50, 0.85] step 0.01
+- Compute net EV using cost model
+- Reject extremes <= 0.51 or >= 0.83 with warning
+- Min 30 validation trades per threshold; prefer 50+
+- Report per-threshold: precision, avg R, net EV, max DD, trade count",S5-E4,,3,High,"build-ml-transition-model,ml",,
+Test,S5-35.T1,TEST: threshold from validation only,Verify pick_threshold uses validation fold; test fold gives different optimum.,,S5-35,,Medium,,tests,
+Test,S5-35.T2,TEST: extreme threshold warning fires,"GIVEN optimum is 0.50, WHEN runs, THEN warning logged.",,S5-35,,Medium,,tests,
+Story,S5-36,Pass criteria gate with combined criteria,"AS a quant researcher
+I WANT automated promotion gate requiring precision AND Brier AND (AUC OR EV)
+SO THAT we don't ship a model that passes one metric while failing critical others.
+
+ACCEPTANCE CRITERIA — promote if ALL of:
+- (AUC >= 0.62 OR EV improves rules-only by >= 15%)
+- AND Brier improves baseline by >= 10%
+- AND top-decile precision >= 60%
+- AND calibration slope in [0.85, 1.15]
+- AND feature_stability_min >= 0.6
+- AND sample size >= 200/direction (preferred 300+)
+Failure of any single criterion blocks promotion.",S5-E4,,2,Critical,"build-ml-transition-model,ml",,
+Test,S5-36.T1,TEST: model below 0.62 AUC and 15% EV does NOT promote,Synthetic AUC 0.59 and EV 8% must fail.,,S5-36,,Medium,,tests,
+Test,S5-36.T2,TEST: passing AUC but failing precision blocks,Synthetic AUC 0.65 but top-decile precision 0.55 must fail.,,S5-36,,Medium,,tests,
+Story,S5-37,"Model registry with version, hash, reproducibility","AS a developer
+I WANT a model registry storing trained models with version, training data hash, code hash, hparams
+SO THAT every prediction can be traced back.
+
+ACCEPTANCE CRITERIA:
+- Stored: version, training_data_hash, feature_hash, code_git_sha, hparams, metrics, calibration_curve
+- Registry persisted: Postgres + serialized model in S3
+- Loading by version returns deterministic predictions",S5-E4,,3,High,"build-ml-transition-model,ml",,
+Test,S5-37.T1,TEST: load(version) returns identical predictions,"Save, reload via registry, predict on fixed 100-row sample. Byte-identical.",,S5-37,,Medium,,tests,
+Story,S5-40,Identical-cost-and-slippage holdout comparison,"AS a quant researcher
+I WANT rules-only vs ML-gated comparison with SAME cost and slippage on identical holdout
+SO THAT EV difference is attributable to ML, not different cost models.
+
+ACCEPTANCE CRITERIA:
+- Same holdout for both
+- Same cost model and slippage: explicit assertion in code that params identical
+- Same execution-viability filter applied to both
+- Output: trades, hit rate, R, net EV, Sharpe, max DD for both
+- PASS gate: ML-gated net EV >= rules-only * 1.15",S5-E5,,3,Critical,,backtest,
+Test,S5-40.T1,TEST: holdout not seen during training,Holdout date range > training-fold max date + embargo.,,S5-40,,Medium,,tests,
+Test,S5-40.T2,TEST: cost params byte-identical between runs,Assert: cost_model_rules_only.params == cost_model_ml_gated.params.,,S5-40,,Medium,,tests,
+Story,S5-50,Wire live S5 candidate stream to Alpaca paper,"AS a trader
+I WANT live S5 candidates submitting paper orders
+SO THAT we get realistic execution data.
+
+ACCEPTANCE CRITERIA:
+- Live UW + Polygon flows through full pipeline
+- Risk manager veto enforced before submission
+- Decision log entry for every TRADE or PASS
+- Push notification on every TRADE",S5-E6,,5,Critical,,"execution,paper",
+Test,S5-50.T1,TEST: paper account never breaches per-trade cap,Synthetic 100-candidate stream; no candidate sized > 0.50% of equity.,,S5-50,,Medium,,tests,
+Test,S5-50.T2,TEST: every PASS has logged reason,Run live 1 day; assert decision_log query 'pass_reason IS NULL AND decision=PASS' returns zero.,,S5-50,,Medium,,tests,
+Story,S5-51,"Run paper for 60 trading days (or 50 candidates, whichever LATER)","AS a quant researcher
+I WANT 60 calendar days of paper trading OR 50 candidates (whichever later)
+SO THAT we exit paper with statistically meaningful sample.
+
+ACCEPTANCE CRITERIA:
+- Min 60 trading days OR 50 candidates (LATER, not first — fix from earlier bug)
+- Realized hit rate within 15pp of backtest
+- Cost realized within 1.5x modeled
+- No model drift",S5-E6,,2,High,,paper,
+Test,S5-51.T1,TEST: drift monitoring fires on hit rate departure,Inject synthetic loss streak driving observed_p 11pp below baseline; alert fires.,,S5-51,,Medium,,tests,
+Story,S5-60,Switch executor to live and ramp to 0.25x,"AS a trader
+I WANT real-money execution at 0.25x sizing for first 30 trades
+SO THAT we validate slippage and execution differences vs paper.
+
+ACCEPTANCE CRITERIA:
+- Endpoint flips to live
+- Sizing: Kelly fraction * 0.25
+- Daily loss kill-switch active
+- Slippage tracker logs intended-vs-fill on every trade",S5-E7,,3,Critical,,live,
+Test,S5-60.T1,TEST: kill switch closes positions on daily loss,"Simulate -2.1% daily P&L; kill fires, closes positions, blocks new entries.",,S5-60,,Medium,,tests,
+Story,S5-61,Per-direction posterior tracking,"AS a quant researcher
+I WANT posterior tracked separately for long-after-tank and short-after-surge
+SO THAT per-direction drift is detected.
+
+ACCEPTANCE CRITERIA:
+- TWO Beta-Binomial trackers (NOT single)
+  long_after_tank: alpha=10*0.55, beta=10*0.45
+  short_after_surge: alpha=10*0.50, beta=10*0.50
+- Each direction's posterior in EV calc for that direction's trades
+- Alert if either drops > 10pp below prior
+- Alert if posteriors diverge > 15pp from each other",S5-E7,,3,High,,ev,
+Test,S5-61.T1,TEST: posterior approaches empirical with sample,Inject 100 wins and 100 losses; converges to 0.50 within 1pp.,,S5-61,,Medium,,tests,
+Test,S5-61.T2,TEST: directional posteriors independent,"Inject 100 long-wins and 100 short-losses. Long posterior -> 1.0, short -> 0.0. Do NOT pool.",,S5-61,,Medium,,tests,
+Story,S5-70,Ramp to 0.50x after 30 trades,"AS a trader
+I WANT to scale to 0.50x quarter-Kelly after 30 successful 0.25x trades.
+
+ACCEPTANCE CRITERIA:
+- Trades >= 30 at 0.25x with posterior within tolerance
+- No drift alerts last 14 days
+- Slippage realized < 1.5x modeled
+- Manual approval before flip",S5-E8,,2,High,,live,
+Story,S5-71,Ramp to full quarter-Kelly after 100 trades,"AS a trader
+I WANT to scale to full quarter-Kelly after 100 cumulative live trades with positive expectancy.
+
+ACCEPTANCE CRITERIA:
+- Cumulative live trades >= 100
+- Posterior expectancy > 0
+- Per-trade cap raises 0.50% -> 1.00%",S5-E8,,2,High,,live,
+Story,S5-80,"Risk manager with vega-weighted IV exit, model-stale, exec-liquidity","AS a developer
+I WANT a risk manager with vega-weighted IV-crush, model-stale kill, execution-liquidity rejects
+SO THAT all production controls in one place.
+
+ACCEPTANCE CRITERIA:
+Caps:
+- Per-trade max risk: 0.50% (paper/ramp), 1.00% (full)
+- Concurrent S5 max: 2; same ticker max: 1; sector max: 1
+- Daily loss kill: -2.0%; weekly soft halt: -4.0%
+- Drift: hit rate -10pp disables ML-gated entries
+- GEX freshness: stale > 30min, pass
+
+IV-crush exit:
+- Calibrate empirically over first 30 paper trades
+- Threshold in vega-weighted terms: position_vega * delta_iv > 0.5 * current_premium
+- Until calibrated, placeholder 35% IV crush
+
+Model-stale kill:
+- If model_version_age_hours > 48 OR drift_alert active, disable ML-gated entries
+- Optionally fall back to rules-only mode
+
+Execution-liquidity rejects:
+- Reject if bid_ask_spread_pct > 0.05
+- Reject if option_volume_5d_avg < min_option_volume",S5-E9,,8,Critical,,risk,
+Test,S5-80.T1,TEST: family-correlation cap blocks 4th S5,"GIVEN 3 open S5 positions, WHEN 4th evaluated, THEN denied 'family_correlation_cap'.",,S5-80,,Medium,,tests,
+Test,S5-80.T2,TEST: IV crush exit calibrated empirically,"After 30 paper trades, threshold from observed (vega * dIV) / premium ratio at break-even. Stored in config.",,S5-80,,Medium,,tests,
+Test,S5-80.T3,TEST: model-stale disables ML gate,"GIVEN model_version_age = 72h, WHEN candidate evaluated, THEN ML-gated path skipped.",,S5-80,,Medium,,tests,
+Test,S5-80.T4,TEST: execution-liquidity reject fires,"GIVEN bid_ask_spread_pct = 0.08, WHEN evaluated, THEN denied 'option_spread_too_wide'.",,S5-80,,Medium,,tests,
+Story,S5-81,Decision log per v2.2 sec 24,"AS a developer
+I WANT every TRADE and PASS logged with full context.
+
+ACCEPTANCE CRITERIA:
+- Postgres table per v2.2 sec 24 schema
+- Insert latency < 50ms (non-blocking)
+- Indexed on timestamp, ticker, model_version
+- Includes gex_strike_dte, gex_snapshot_age_min, fake_breakout_check, ml_threshold_used, iv_at_entry",S5-E9,,3,Critical,,journal,
+Test,S5-81.T1,TEST: decision log non-blocking,Latency of order submission with vs without log enabled. Diff < 50ms.,,S5-81,,Medium,,tests,
+Story,S5-82,Attribution dashboard,"AS a quant researcher
+I WANT a dashboard showing per-strategy hit rate, R, Sharpe over rolling 30/90/365 day windows.
+
+ACCEPTANCE CRITERIA:
+- Built on decision_log + closed trades
+- Per-edge breakdown
+- Per-pass-reason histogram
+- Drift alerts surfaced visibly",S5-E9,,5,Medium,,observability,
+Story,S5-83,Alerting: Pushover or Discord,"AS a trader
+I WANT push notifications for fills, kill-switch, drift, freshness violations.
+
+ACCEPTANCE CRITERIA:
+- Pushover or Discord webhook
+- Fires on: trade fill, kill switch, drift, GEX stale rejection rate >20%
+- Rate-limited: max 5/hour",S5-E9,,2,Medium,,observability,
+Story,S5-100,Cost-model recalibration after first 50 paper trades,"AS a quant researcher
+I WANT cost model recalibrated against realized paper-trade slippage and spreads
+SO THAT Phase 4 backtest reflects actual trading conditions.
+
+ACCEPTANCE CRITERIA:
+- After first 50 paper trades, compute realized cost per trade
+- Compare realized to modeled (5-10% RT for single-name weekly)
+- If realized/modeled > 1.20 OR < 0.80, recalibrate
+- After recalibration, RE-RUN Phase 4 ML-vs-rules; if ML lift drops below 1.15x, model goes back to research
+- Document in /docs/cost-recalibration-{date}.md",S5-E11,,5,High,,operations,
+Test,S5-100.T1,TEST: recalibration triggers when delta > 20%,"Realized 12% vs modeled 9%; recalibration_required flag set, alert fires.",,S5-100,,Medium,,tests,
+Story,S5-102,Per-phase rollback procedures,"AS a quant researcher
+I WANT explicit fail-action procedures for every phase gate
+SO THAT we don't lose months to a single failed gate.
+
+ACCEPTANCE CRITERIA — for each phase 0-7, document fail action:
+- Phase 0 fail: gamma adds no lift -> rebrand or kill
+- Phase 1 fail: replay non-deterministic -> bug-fix
+- Phase 2 fail: rules-only EV negative -> audit; if 1 iter still negative, kill
+- Phase 3 fail: ML doesn't pass -> escalation ladder; if 2 iter fail, ship rules-only
+- Phase 4 fail: ML lift < 1.15x -> check label leakage; if still failing, ship rules-only
+- Phase 5 fail: paper drift > 15pp -> root-cause, restart timer
+- Phase 6 fail: live drift > 10pp at 0.25x -> kill, decision gate
+- Phase 7 fail: live drift -> fall back to 0.25x, 30 more trades, retire if fails",S5-E11,,3,High,,operations,
+Test,S5-102.T1,TEST: every phase has rollback path documented,/docs/rollback/phase-{0..7}.md files exist and non-empty before phase begins.,,S5-102,,Medium,,tests,
+Story,S5-104,Production gate function: allow_s5_trade(),"AS a developer
+I WANT a single canonical entry function allow_s5_trade() orchestrating all gates
+SO THAT production code path is auditable in one place.
+
+ACCEPTANCE CRITERIA:
+Gate ordering (locked):
+  1. is_s5_setup
+  2. reversal_score >= required
+  3. gamma_distance_atr <= 0.50
+  4. event_blackout
+  5. gex_stale
+  6. bid_ask_spread_pct <= 0.05
+  7. option_volume >= min_option_volume
+  8. ml_prob >= threshold
+  9. expected_value_net > 0
+  10. risk_manager_allows
+Returns Decision dataclass with TRADE or PASS + pass_reason.
+Every PASS reason logged to decision_log.
+Function is the ONLY path to S5 order submission.",S5-E11,,5,Critical,,production-gate,
+Sub-task,S5-104.1,Implement allow_s5_trade with gate chain,Sequential gate evaluation; first failure short-circuits. Returns typed Decision.,,S5-104,3,Medium,,,
+Sub-task,S5-104.2,Wire to executor as single entry point,Executor calls allow_s5_trade. No other code path submits S5 orders.,,S5-104,2,Medium,,,
+Test,S5-104.T1,TEST: every gate has unique pass_reason,Test each gate failing in isolation; pass_reason unique and informative.,,S5-104,,Medium,,tests,
+Test,S5-104.T2,TEST: allow_s5_trade is the only order-submission path,Static analysis: no other call to alpaca.submit_order() outside allow_s5_trade's executor wrapper.,,S5-104,,Medium,,tests,
+Epic,S1-E1,"S1 Pre-FOMC Drift: Setup, Scanner, Trigger",Pre-FOMC equity drift strategy. Cieslak/Morse/Vissing-Jorgensen 2014 shows positive equity drift in 24h before FOMC. Time-window-based setup.,,,,Medium,"s1,future-strategy",trading-system,
+Story,S1-1,Implement is_s1_setup() — Pre-FOMC time window gate,"AS a developer
+I WANT a pre-FOMC setup gate firing on the trading day before scheduled FOMC announcements
+SO THAT S1 candidates pre-stage in the ~24h drift window.
+
+ACCEPTANCE CRITERIA:
+- FOMC calendar maintained: list of scheduled announcement datetimes
+- Setup window: 14:00 prior trading day open through 14:00 announcement day
+- Universe: SPY, QQQ, IWM only
+- No setup if: holiday-shortened day, prior emergency announcement, VIX > 35
+- Returns True only inside window AND for eligible tickers AND no regime override",S1-E1,,3,Medium,,"rules,future-s1",
+Sub-task,S1-1.1,FOMC calendar source,Hardcode 12 months ahead from Fed press releases; verify quarterly.,,S1-1,1,Medium,,,
+Sub-task,S1-1.2,Window logic and regime override,Implement window check; VIX regime override via Polygon /v3/snapshot.,,S1-1,2,Medium,,,
+Test,S1-1.T1,TEST: setup fires only in 24h window,"GIVEN FOMC date 2026-05-07 14:00 ET, WHEN evaluated 2026-05-06 14:30, THEN True. WHEN 2026-05-07 14:30, THEN False.",,S1-1,,Medium,,tests,
+Test,S1-1.T2,TEST: VIX > 35 disables S1,"GIVEN VIX = 38, in-window, THEN False with 'vix_regime_override'.",,S1-1,,Medium,,tests,
+Story,S1-2,S1 scanner — runs once per day at window open,"AS a developer
+I WANT the S1 scanner triggered once per day at window open
+SO THAT S1 candidates pre-stage without continuous scanning.
+
+ACCEPTANCE CRITERIA:
+- Cron-style trigger at 14:00 ET on FOMC-eve days
+- Creates candidates for SPY, QQQ, IWM with direction=LONG
+- Persists to redis pre_staged_s1 with TTL = (announcement_time - now)
+- Entry logic: simple time-trigger at 09:35 ET on announcement day",S1-E1,,2,Medium,,"scanner,future-s1",
+Story,S1-3,S1 entry: time-trigger at announcement-day open,"AS a developer
+I WANT S1 entry triggered at 09:35 ET on FOMC day for pre-staged candidates
+SO THAT we capture the drift through the morning session.
+
+ACCEPTANCE CRITERIA:
+- At 09:35 ET on FOMC day, every pre-staged S1 candidate triggers ENTRY
+- Vertical call spread, 7-14 DTE, delta 0.30-0.40
+- Exit at 13:55 ET regardless of P&L — DO NOT hold through announcement
+- Risk per trade: 0.50% of equity",S1-E1,,3,Medium,,"execution,future-s1",
+Test,S1-3.T1,TEST: forced exit at 13:55 ET,"GIVEN S1 position open, WHEN clock = 13:55 ET, THEN close all S1 positions regardless of P&L.",,S1-3,,Medium,,tests,
+Epic,S2-E1,"S2 ORB Stocks-In-Play: Setup, Scanner, Trigger",Opening Range Breakout on high-relative-volume names. Reuses scalp brain SURGE_IGNITION/TANK_IGNITION states for trigger.,,,,Medium,"s2,future-strategy",trading-system,
+Story,S2-1,Implement opening_range computation per ticker,"AS a developer
+I WANT 5-minute opening range computed and stored per universe ticker
+SO THAT S2 setup can reference high/low of OR.
+
+ACCEPTANCE CRITERIA:
+- For top-200 liquid names, compute OR_high and OR_low from 09:30:00-09:35:00 ET
+- Persist to redis: opening_range:{ticker} = {high, low, mid, computed_at}
+- TTL: 23 hours",S2-E1,,3,Medium,,"features,future-s2",
+Test,S2-1.T1,TEST: OR uses only first 5 minutes,Synthetic ticker with bars 09:30-10:00. OR computed from 09:30-09:34 only. 09:35+ ignored.,,S2-1,,Medium,,tests,
+Story,S2-2,Implement is_s2_setup() — Stocks-in-play with ORB,"AS a developer
+I WANT a setup gate detecting stocks-in-play breaking out of opening range
+SO THAT S2 candidates pre-stage on momentum starting names.
+
+ACCEPTANCE CRITERIA:
+- gap_pct >= 0.02 (2%) OR pre_market_volume_ratio >= 5.0
+- After 09:35 ET: price closes above OR_high (long) or below OR_low (short)
+- Volume_at_breakout >= 1.5x avg minute volume
+- No earnings within 24h",S2-E1,,5,Medium,,"rules,future-s2",
+Sub-task,S2-2.1,Gap and pre-market volume features,Compute gap_pct from 4:00-9:30 trades; pre_market_volume_ratio from 4-9:30 cumulative.,,S2-2,2,Medium,,,
+Sub-task,S2-2.2,ORB break detection,"After 09:35 ET, watch for first close > OR_high or close < OR_low.",,S2-2,2,Medium,,,
+Sub-task,S2-2.3,Volume confirmation at breakout,Breakout bar volume >= 1.5x trailing 30-bar avg.,,S2-2,1,Medium,,,
+Test,S2-2.T1,TEST: pure gap without volume rejected,"GIVEN gap_pct=0.025 BUT pre_market_volume_ratio=2.0, WHEN evaluated, THEN False.",,S2-2,,Medium,,tests,
+Test,S2-2.T2,TEST: ORB break requires close not just touch,Bar high pierces OR_high but closes below — not a break. Bar high pierces AND closes above — break.,,S2-2,,Medium,,tests,
+Story,S2-3,S2 scanner — every 1 minute from 09:35-11:00 ET,"AS a developer
+I WANT the S2 scanner running every minute during 09:35-11:00 ET
+SO THAT S2 captures fresh ORB breaks intraday.
+
+ACCEPTANCE CRITERIA:
+- Scan top-200 names every minute 09:35-11:00 ET
+- Skip names with no gap or pre-market volume
+- Persist break events to redis pre_staged_s2 (TTL 30 min)",S2-E1,,3,Medium,,"scanner,future-s2",
+Story,S2-4,S2 trigger: scalp SURGE_IGNITION or TANK_IGNITION confirmation,"AS a developer
+I WANT S2 entry triggered when scalp brain confirms IGNITION state in ORB direction
+SO THAT we don't enter on the wick alone.
+
+ACCEPTANCE CRITERIA:
+- Subscribe to scalp.price_trigger
+- Match: SURGE_IGNITION (long) or TANK_IGNITION (short)
+- ignition_score required >= 0.50
+- Apply fake-breakout reject (SWING-4) before entry",S2-E1,,3,Medium,,"rules,future-s2",
+Epic,S3-E1,"S3 Intraday Momentum: Setup, Scanner, Trigger","Continuation-momentum strategy on persistent trending intraday moves. Catches the SURGE_CONTINUATION leg, not reversals.",,,,Medium,"s3,future-strategy",trading-system,
+Story,S3-1,Implement is_s3_setup() — Intraday momentum gate,"AS a developer
+I WANT a setup gate detecting persistent intraday momentum
+SO THAT S3 captures the SURGE_CONTINUATION trade.
+
+ACCEPTANCE CRITERIA:
+- session_return_atr >= 1.5 (long) or <= -1.5 (short)
+- vwap_distance_atr: price > vwap by >= 0.75 ATR (long) or < vwap by >= 0.75 ATR (short)
+- consecutive_higher_lows >= 4 (long) or consecutive_lower_highs >= 4 (short)
+- aggressor_avg_30m: long >= 0.60, short <= 0.40
+- not at_liquidity (opposite of S5)
+- distance_to_pos_gex_atr >= 1.0 (avoid trading INTO gamma resistance)",S3-E1,,5,Medium,,"rules,future-s3",
+Sub-task,S3-1.1,session_return and vwap_distance features,From day_open and session VWAP. ATR_D1 from prior 14 daily ATR.,,S3-1,2,Medium,,,
+Sub-task,S3-1.2,Higher-lows / lower-highs detector,Walk back N bars; count strictly monotonic structure.,,S3-1,2,Medium,,,
+Sub-task,S3-1.3,Aggressor average over rolling 30m,Reuse aggressor classifier (FND-1.T2). 30-min weighted avg.,,S3-1,1,Medium,,,
+Test,S3-1.T1,TEST: choppy day with no trend rejected,"Synthetic day: vwap-cross 8 times, session_return = 0.3 ATR. is_s3_setup = False.",,S3-1,,Medium,,tests,
+Test,S3-1.T2,TEST: trending into gamma rejected,session_return = 2.0 ATR but distance_to_pos_gex_atr = 0.4. False with 'too_close_to_gamma'.,,S3-1,,Medium,,tests,
+Story,S3-2,S3 scanner — every 5 minutes,"AS a developer
+I WANT the S3 scanner running every 5 minutes scanning top-100 names
+SO THAT S3 momentum candidates pre-stage continuously.
+
+ACCEPTANCE CRITERIA:
+- Scan every 5 min from 10:00 ET to 15:00 ET
+- For each name, run is_s3_setup
+- Persist to redis pre_staged_s3 (TTL 30 min)",S3-E1,,3,Medium,,"scanner,future-s3",
+Story,S3-3,S3 trigger: scalp SURGE_CONTINUATION/TANK_CONTINUATION,"AS a developer
+I WANT S3 entry triggered when scalp brain CONTINUES the trend
+SO THAT we time entries on continuation-state confirmation.
+
+ACCEPTANCE CRITERIA:
+- Subscribe to scalp.price_trigger
+- Match: SURGE_CONTINUATION (long) or TANK_CONTINUATION (short)
+- continuation_score required >= 0.55
+- Reject if reversal_score also high (mixed signals = pass)",S3-E1,,3,Medium,,"rules,future-s3",
+Test,S3-3.T1,TEST: high reversal_score rejects continuation entry,"GIVEN continuation_score=0.62 BUT reversal_score=0.48, WHEN evaluated, THEN PASS 'mixed_signals'.",,S3-3,,Medium,,tests,
+Epic,S4-E1,"S4 Signed Flow Followup: Setup, Scanner, Trigger",Trade with the prevailing institutional options flow. UW signed-premium signals identify directional accumulation; price + scalp confirmation provides entry timing.,,,,Medium,"s4,future-strategy",trading-system,
+Story,S4-1,Implement signed_flow_score from UW data,"AS a developer
+I WANT a normalized signed_flow_score computed per ticker per minute
+SO THAT downstream rules consume canonical flow strength.
+
+ACCEPTANCE CRITERIA:
+- net_signed_premium_30m = call_buy_premium - put_buy_premium - call_sell_premium + put_sell_premium
+- normalize per-ticker via 30d trailing premium scale
+- ask_side_pct_30m: fraction of premium hitting ask
+- sweep_count_30m: number of sweep-tagged orders
+- signed_flow_score = z_score combination, normalized in [-1, +1]",S4-E1,,5,Medium,,"features,future-s4",
+Sub-task,S4-1.1,Pull and aggregate UW flow-recent over rolling 30m,Use FND-3.2 client. Cache and roll forward.,,S4-1,2,Medium,,,
+Sub-task,S4-1.2,Per-ticker normalization,30d trailing premium for normalization scale.,,S4-1,2,Medium,,,
+Sub-task,S4-1.3,Combine into signed_flow_score,Initial weights from spec; refine via S4-1 backtest later.,,S4-1,1,Medium,,,
+Test,S4-1.T1,TEST: pure call buy accumulation produces +1,"Synthetic ticker: 100% premium = call buys at ask, with sweeps. signed_flow_score >= 0.85.",,S4-1,,Medium,,tests,
+Test,S4-1.T2,TEST: balanced flow produces near 0,"Equal call buys and put buys. signed_flow_score in [-0.10, +0.10].",,S4-1,,Medium,,tests,
+Story,S4-2,Implement is_s4_setup() — Strong directional flow gate,"AS a developer
+I WANT a setup gate when signed_flow_score crosses +/-0.65 with confirming structure
+SO THAT S4 only fires on genuinely strong directional flow.
+
+ACCEPTANCE CRITERIA:
+- abs(signed_flow_score) >= 0.65
+- price_aligned_with_flow: price up if flow > 0, price down if flow < 0 (over last 30m)
+- not_at_extreme_iv: IV percentile < 80
+- gex_proximity_check: NOT within 0.5 ATR of major +GEX strike
+- earnings_blackout = False
+- daily_relative_volume >= 1.2",S4-E1,,5,Medium,,"rules,future-s4",
+Test,S4-2.T1,TEST: extreme IV rejects S4,"GIVEN signed_flow_score=0.80 BUT iv_percentile=85, WHEN evaluated, THEN False.",,S4-2,,Medium,,tests,
+Test,S4-2.T2,TEST: flow opposite of price rejects,"GIVEN signed_flow_score=+0.70 BUT 30m return = -0.8 ATR, WHEN evaluated, THEN False with 'flow_price_mismatch'.",,S4-2,,Medium,,tests,
+Story,S4-3,S4 scanner — every 5 minutes on top-200,"AS a developer
+I WANT S4 scanner every 5 min on top-200 names
+SO THAT flow accumulation gets caught early.
+
+ACCEPTANCE CRITERIA:
+- Top-200 universe
+- Every 5 min during market hours
+- Persist to redis pre_staged_s4 (TTL 45 min)",S4-E1,,3,Medium,,"scanner,future-s4",
+Story,S4-4,S4 trigger: scalp ignition or continuation in flow direction,"AS a developer
+I WANT S4 entry triggered on either SURGE/TANK_IGNITION or _CONTINUATION matching flow direction
+SO THAT entry timing is microstructure-validated.
+
+ACCEPTANCE CRITERIA:
+- Subscribe to scalp.price_trigger
+- Long flow: trigger on SURGE_IGNITION OR SURGE_CONTINUATION
+- Short flow: trigger on TANK_IGNITION OR TANK_CONTINUATION
+- Reject if scalp state contradicts flow
+- Apply fake-breakout reject (SWING-4)",S4-E1,,3,Medium,,"rules,future-s4",
