@@ -397,6 +397,12 @@ class _QuietHandler(http.server.SimpleHTTPRequestHandler):
                 "auto_submit": s["auto_submit"],
                 "last_tick_at": s.get("last_tick_at"),
             }
+            # UW WS streamer
+            try:
+                from data_clients.uw_ws_streamer import get_stats as _ws_stats
+                probes["uw_ws"] = _ws_stats()
+            except Exception as e:
+                probes["uw_ws"] = {"ok": False, "error": str(e)}
             return _send_json(self, probes)
 
         # /api/prebreakout/scan — full universe scan, cached 60s
@@ -633,6 +639,21 @@ def main() -> int:
     # Intraday snapshot — runs every 5 min, journals daemon state to SQLite
     t4 = threading.Thread(target=_intraday_snapshot_loop, args=(300,), daemon=True)
     t4.start()
+
+    # Auto-start the centralized UW WS streamer (one connection shared by
+    # all consumers). Writes to data/uw_ws_flow.jsonl + data/uw_ws.db so
+    # engine_v4 or any other process can also tail without coupling.
+    try:
+        from data_clients.uw_ws_streamer import start as _ws_start
+        from scripts.paper_trader import DEFAULT_UNIVERSE as _DU
+        _ws_r = _ws_start(tickers=list(_DU))
+        if _ws_r.get("ok"):
+            _log(f"UW WS streamer started · {len(_ws_r['tickers'])} tickers · "
+                  f"channels: {_ws_r['channels_global']} + {_ws_r['channels_per_ticker']}:TICKER")
+        else:
+            _log(f"UW WS streamer skip: {_ws_r.get('error')}")
+    except Exception as e:
+        _log(f"UW WS streamer auto-start FAILED: {e}")
 
     # Auto-start the paper trader in FULL AUTO mode (auto_submit=True).
     # Per user direction 2026-04-28: "your paper trading is up to you, manual

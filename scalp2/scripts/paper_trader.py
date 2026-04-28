@@ -474,8 +474,40 @@ class PaperTrader:
         return None
 
     def _fetch_flow_records(self, uw_client, ticker: str) -> list:
-        """UW flow records, cached per ticker for 5 min (rate-limit safe).
-        Returns [] on error so build_features falls back to no-flow features."""
+        """Flow records for `ticker`, preferring fresh UW WS data over REST.
+
+        Source priority:
+          1. UW WS in-memory cache (real-time, sub-second updates)
+          2. REST flow_recent, cached 5 min (rate-limit safe fallback)
+          3. Empty list on total failure"""
+        # Try WS first — if streamer running and has fresh data, use it.
+        try:
+            from data_clients.uw_ws_streamer import (
+                get_recent_flow_for_ticker, get_recent_flow_alerts, get_stats,
+            )
+            ws_stats = get_stats()
+            if ws_stats.get("connected"):
+                # WS streamer maintains both per-ticker AND global flow-alerts
+                # caches. flow-alerts is global (all tickers share); filter
+                # to this ticker.
+                ws_records = get_recent_flow_for_ticker(ticker)
+                # Also pull flow-alerts (cross-ticker, filtered)
+                ws_alerts = [a for a in get_recent_flow_alerts(limit=200)
+                             if (a.get("ticker") == ticker)]
+                if ws_records or ws_alerts:
+                    # Combine, dedup by id
+                    seen = set()
+                    merged = []
+                    for r in (ws_records + ws_alerts):
+                        rid = r.get("id") or id(r)
+                        if rid not in seen:
+                            seen.add(rid)
+                            merged.append(r)
+                    return merged
+        except Exception:
+            pass
+
+        # Fallback to REST cache
         import time as _time
         now = _time.time()
         cached = self._flow_cache.get(ticker)
