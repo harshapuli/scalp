@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#faf9f5">
+<title>scalp 2</title>
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;500&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink:#141413; --bg:#faf9f5; --panel:#fff; --hair:#e8e6dc;
+    --dim:#6b6a65; --mid:#b0aea5;
+    --accent:#d97757; --accent-soft:#fceee7;
+    --bull:#3d7c5e; --bear:#b03528; --warn:#a16207;
+    --bull-soft:#e7ece0; --bear-soft:#f9e0dd;
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; font:14px/1.4 'Lora',Georgia,serif; background:var(--bg); color:var(--ink);
+    padding-bottom:env(safe-area-inset-bottom); }
+  h1, h2, h3, .poppins { font-family:'Poppins',Arial,sans-serif; letter-spacing:-.01em; }
+
+  .topnav { position:sticky; top:0; z-index:20; display:flex; gap:4px;
+    padding:8px 10px; background:var(--bg); border-bottom:1px solid var(--hair); }
+  .topnav a { font-family:'Poppins',Arial,sans-serif; display:inline-flex; align-items:center; gap:5px;
+    padding:7px 12px; font-size:12px; font-weight:500; color:var(--dim); text-decoration:none;
+    border-radius:999px; border:1px solid transparent; }
+  .topnav a.active { color:var(--ink); background:var(--accent-soft); border-color:rgba(217,119,87,0.3); }
+  .topnav a .sub { font-size:10px; color:var(--mid); font-weight:400; }
+  .topnav a.active .sub { color:var(--accent); }
+
+  main { max-width:540px; margin:0 auto; padding:10px 12px 24px; }
+
+  /* Status strip — single line */
+  .status { font-family:'Poppins',Arial,sans-serif; font-size:11px; color:var(--dim);
+    padding:6px 0 12px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .status .dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
+  .status .dot.on { background:var(--bull); animation:pulse 1.5s infinite; }
+  .status .dot.off { background:var(--mid); }
+  @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.4 } }
+
+  /* Section headers */
+  h2 { font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.08em;
+    margin:18px 0 8px; font-weight:600; }
+  h2 .n { color:var(--ink); font-weight:700; }
+
+  /* Trade cards */
+  .card { background:var(--panel); border:1px solid var(--hair); border-radius:12px;
+    padding:12px 14px; margin-bottom:8px; }
+  .card.trade { border-color:rgba(217,119,87,.5); box-shadow:0 4px 12px rgba(217,119,87,.12); }
+
+  .card-head { display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin-bottom:8px; }
+  .tick { font-family:'Poppins',Arial,sans-serif; font-size:20px; font-weight:700; color:var(--ink); }
+  .stage { font-family:'Poppins',Arial,sans-serif; font-size:9px; font-weight:700; letter-spacing:.06em;
+    padding:3px 8px; border-radius:4px; text-transform:uppercase; }
+  .stage.forming { background:#dbeafe; color:#1e3a8a; }
+  .stage.trade { background:linear-gradient(135deg, var(--accent), #e88e6f); color:#fff; }
+  .strat, .dir { font-family:'Poppins',Arial,sans-serif; font-size:9px; font-weight:700; letter-spacing:.06em;
+    padding:3px 8px; border-radius:4px; }
+  .strat { background:var(--accent-soft); color:var(--accent); }
+  .dir.long { background:linear-gradient(135deg, var(--bull), #4d9b75); color:#fff; }
+  .dir.short { background:linear-gradient(135deg, var(--bear), #d04638); color:#fff; }
+
+  .plan { display:grid; grid-template-columns:repeat(3,1fr); gap:6px;
+    background:#f7f6ef; border-radius:6px; padding:8px;
+    font-family:'Poppins',Arial,sans-serif; font-variant-numeric:tabular-nums; }
+  .plan > div { display:flex; flex-direction:column; }
+  .plan .lbl { font-size:9px; color:var(--dim); text-transform:uppercase; letter-spacing:.06em; }
+  .plan .val { font-size:14px; font-weight:600; }
+  .plan .val.tgt { color:var(--bull); }
+  .plan .val.stp { color:var(--bear); }
+
+  .reason { font-family:'Poppins',Arial,sans-serif; font-size:11px; color:var(--dim); margin-top:6px; }
+  .reason b { color:var(--ink); font-weight:600; }
+
+  .take-btn { width:100%; padding:13px; margin-top:8px; font-family:'Poppins',Arial,sans-serif;
+    font-weight:700; font-size:14px; letter-spacing:.04em; border:none; border-radius:8px;
+    color:#fff; background:linear-gradient(135deg, var(--accent), #e88e6f);
+    box-shadow:0 4px 12px rgba(217,119,87,.3); min-height:46px; cursor:pointer; }
+  .take-btn:active { transform:translateY(1px); }
+  .take-btn:disabled { opacity:.5; cursor:wait; }
+
+  /* Position rows */
+  .pos { display:grid; grid-template-columns:1fr auto auto; gap:10px; align-items:center;
+    padding:10px 12px; background:var(--panel); border:1px solid var(--hair);
+    border-radius:8px; margin-bottom:6px; }
+  .pos-sym { font-family:'SF Mono',Menlo,monospace; font-size:12px; color:var(--ink);
+    overflow:hidden; text-overflow:ellipsis; }
+  .pos-meta { font-family:'Poppins',Arial,sans-serif; font-variant-numeric:tabular-nums;
+    font-size:11px; color:var(--dim); }
+  .pos-pnl { font-family:'Poppins',Arial,sans-serif; font-weight:600; font-variant-numeric:tabular-nums;
+    font-size:13px; text-align:right; min-width:70px; }
+  .pos-pnl.pos { color:var(--bull); }
+  .pos-pnl.neg { color:var(--bear); }
+  .pos-pct { font-family:'Poppins',Arial,sans-serif; font-size:10px; }
+
+  .empty { text-align:center; color:var(--mid); font-style:italic; font-size:12px;
+    padding:20px 12px; }
+
+  .toast { position:fixed; bottom:14px; left:12px; right:12px; padding:12px 16px; border-radius:10px;
+    font-family:'Poppins',Arial,sans-serif; font-size:13px; box-shadow:0 4px 14px rgba(0,0,0,.18);
+    z-index:50; opacity:0; transform:translateY(20px); transition:opacity .25s, transform .25s; }
+  .toast.show { opacity:1; transform:translateY(0); }
+  .toast.ok { background:var(--bull); color:#fff; }
+  .toast.err { background:var(--bear); color:#fff; }
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <a href="/trade.html" class="active"><span>👤 Trade</span><span class="sub">tap to take</span></a>
+  <a href="/auto.html"><span>🤖 Auto</span><span class="sub">paper bot</span></a>
+</nav>
+
+<main>
+  <div class="status" id="status">connecting…</div>
+
+  <h2>Trades <span class="n" id="trades-n"></span></h2>
+  <div id="trades">
+    <div class="empty">Waiting for setups…</div>
+  </div>
+
+  <h2>Stocks we're trading <span class="n" id="stocks-n"></span></h2>
+  <div id="stocks">
+    <div class="empty">No positions.</div>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const fmtPx = n => n == null ? "—" : "$" + Number(n).toFixed(2);
+  const fmtSigned = n => n == null ? "—" : (n === 0 ? "$0" : (n > 0 ? "+$" : "-$") + Math.abs(n).toLocaleString(undefined, {maximumFractionDigits:0}));
+  const ago = iso => {
+    if (!iso) return "—";
+    const ms = Date.now() - new Date(iso).getTime();
+    if (ms < 5000) return "just now";
+    if (ms < 60000) return Math.floor(ms/1000) + "s";
+    if (ms < 3_600_000) return Math.floor(ms/60000) + "m";
+    return Math.floor(ms/3_600_000) + "h";
+  };
+
+  function toast(msg, kind = "ok") {
+    const t = $("toast");
+    t.textContent = msg;
+    t.className = "toast show " + kind;
+    setTimeout(() => t.classList.remove("show"), 3500);
+  }
+
+  // OCC-symbol → underlying ticker
+  function underlyingOf(sym) {
+    const m = (sym || "").match(/^([A-Z]{1,6})\d{6}[CP]\d{8}$/);
+    return m ? m[1] : sym;
+  }
+  // OCC → human-readable: AAPL260508C00277500 → AAPL May08 $277.5C
+  function prettyOcc(sym) {
+    const m = (sym || "").match(/^([A-Z]{1,6})(\d{2})(\d{2})(\d{2})([CP])(\d{8})$/);
+    if (!m) return sym;
+    const [_, root, yy, mm, dd, cp, strikeRaw] = m;
+    const strike = parseInt(strikeRaw, 10) / 1000;
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    return `${root} ${months[parseInt(mm,10)-1]}${parseInt(dd,10)} $${strike}${cp}`;
+  }
+
+  function renderStatus(setupsState, liveState) {
+    const market = setupsState.market_open ? "market open" : "closed";
+    const scanning = setupsState.running ? "scanning" : "stopped";
+    const last = setupsState.last_tick_at ? `tick ${ago(setupsState.last_tick_at)}` : "—";
+    const auto = setupsState.auto_submit ? "AUTO ON" : "manual";
+    $("status").innerHTML = `
+      <span class="dot ${setupsState.running ? "on" : "off"}"></span>
+      ${scanning} · ${market} · ${last} · ${auto}
+    `;
+  }
+
+  function renderTrades(setups) {
+    const host = $("trades");
+    $("trades-n").textContent = setups && setups.length ? `(${setups.length})` : "";
+    if (!setups || !setups.length) {
+      host.innerHTML = `<div class="empty">No setups right now.</div>`;
+      return;
+    }
+    host.innerHTML = setups.map(s => {
+      const stageCls = s.stage === "TRADE" ? "trade" : "forming";
+      const stageEmoji = s.stage === "TRADE" ? "⚡" : "🌿";
+      const dir = (s.direction || "").toLowerCase();
+      const dirEmoji = dir === "long" ? "🐂" : "🐻";
+      const reason = s.stage === "FORMING"
+        ? `⏳ <b>${(s.pass_reason || "").replace(/_/g, " ")}</b> · ${s.state.toLowerCase()} (${(s.score || 0).toFixed(2)})`
+        : `⚡ all gates passed · ${s.state.toLowerCase()} (${(s.score || 0).toFixed(2)})`;
+      const takeBtn = s.stage === "TRADE"
+        ? `<button class="take-btn" data-id="${s.id}" data-tk="${s.ticker}">⚡ TAKE — ${s.qty}× ${s.ticker} ${dir.toUpperCase()}</button>`
+        : "";
+      return `<div class="card ${stageCls}">
+        <div class="card-head">
+          <span class="tick">${s.ticker}</span>
+          <span class="stage ${stageCls}">${stageEmoji} ${s.stage}</span>
+          <span class="strat">${s.strategy}</span>
+          <span class="dir ${dir}">${dirEmoji} ${dir.toUpperCase()}</span>
+        </div>
+        <div class="plan">
+          <div><span class="lbl">Entry</span><span class="val">${fmtPx(s.entry)}</span></div>
+          <div><span class="lbl">Stop</span><span class="val stp">${fmtPx(s.stop)}</span></div>
+          <div><span class="lbl">Target</span><span class="val tgt">${fmtPx(s.target)}</span></div>
+        </div>
+        <div class="reason">${reason}</div>
+        ${takeBtn}
+      </div>`;
+    }).join("");
+    document.querySelectorAll(".take-btn").forEach(b => {
+      b.addEventListener("click", async () => {
+        const id = b.dataset.id;
+        const tk = b.dataset.tk;
+        if (!confirm(`Take ${tk}?\nSubmits paper bracket order.`)) return;
+        b.disabled = true; b.textContent = "submitting…";
+        try {
+          const r = await fetch("/api/take", {
+            method: "POST", headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({id}),
+          });
+          const d = await r.json();
+          if (!d.ok) {
+            toast("FAILED: " + (d.error || "unknown"), "err");
+            b.disabled = false; b.textContent = `⚡ TAKE ${tk}`;
+          } else {
+            toast(`✓ ${tk} submitted`, "ok");
+            pull();
+          }
+        } catch (e) {
+          toast("FAILED: " + e, "err");
+          b.disabled = false; b.textContent = `⚡ TAKE ${tk}`;
+        }
+      });
+    });
+  }
+
+  function renderStocks(positions) {
+    const host = $("stocks");
+    $("stocks-n").textContent = positions && positions.length ? `(${positions.length})` : "";
+    if (!positions || !positions.length) {
+      host.innerHTML = `<div class="empty">No positions.</div>`;
+      return;
+    }
+    // Aggregate option legs by underlying for compactness
+    const grouped = {};
+    for (const p of positions) {
+      const u = underlyingOf(p.symbol);
+      if (!grouped[u]) grouped[u] = { underlying: u, legs: [], pl: 0, mv: 0 };
+      grouped[u].legs.push(p);
+      grouped[u].pl += p.unrealized_pl || 0;
+      grouped[u].mv += Math.abs(p.market_value || 0);
+    }
+    const list = Object.values(grouped).sort((a, b) => a.pl - b.pl); // worst first
+
+    host.innerHTML = list.map(g => {
+      const cls = g.pl >= 0 ? "pos" : "neg";
+      const pct = g.mv > 0 ? (g.pl / g.mv * 100) : 0;
+      const legSummary = g.legs.length === 1
+        ? prettyOcc(g.legs[0].symbol)
+        : `${g.legs.length} legs · $${g.mv.toLocaleString(undefined,{maximumFractionDigits:0})} mv`;
+      return `<div class="pos">
+        <div>
+          <div class="poppins" style="font-size:14px; font-weight:700;">${g.underlying}</div>
+          <div class="pos-meta">${legSummary}</div>
+        </div>
+        <div class="pos-pnl ${cls}">${fmtSigned(g.pl)}</div>
+        <div class="pos-pnl ${cls} pos-pct">${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%</div>
+      </div>`;
+    }).join("");
+  }
+
+  async function pull() {
+    try {
+      const [setupsR, liveR] = await Promise.all([
+        fetch("/api/setups", {cache:"no-store"}),
+        fetch("/api/live", {cache:"no-store"}),
+      ]);
+      const setupsState = await setupsR.json();
+      const liveState = await liveR.json();
+      renderStatus(setupsState, liveState);
+      renderTrades(setupsState.setups);
+      renderStocks(liveState.positions || []);
+    } catch (e) {
+      console.warn("pull failed", e);
+    }
+  }
+
+  pull();
+  setInterval(pull, 3000);
+</script>
+
+</body>
+</html>
