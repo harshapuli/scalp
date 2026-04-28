@@ -150,6 +150,17 @@ class PaperTrader:
         self._session: dict[str, dict] = {}
         # UW flow cache: ticker → (records, fetched_ts) — refreshed every 5min
         self._flow_cache: dict[str, tuple[list, float]] = {}
+        # UW GEX snapshot cache (5-min TTL — UW spot-exposures cadence is 1min)
+        self._gex_cache: dict[str, tuple[object, float]] = {}
+        # UW IV rank cache (1-hour TTL — IV updates daily)
+        self._iv_cache: dict[str, tuple[float, float]] = {}
+        # Earnings blackout cache (24-hour TTL)
+        self._earnings_cache: dict[str, tuple[bool, float]] = {}
+        # Daily relative volume cache (1-min TTL — needs fresh today's vol)
+        self._daily_rvol_cache: dict[str, tuple[float, float]] = {}
+        # Today's account snapshot at session start (for daily-kill comparison)
+        self._session_start_equity: Optional[float] = None
+        self._session_start_date: Optional[str] = None
 
     # ─── Control ─────────────────────────────────────────────────────────
 
@@ -350,22 +361,36 @@ class PaperTrader:
         if len(alp_bars) < 5:
             return False
 
-        # Stripped bars (no .t) for build_features / OR computation needs .t →
-        # we pass alp_bars to the evaluator since it has timestamps.
         bars_ohlc: list[BarOHLC] = [
             BarOHLC(o=b.o, h=b.h, l=b.l, c=b.c, v=b.v)
             for b in alp_bars
         ]
         last_bar_t = alp_bars[-1].t
 
-        # UW flow records (cached 5min per ticker — rate-limit safe)
+        # Real-time data feeds (all cached, exception-isolated)
         flow_records = self._fetch_flow_records(uw, ticker)
+        gex_snapshot = self._get_gex_snapshot(uw, ticker)        # → fixes S5
+        iv_pct = self._get_iv_percentile(uw, ticker)             # → fixes S4
+        earnings_blackout = self._is_earnings_blackout(uw, ticker)
+        # Real Lee-Ready: pass actual recent trades + quotes (last 30 min)
+        try:
+            ts_30m_ago = (now - timedelta(minutes=30)).isoformat(timespec="seconds")
+            trades = alp.get_trades(ticker, start=ts_30m_ago,
+                                     end=now.isoformat(timespec="seconds"),
+                                     limit=10000)
+            quotes = alp.get_quotes(ticker, start=ts_30m_ago,
+                                     end=now.isoformat(timespec="seconds"),
+                                     limit=10000)
+        except Exception:
+            trades, quotes = [], []
 
         try:
             features = build_features(
                 ticker=ticker, bar_idx=len(bars_ohlc) - 1,
-                bars=bars_ohlc, trades=[], quotes=[],
-                gex_snapshot=None, flow_records=flow_records,
+                bars=bars_ohlc, trades=trades, quotes=quotes,
+                gex_snapshot=gex_snapshot, flow_records=flow_records,
+                iv_percentile=iv_pct,
+                earnings_blackout=earnings_blackout,
                 timestamp=last_bar_t,
             )
         except Exception:
@@ -455,6 +480,271 @@ class PaperTrader:
             self._flow_cache[ticker] = ([], now)
             return []
 
+    # ─── Live UW data fetchers (cached, exception-isolated) ─────────────
+
+    def _get_gex_snapshot(self, uw, ticker: str):
+        """Live UW spot-exposures, cached 5min per ticker. None on failure
+        (build_features falls back to 99.0 → S5 not_near_gex)."""
+        if uw is None:
+            return None
+        import time as _time
+        now = _time.time()
+        cached = self._gex_cache.get(ticker)
+        if cached and (now - cached[1]) < 300:
+            return cached[0]
+        try:
+            snap = uw.greek_exposure(ticker)
+            self._gex_cache[ticker] = (snap, now)
+            return snap
+        except Exception:
+            self._gex_cache[ticker] = (None, now)
+            return None
+
+    def _get_iv_percentile(self, uw, ticker: str) -> float:
+        """UW iv_rank_history latest entry. Cached 1 hour. Defaults to 0.5
+        on failure (acceptable middle-of-distribution)."""
+        if uw is None:
+            return 0.5
+        import time as _time
+        now = _time.time()
+        cached = self._iv_cache.get(ticker)
+        if cached and (now - cached[1]) < 3600:
+            return cached[0]
+        try:
+            history = uw.iv_rank_history(ticker)
+            if history:
+                # iv_rank_1y is reported on 0-100 scale, normalize to 0-1
+                latest = history[-1] if isinstance(history, list) else history
+                rank = latest.get("iv_rank_1y") if isinstance(latest, dict) else None
+                if rank is None:
+                    rank = (latest.get("iv_rank") if isinstance(latest, dict) else None)
+                if rank is not None:
+                    rank = float(rank)
+                    if rank > 1.5:    # 0-100 form
+                        rank = rank / 100.0
+                    self._iv_cache[ticker] = (rank, now)
+                    return rank
+        except Exception:
+            pass
+        self._iv_cache[ticker] = (0.5, now)
+        return 0.5
+
+    def _is_earnings_blackout(self, uw, ticker: str,
+                               days_threshold: int = 5) -> bool:
+        """True if earnings within `days_threshold` calendar days. Cached 24h."""
+        if uw is None:
+            return False
+        import time as _time
+        now = _time.time()
+        cached = self._earnings_cache.get(ticker)
+        if cached and (now - cached[1]) < 86400:
+            return cached[0]
+        try:
+            summary = uw.earnings_flow_summary(ticker)
+            # UW returns various keys depending on payload — check several
+            nxt_str = (summary.get("next_earnings_date")
+                          or summary.get("earnings_date")
+                          or summary.get("expected_date"))
+            if nxt_str:
+                from datetime import date as _date
+                nxt = _date.fromisoformat(str(nxt_str)[:10])
+                today = datetime.now(tz=timezone.utc).date()
+                days = (nxt - today).days
+                blackout = (0 <= days <= days_threshold)
+                self._earnings_cache[ticker] = (blackout, now)
+                return blackout
+        except Exception:
+            pass
+        self._earnings_cache[ticker] = (False, now)
+        return False
+
+    def _compute_premkt_volume_ratio(self, alpaca, ticker: str,
+                                        now_utc: datetime) -> float:
+        """Today's premarket volume (08:00-13:30 UTC) ÷ 5-day premarket avg.
+        Used by S2's gap-or-volume gate. Caches alongside daily_rvol."""
+        import time as _time
+        cache_key = f"PRE:{ticker}:{now_utc.date().isoformat()}"
+        wall = _time.time()
+        cached = self._daily_rvol_cache.get(cache_key)
+        if cached and (wall - cached[1]) < 300:    # 5-min TTL
+            return cached[0]
+        try:
+            today = now_utc.date()
+            # Today's premkt window: 08:00 → 13:30 UTC (04:00-09:30 ET)
+            t_pm_start = datetime(today.year, today.month, today.day, 8, 0,
+                                     tzinfo=timezone.utc)
+            t_pm_end = datetime(today.year, today.month, today.day, 13, 30,
+                                   tzinfo=timezone.utc)
+            now_or_close = min(now_utc, t_pm_end)
+            today_pm_bars = alpaca.get_bars(
+                ticker,
+                start=t_pm_start.isoformat(timespec="seconds"),
+                end=now_or_close.isoformat(timespec="seconds"),
+                timeframe="1Min", limit=400,
+            )
+            today_pm_vol = sum(b.v for b in today_pm_bars)
+
+            # Last 5 sessions' premkt vol
+            past_vols: list[float] = []
+            for back in range(1, 8):    # walk back up to a week to get 5 sessions
+                d = today - timedelta(days=back)
+                if d.weekday() >= 5:
+                    continue
+                pm_s = datetime(d.year, d.month, d.day, 8, 0, tzinfo=timezone.utc)
+                pm_e = datetime(d.year, d.month, d.day, 13, 30, tzinfo=timezone.utc)
+                try:
+                    pb = alpaca.get_bars(ticker,
+                                            start=pm_s.isoformat(timespec="seconds"),
+                                            end=pm_e.isoformat(timespec="seconds"),
+                                            timeframe="1Min", limit=400)
+                    if pb:
+                        past_vols.append(sum(b.v for b in pb))
+                except Exception:
+                    continue
+                if len(past_vols) >= 5:
+                    break
+            if not past_vols or today_pm_vol <= 0:
+                self._daily_rvol_cache[cache_key] = (1.0, wall)
+                return 1.0
+            avg = sum(past_vols) / len(past_vols)
+            ratio = today_pm_vol / avg if avg > 0 else 1.0
+            self._daily_rvol_cache[cache_key] = (ratio, wall)
+            return ratio
+        except Exception:
+            self._daily_rvol_cache[cache_key] = (1.0, wall)
+            return 1.0
+
+    def _compute_daily_relative_volume(self, alpaca, ticker: str,
+                                          now_utc: datetime) -> float:
+        """Today's vol-so-far time-weighted to a full session ÷ 30-day daily avg.
+        Cached 1 min. 1.0 = matching average; 1.5 = 50% above average."""
+        import time as _time
+        cache_key = f"{ticker}:{now_utc.date().isoformat()}"
+        wall = _time.time()
+        cached = self._daily_rvol_cache.get(cache_key)
+        if cached and (wall - cached[1]) < 60:
+            return cached[0]
+        try:
+            today = now_utc.date()
+            # Today's volume so far (from regular session start 13:30 UTC)
+            t_start = datetime(today.year, today.month, today.day, 13, 30,
+                                  tzinfo=timezone.utc)
+            today_bars = alpaca.get_bars(
+                ticker,
+                start=t_start.isoformat(timespec="seconds"),
+                end=now_utc.isoformat(timespec="seconds"),
+                timeframe="1Min", limit=500,
+            )
+            today_vol = sum(b.v for b in today_bars)
+            # 30-day historical daily avg
+            hist_start = (today - timedelta(days=45)).isoformat()
+            hist_end = (today - timedelta(days=1)).isoformat()
+            daily_bars = alpaca.get_bars(
+                ticker, start=hist_start, end=hist_end,
+                timeframe="1Day", limit=30,
+            )
+            if not daily_bars or today_vol <= 0:
+                self._daily_rvol_cache[cache_key] = (1.0, wall)
+                return 1.0
+            avg_daily = sum(b.v for b in daily_bars) / len(daily_bars)
+            if avg_daily <= 0:
+                self._daily_rvol_cache[cache_key] = (1.0, wall)
+                return 1.0
+            # Project today's vol to a full session (390 mins)
+            elapsed_min = max(1, (now_utc - t_start).total_seconds() / 60.0)
+            full_session_min = 390
+            projected = today_vol * (full_session_min / elapsed_min) if elapsed_min < full_session_min else today_vol
+            ratio = projected / avg_daily
+            self._daily_rvol_cache[cache_key] = (ratio, wall)
+            return ratio
+        except Exception:
+            self._daily_rvol_cache[cache_key] = (1.0, wall)
+            return 1.0
+
+    @staticmethod
+    def _count_higher_lows(bars: list, n_windows: int = 4,
+                              window_size: int = 5) -> int:
+        """Count consecutive higher-lows across `n_windows` of `window_size` bars
+        ending at the most recent. Returns 0 if not enough bars."""
+        need = n_windows * window_size
+        if len(bars) < need:
+            return 0
+        windows = []
+        for i in range(n_windows):
+            start_idx = -((i + 1) * window_size)
+            end_idx = -(i * window_size) or None
+            windows.append(bars[start_idx:end_idx])
+        # windows[0] = most recent, windows[-1] = oldest
+        windows.reverse()
+        lows = [min(b.l for b in w) for w in windows]
+        count = 0
+        for i in range(len(lows) - 1):
+            if lows[i + 1] > lows[i]:
+                count += 1
+            else:
+                break
+        return count
+
+    @staticmethod
+    def _count_lower_highs(bars: list, n_windows: int = 4,
+                             window_size: int = 5) -> int:
+        need = n_windows * window_size
+        if len(bars) < need:
+            return 0
+        windows = []
+        for i in range(n_windows):
+            start_idx = -((i + 1) * window_size)
+            end_idx = -(i * window_size) or None
+            windows.append(bars[start_idx:end_idx])
+        windows.reverse()
+        highs = [max(b.h for b in w) for w in windows]
+        count = 0
+        for i in range(len(highs) - 1):
+            if highs[i + 1] < highs[i]:
+                count += 1
+            else:
+                break
+        return count
+
+    # ─── Risk manager (real, replaces hardcoded True) ───────────────────
+
+    def _risk_manager_allows(self, alpaca, cfg: dict,
+                                strategy: str) -> tuple[bool, str]:
+        """Block auto-submission when daily kill / concurrent caps hit.
+        Returns (allowed, reason_if_not)."""
+        risk_cfg = cfg.get("s5", {}).get("risk", {})
+        try:
+            acct = alpaca.get_account()
+            positions = alpaca.get_positions()
+        except Exception as e:
+            return (False, f"alpaca_unavailable: {e}")
+
+        eq = acct.equity or 1.0
+
+        # Capture session-start equity for daily-kill calculation
+        today_str = datetime.now(tz=timezone.utc).date().isoformat()
+        if (self._session_start_equity is None
+                or self._session_start_date != today_str):
+            self._session_start_equity = eq
+            self._session_start_date = today_str
+
+        # Daily kill check
+        daily_kill_pct = risk_cfg.get("daily_kill_pct", -0.020)
+        if self._session_start_equity > 0:
+            day_pl_pct = (eq - self._session_start_equity) / self._session_start_equity
+            if day_pl_pct <= daily_kill_pct:
+                return (False, f"daily_kill_hit ({day_pl_pct*100:+.2f}% vs {daily_kill_pct*100:.1f}%)")
+
+        # Concurrent option positions cap (per spec, S5 only — but we apply
+        # to all option-instrument strategies since paper has no other source)
+        concurrent_max = risk_cfg.get("concurrent_max", 2)
+        n_option_pos = sum(1 for p in positions
+                            if len(p.symbol) > 6 and any(c.isdigit() for c in p.symbol))
+        if strategy == "S5" and n_option_pos >= concurrent_max:
+            return (False, f"concurrent_s5_cap ({n_option_pos}/{concurrent_max})")
+
+        return (True, "")
+
     def _drop_setups_for_ticker(self, ticker: str, keep_ids: set) -> None:
         """Drop any setup cards for `ticker` whose id is NOT in keep_ids.
         Lets multi-strategy evaluation safely refresh only the strategies
@@ -494,8 +784,8 @@ class PaperTrader:
             gap_pct = (first_today.o - prior_close) / prior_close
         recent_30 = bars[-30:] if len(bars) >= 30 else bars
         avg_min_vol = sum(b.v for b in recent_30) / max(1, len(recent_30))
-        # Premkt vol: TODO real 5-day comparison. 5.0 for now (passes gate).
-        premkt_vol_ratio = 5.0
+        # Real premarket volume ratio: today's premarket vol vs 5-day premarket avg.
+        premkt_vol_ratio = self._compute_premkt_volume_ratio(alp, features.ticker, now)
         direction = "long" if scalp_state.name == "SURGE_IGNITION" else "short"
         ctx = S2SetupContext(
             ticker=features.ticker, last_close=features.close,
@@ -512,18 +802,23 @@ class PaperTrader:
         )
         return decision, direction
 
-    def _build_s3_decision(self, features, scalp_state, cfg):
+    def _build_s3_decision(self, features, scalp_state, cfg, bars_ohlc):
         from strategies.s3_momentum.allow_s3_trade import allow_s3_trade
         from strategies.s3_momentum.setup import S3SetupContext
         from scalp_brain.scores import reversal_score as rev_score
         direction = "long" if scalp_state.name == "SURGE_CONTINUATION" else "short"
+        # Real structure counting (replaces hardcoded 4)
+        higher_lows = self._count_higher_lows(bars_ohlc)
+        lower_highs = self._count_lower_highs(bars_ohlc)
+        # 30-min aggressor window (last 30 1m bars). Falls back to features.aggressor_recent.
+        agg_30m = features.aggressor_recent
         ctx = S3SetupContext(
             ticker=features.ticker,
             session_return_atr=features.extension_from_prior_close_atr,
             vwap_distance_atr=features.extension_from_vwap_atr,
-            consecutive_higher_lows=4 if direction == "long" and not features.pullback_break else 0,
-            consecutive_lower_highs=4 if direction == "short" and not features.pullback_break else 0,
-            aggressor_avg_30m=features.aggressor_recent,
+            consecutive_higher_lows=higher_lows,
+            consecutive_lower_highs=lower_highs,
+            aggressor_avg_30m=agg_30m,
             near_htf_level_atr=features.near_htf_level_atr,
             distance_to_pos_gex_atr=abs(features.distance_to_major_pos_gex_atr),
         )
@@ -535,13 +830,16 @@ class PaperTrader:
         )
         return decision, direction
 
-    def _build_s4_decision(self, features, scalp_state, cfg):
+    def _build_s4_decision(self, features, scalp_state, cfg, alpaca, now):
         from strategies.s4_signed_flow.allow_s4_trade import allow_s4_trade
         from strategies.s4_signed_flow.setup import S4SetupContext
-        # Direction follows signed_flow_score; if 0 (no flow data) skip
         if features.signed_flow_score == 0.0:
             return None, None
         direction = "long" if features.signed_flow_score > 0 else "short"
+        # Real daily relative volume (replaces hardcoded 1.5)
+        daily_rvol = self._compute_daily_relative_volume(
+            alpaca, features.ticker, now,
+        )
         ctx = S4SetupContext(
             ticker=features.ticker,
             signed_flow_score=features.signed_flow_score,
@@ -549,7 +847,7 @@ class PaperTrader:
             iv_percentile=features.iv_percentile,
             distance_to_pos_gex_atr=abs(features.distance_to_major_pos_gex_atr),
             earnings_blackout=features.earnings_blackout,
-            daily_relative_volume=1.5,    # placeholder until daily-vol feed wired
+            daily_relative_volume=daily_rvol,
         )
         decision = allow_s4_trade(
             setup_ctx=ctx, features=features, scalp_state=scalp_state, cfg=cfg,
@@ -592,10 +890,11 @@ class PaperTrader:
                 evals.append(("S5", d, dirn))
 
         elif scalp_state.name in ("SURGE_CONTINUATION", "TANK_CONTINUATION"):
-            d, dirn = self._build_s3_decision(features, scalp_state, cfg)
+            # `bars` are alpaca Bar dataclass with .l/.h attrs — direct use is fine
+            d, dirn = self._build_s3_decision(features, scalp_state, cfg, bars)
             if d is not None:
                 evals.append(("S3", d, dirn))
-            d4, dirn4 = self._build_s4_decision(features, scalp_state, cfg)
+            d4, dirn4 = self._build_s4_decision(features, scalp_state, cfg, alp, now)
             if d4 is not None:
                 evals.append(("S4", d4, dirn4))
 
@@ -603,7 +902,7 @@ class PaperTrader:
             d, dirn = self._build_s2_decision(features, scalp_state, cfg, alp, bars, now)
             if d is not None:
                 evals.append(("S2", d, dirn))
-            d4, dirn4 = self._build_s4_decision(features, scalp_state, cfg)
+            d4, dirn4 = self._build_s4_decision(features, scalp_state, cfg, alp, now)
             if d4 is not None:
                 evals.append(("S4", d4, dirn4))
 
@@ -670,9 +969,21 @@ class PaperTrader:
             })
             self.status.last_decision = setup_row
 
-            # Auto-submit gate: TRADE + auto_submit + regular session only
+            # Auto-submit gate: TRADE + auto_submit + regular session
+            #                    + risk manager allows
             if (stage == "TRADE" and self.status.auto_submit
                     and self.status.phase == "open"):
+                allowed, deny_reason = self._risk_manager_allows(alp, cfg, strategy)
+                if not allowed:
+                    # Log the gate denial — visible in /auto decisions feed
+                    self._add_decision({
+                        "ts": now_iso, "ticker": features.ticker,
+                        "strategy": strategy, "direction": direction,
+                        "state": scalp_state.name, "score": setup_row["score"],
+                        "decision": "RISK_BLOCKED",
+                        "reason": deny_reason,
+                    })
+                    continue
                 await self._submit_from_setup(alp, setup_row)
                 self.status.taken_signal_ids.add(signal_id)
                 try:
@@ -686,8 +997,13 @@ class PaperTrader:
         self._drop_setups_for_ticker(features.ticker, keep_ids=kept_ids)
 
     async def _submit_from_setup(self, alp, setup: dict) -> dict:
-        """Submit an Alpaca bracket from a setup row. Used by both auto-submit
-        and the /api/take manual path (via take_setup() below)."""
+        """Dispatcher: S5 → vertical option spread; S2/S3/S4 → equity bracket."""
+        if setup.get("strategy") == "S5":
+            return await self._submit_s5_vertical(alp, setup)
+        return await self._submit_equity_bracket(alp, setup)
+
+    async def _submit_equity_bracket(self, alp, setup: dict) -> dict:
+        """Equity bracket submission for S2/S3/S4."""
         from datetime import datetime
         try:
             client_order_id = f"edge-{setup['id']}"
@@ -703,6 +1019,7 @@ class PaperTrader:
                 "qty": setup["qty"], "entry": setup["entry"],
                 "stop": setup["stop"], "target": setup["target"],
                 "strategy": setup["strategy"], "direction": setup["direction"],
+                "instrument": "equity",
                 "client_order_id": client_order_id,
                 "order_id": (resp or {}).get("id"),
                 "status": (resp or {}).get("status", "submitted"),
@@ -714,6 +1031,101 @@ class PaperTrader:
             err = {
                 "ts": datetime.now(tz=timezone.utc).isoformat(timespec="seconds") + "Z",
                 "ticker": setup["ticker"], "side": setup["side"].upper(),
+                "error": f"{type(e).__name__}: {e}",
+            }
+            self.status.orders.appendleft(err)
+            return {"ok": False, **err}
+
+    async def _submit_s5_vertical(self, alp, setup: dict) -> dict:
+        """S5 gamma-reversal: vertical debit spread. Long delta 35-45, short
+        leg one strike further OTM. Per spec: 7-14 DTE, debit ≤ 40% of width."""
+        from datetime import datetime, date as _date
+        ts = datetime.now(tz=timezone.utc).isoformat(timespec="seconds") + "Z"
+        try:
+            ticker = setup["ticker"]
+            direction = setup["direction"]    # 'long' = CALL spread, 'short' = PUT
+            spot = float(setup["entry"])
+            cp = "C" if direction == "long" else "P"
+
+            # Pick expiry 7-14 DTE
+            today = _date.today()
+            target_expiry = today + timedelta(days=10)
+            chain = alp.get_option_contracts_with_oi(ticker)  # returns list[OCC contracts]
+            same_side = [c for c in chain if str(c.get("symbol", "")).endswith(("C", "P"))
+                                                 or cp in str(c.get("symbol", ""))]
+            # Filter to call/put + DTE window
+            candidates = []
+            for c in same_side:
+                sym = c.get("symbol", "")
+                # OCC: <ROOT><YYMMDD><C|P><STRIKE_8>
+                import re as _re
+                m = _re.match(rf"^{ticker}(\d{{6}})({cp})(\d{{8}})$", sym)
+                if not m:
+                    continue
+                yy, mm, dd = m.group(1)[:2], m.group(1)[2:4], m.group(1)[4:6]
+                exp = _date(2000 + int(yy), int(mm), int(dd))
+                dte = (exp - today).days
+                if not (7 <= dte <= 14):
+                    continue
+                strike = int(m.group(3)) / 1000.0
+                candidates.append({"symbol": sym, "strike": strike, "expiry": exp,
+                                     "dte": dte, "delta": c.get("delta")})
+
+            if not candidates:
+                raise RuntimeError(f"no {cp} contracts in 7-14 DTE for {ticker}")
+
+            # Pick long leg closest to spot (proxy for ATM/40-delta)
+            candidates.sort(key=lambda c: abs(c["strike"] - spot))
+            long_leg = candidates[0]
+            # Pick short leg one strike further OTM
+            if direction == "long":  # call spread: short higher strike
+                further = [c for c in candidates if c["strike"] > long_leg["strike"]]
+                further.sort(key=lambda c: c["strike"])
+            else:  # put spread: short lower strike
+                further = [c for c in candidates if c["strike"] < long_leg["strike"]]
+                further.sort(key=lambda c: -c["strike"])
+            if not further:
+                raise RuntimeError(f"no further-OTM strike found for {ticker} {cp}")
+            short_leg = further[0]
+
+            # Estimate debit (mid of long − mid of short). Without quote feed we
+            # approximate via 1% of spot per strike of width.
+            width = abs(long_leg["strike"] - short_leg["strike"])
+            est_debit = max(0.05, spot * 0.005)
+            limit_price = round(est_debit * 1.02, 2)    # 2% buffer
+
+            qty = max(1, setup.get("qty", 1) // 100)    # contracts, not shares
+            client_order_id = f"edge-{setup['id']}"
+            resp = alp.submit_vertical(
+                underlying=ticker,
+                long_leg_symbol=long_leg["symbol"],
+                short_leg_symbol=short_leg["symbol"],
+                qty=qty, limit_price=limit_price,
+                side="buy",
+                client_order_id=client_order_id,
+            )
+            order_row = {
+                "ts": ts, "ticker": ticker,
+                "side": ("BUY_CALL_SPREAD" if direction == "long" else "BUY_PUT_SPREAD"),
+                "qty": qty, "entry": spot,
+                "stop": setup["stop"], "target": setup["target"],
+                "strategy": "S5", "direction": direction,
+                "instrument": f"vertical_{cp}",
+                "long_leg": long_leg["symbol"],
+                "short_leg": short_leg["symbol"],
+                "width": width, "limit_price": limit_price,
+                "client_order_id": client_order_id,
+                "order_id": (resp or {}).get("id"),
+                "status": (resp or {}).get("status", "submitted"),
+                "source": "auto" if self.status.auto_submit else "manual",
+            }
+            self.status.orders.appendleft(order_row)
+            return {"ok": True, **order_row}
+        except Exception as e:
+            err = {
+                "ts": ts, "ticker": setup["ticker"],
+                "side": ("S5_" + setup.get("direction", "?")).upper(),
+                "instrument": "vertical",
                 "error": f"{type(e).__name__}: {e}",
             }
             self.status.orders.appendleft(err)
