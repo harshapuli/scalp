@@ -1,0 +1,794 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Scalp Backtest — every signal we've shown, audited</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&family=Lora:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --dark: #141413;
+  --light: #faf9f5;
+  --mid-gray: #b0aea5;
+  --light-gray: #e8e6dc;
+  --orange: #d97757;
+  --blue: #6a9bcc;
+  --green: #788c5d;
+  --red: #b85c4a;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--light);
+  color: var(--dark);
+  font-family: 'Lora', Georgia, serif;
+  font-size: 15px;
+  line-height: 1.55;
+}
+h1, h2, h3, h4, .tab-bar, .stat-card .label, .badge {
+  font-family: 'Poppins', Arial, sans-serif;
+  letter-spacing: 0.01em;
+}
+h1 { font-size: 32px; margin: 0 0 8px 0; font-weight: 600; }
+h2 { font-size: 22px; margin: 32px 0 12px 0; font-weight: 600; border-bottom: 1px solid var(--light-gray); padding-bottom: 4px; }
+h3 { font-size: 17px; margin: 20px 0 8px 0; font-weight: 500; color: #2a2a28; }
+
+.container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 24px 32px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  border-bottom: 2px solid var(--dark);
+  padding-bottom: 12px;
+  margin-bottom: 24px;
+}
+.header .meta { font-size: 13px; color: #4a4a45; text-align: right; }
+.header .meta div { margin-top: 2px; }
+
+.tab-bar {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--light-gray);
+  margin-bottom: 24px;
+}
+.tab-bar a {
+  padding: 10px 18px;
+  text-decoration: none;
+  color: #4a4a45;
+  font-weight: 500;
+  font-size: 14px;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  transition: color 0.1s, border-bottom-color 0.1s;
+}
+.tab-bar a:hover { color: var(--orange); }
+.tab-bar a.active { color: var(--dark); border-bottom-color: var(--orange); }
+
+.tab { display: none; }
+.tab.active { display: block; }
+
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.stat-card {
+  background: white;
+  border: 1px solid var(--light-gray);
+  border-radius: 4px;
+  padding: 14px 16px;
+}
+.stat-card .label {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #6a6a62;
+  letter-spacing: 0.06em;
+  margin-bottom: 4px;
+}
+.stat-card .value { font-size: 24px; font-weight: 600; }
+.stat-card .sub { font-size: 12px; color: #6a6a62; margin-top: 2px; }
+
+.value.pos { color: var(--green); }
+.value.neg { color: var(--red); }
+.value.warn { color: var(--orange); }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border: 1px solid var(--light-gray);
+  border-radius: 4px;
+  overflow: hidden;
+  font-size: 13px;
+}
+th {
+  text-align: left;
+  padding: 8px 10px;
+  background: #f4f2ea;
+  font-family: 'Poppins', Arial, sans-serif;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #4a4a45;
+  border-bottom: 1px solid var(--light-gray);
+}
+td {
+  padding: 7px 10px;
+  border-bottom: 1px solid #f4f2ea;
+}
+tr:last-child td { border-bottom: none; }
+tr:hover { background: #fbfaf3; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.kind { font-family: 'Poppins', Arial, sans-serif; font-weight: 500; }
+td.suppressed { color: var(--mid-gray); font-style: italic; }
+td.pos { color: var(--green); }
+td.neg { color: var(--red); }
+td.zero { color: #4a4a45; }
+
+.badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 3px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 500;
+}
+.badge.ready { background: var(--green); color: white; }
+.badge.need-days { background: var(--blue); color: white; }
+.badge.need-fires { background: var(--orange); color: white; }
+.badge.need-both { background: var(--mid-gray); color: white; }
+.badge.pos { background: var(--green); color: white; }
+.badge.neg { background: var(--red); color: white; }
+.badge.zero { background: var(--light-gray); color: var(--dark); }
+
+.note {
+  background: #fef9f4;
+  border-left: 3px solid var(--orange);
+  padding: 10px 14px;
+  margin: 12px 0;
+  font-size: 13px;
+  color: #4a4a45;
+}
+.note .title {
+  font-family: 'Poppins', Arial, sans-serif;
+  font-weight: 600;
+  color: var(--dark);
+  margin-bottom: 4px;
+}
+
+.archive-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+.archive-card {
+  background: white;
+  border: 1px solid var(--light-gray);
+  border-radius: 4px;
+  padding: 14px;
+  text-decoration: none;
+  color: var(--dark);
+  transition: border-color 0.1s, transform 0.1s;
+}
+.archive-card:hover {
+  border-color: var(--orange);
+  transform: translateY(-1px);
+}
+.archive-card .src {
+  font-size: 11px;
+  color: #6a6a62;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.archive-card .name {
+  font-family: 'Poppins', Arial, sans-serif;
+  font-weight: 500;
+  font-size: 15px;
+  margin-top: 4px;
+}
+
+.footer {
+  margin-top: 48px;
+  padding-top: 12px;
+  border-top: 1px solid var(--light-gray);
+  font-size: 11px;
+  color: #6a6a62;
+  text-align: center;
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<div class="header">
+  <div>
+    <h1>Scalp Backtest — every signal, audited</h1>
+    <div style="font-size:13px;color:#4a4a45">
+      ATR-primary ladder · pct-secondary ladder · cost-aware labels (5.5× / 8% RT) · Wilson 95% CI · n&lt;5 suppressed
+    </div>
+  </div>
+  <div class="meta">
+    <div>Generated 2026-04-27 22:23:39Z</div>
+    <div>232 scalp · 11 swing · 1 day(s)</div>
+  </div>
+</div>
+
+<div class="tab-bar">
+  <a data-tab="overview" class="active">Overview</a>
+  <a data-tab="scalp">Scalp</a>
+  <a data-tab="swing">Swing</a>
+  <a data-tab="ml">ML readiness</a>
+  <a data-tab="archive">Archive</a>
+</div>
+
+
+<div class="tab" id="tab-overview">
+  <h2>Overview</h2>
+  <div class="stat-row">
+    <div class="stat-card"><div class="label">Scalp fires (deduped)</div>
+      <div class="value">232</div>
+      <div class="sub">from 596 raw signals across 1 day(s)</div>
+    </div>
+    <div class="stat-card"><div class="label">Swing fires (logged)</div>
+      <div class="value">11</div>
+      <div class="sub">shadow logger snapshot</div>
+    </div>
+    <div class="stat-card"><div class="label">Win % — underlying</div>
+      <div class="value neg">48.7%</div>
+      <div class="sub">no costs, ATR ladder STOP-first</div>
+    </div>
+    <div class="stat-card"><div class="label">Win % — option 5.5×</div>
+      <div class="value ">0.0%</div>
+      <div class="sub">8% RT cost × 5.5× leverage</div>
+    </div>
+    <div class="stat-card"><div class="label">EV/fire — underlying</div>
+      <div class="value zero">+0.02%</div>
+      <div class="sub">realized mean</div>
+    </div>
+    <div class="stat-card"><div class="label">EV/fire — option 5.5×</div>
+      <div class="value neg">-7.88%</div>
+      <div class="sub">realized mean (cost-aware)</div>
+    </div>
+    <div class="stat-card"><div class="label">ML-ready kinds</div>
+      <div class="value">0 / 9</div>
+      <div class="sub">≥30 days AND ≥100 fires</div>
+    </div>
+    <div class="stat-card"><div class="label">Best kind (underlying)</div>
+      <div class="value pos">CALL_CONVICTION</div>
+      <div class="sub">83.3% • n=6</div>
+    </div>
+  </div>
+  <div class="note">
+    <div class="title">Reading this dashboard</div>
+    The headline number is <b>EV per fire</b>, not win%. Win% can be 60% but if the wins are small
+    and losses are large, EV is negative — costs (8% RT options × 5.5× leverage) eat thin edges.
+    Slices with n &lt; 5 are suppressed. Wilson 95% CI shown alongside win% to prevent over-reading
+    small samples.
+  </div>
+</div>
+
+
+<div class="tab" id="tab-scalp">
+  <h2>Scalp — every signal kind</h2>
+  <div class="note">
+    <div class="title">Headline read</div>
+    <b>label_underlying</b> = pure ATR-ladder hit/miss (0% costs).
+    <b>label_option_5p5x</b> = same hit/miss but <i>after</i> 8% RT cost × 5.5× leverage.
+    All numbers use the deduped view (1 fire per ticker per session per kind). EV is realized
+    mean per fire. Win% is wins / decided. CI is Wilson 95%.
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Kind</th>
+        <th class="num">n</th>
+        <th class="num">Win % (under)</th>
+        <th class="num">CI</th>
+        <th class="num">EV/fire (under)</th>
+        <th class="num">Win % (opt 5.5×)</th>
+        <th class="num">CI</th>
+        <th class="num">EV/fire (opt 5.5×)</th>
+      </tr>
+    </thead>
+    <tbody>
+      
+<tr>
+  <td class="kind">PRE_CALL_COIL</td>
+  <td class="num">84</td>
+  <td class="num">57.1%</td>
+  <td class="num" style="font-size:11px;color:#6a6a62">46–67</td>
+  <td class="num zero">+0.02%</td>
+  <td class="num">0.0%</td>
+  <td class="num" style="font-size:11px;color:#6a6a62">0–4</td>
+  <td class="num neg">-7.86%</td>
+</tr>
+<tr>
+  <td class="kind">PRE_PUT_COIL</td>
+  <td class="num">71</td>
+  <td class="num">43.7%</td>
+  <td class="num" style="font-size:11px;color:#6a6a62">33–55</td>
+  <td class="num zero">-0.01%</td>
+  <td class="num">0.0%</td>
+  <td class="num" style="font-size:11px;color:#6a6a62">0–5</td>
+  <td class="num neg">-8.04%</td>
+</tr>
+<tr>
+  <td class="kind">PUT_CONVICTION</td>
+  <td class="num">18</td>
+  <td class="num">16.7%</td>
+  <td class="num" style="font-size:11px;color:#6a6a62">6–39</td>
+  <td class="num zero">-0.03%</td>
+  <td class="num">0.0%</td>
+  <td class="num" style="font-size:11px;color:#6a6a62">0–18</td>
+  <td class="num neg">-8.16%</td>
+</tr>
+<tr>
+  <td class="kind">CALL_MORNING</td>
+  <td class="num">15</td>
+  <td class="num">60.0%</td>
+  <td class="num" style="font-size:11px;color:#6a6a62">36–80</td>
+  <td class="num zero">+0.10%</td>
+  <td class="num">0.0%</td>
+  <td class="num" style="font-size:11px;color:#6a6a62">0–20</td>
+  <td class="num neg">-7.47%</td>
+</tr>
+<tr>
+  <td class="kind">PRE_CALL_RAMP</td>
+  <td class="num">15</td>
+  <td class="num">33.3%</td>
+  <td class="num" style="font-size:11px;color:#6a6a62">15–58</td>
+  <td class="num zero">-0.02%</td>
+  <td class="num">0.0%</td>
+  <td class="num" style="font-size:11px;color:#6a6a62">0–20</td>
+  <td class="num neg">-8.11%</td>
+</tr>
+<tr>
+  <td class="kind">PRE_PUT_RAMP</td>
+  <td class="num">12</td>
+  <td class="num">25.0%</td>
+  <td class="num" style="font-size:11px;color:#6a6a62">9–53</td>
+  <td class="num zero">-0.03%</td>
+  <td class="num">0.0%</td>
+  <td class="num" style="font-size:11px;color:#6a6a62">0–24</td>
+  <td class="num neg">-8.14%</td>
+</tr>
+<tr>
+  <td class="kind">CALL_CONT_CALL</td>
+  <td class="num">8</td>
+  <td class="num">75.0%</td>
+  <td class="num" style="font-size:11px;color:#6a6a62">41–93</td>
+  <td class="num zero">+0.18%</td>
+  <td class="num">0.0%</td>
+  <td class="num" style="font-size:11px;color:#6a6a62">0–32</td>
+  <td class="num neg">-7.01%</td>
+</tr>
+<tr>
+  <td class="kind">CALL_CONVICTION</td>
+  <td class="num">6</td>
+  <td class="num">83.3%</td>
+  <td class="num" style="font-size:11px;color:#6a6a62">44–97</td>
+  <td class="num zero">+0.22%</td>
+  <td class="num">0.0%</td>
+  <td class="num" style="font-size:11px;color:#6a6a62">0–39</td>
+  <td class="num neg">-6.77%</td>
+</tr>
+<tr>
+  <td class="kind">CALL_V4SIGNALS</td>
+  <td class="num">3</td>
+  <td class="num suppressed" colspan="6">n &lt; 5 — suppressed</td>
+</tr>
+    </tbody>
+  </table>
+
+  
+  <h3>Confidence-band slice (option 5.5×, n &lt; 5 suppressed)</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Kind</th>
+        <th class="num">low conf (&lt;30)</th>
+        <th class="num">med (30–60)</th>
+        <th class="num">high (60+)</th>
+        <th class="num">unknown</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td class="kind">PRE_CALL_COIL</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num neg">n=84 • EV -7.86%</td></tr><tr><td class="kind">PRE_PUT_COIL</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num neg">n=71 • EV -8.04%</td></tr><tr><td class="kind">PUT_CONVICTION</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num neg">n=18 • EV -8.16%</td></tr><tr><td class="kind">PRE_CALL_RAMP</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num neg">n=15 • EV -8.11%</td></tr><tr><td class="kind">CALL_MORNING</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num neg">n=15 • EV -7.47%</td></tr><tr><td class="kind">PRE_PUT_RAMP</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num neg">n=12 • EV -8.14%</td></tr><tr><td class="kind">CALL_CONT_CALL</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num neg">n=8 • EV -7.01%</td></tr><tr><td class="kind">CALL_CONVICTION</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num neg">n=6 • EV -6.77%</td></tr><tr><td class="kind">CALL_V4SIGNALS</td><td class="num">—</td><td class="num suppressed">n=2</td><td class="num suppressed">n=1</td><td class="num">—</td></tr>
+    </tbody>
+  </table>
+
+</div>
+
+
+<div class="tab" id="tab-swing">
+  <h2>Swing — fires from shadow logger</h2>
+  <div class="note">
+    <div class="title">Outcomes pending</div>
+    Swing outcomes need daily-bar history to compute. The shadow logger captures fires now —
+    once daily bars are wired (yfinance / Alpaca), each fire gets MFE/MAE, target/stop hit-day,
+    and cost-aware labels at 1d/3d/5d/10d/20d horizons.
+  </div>
+  
+<h3>Source: swing_strategy (7 fire(s))</h3>
+<table>
+  <thead>
+    <tr>
+      <th>Time (UTC)</th>
+      <th>Ticker</th>
+      <th>Kind</th>
+      <th>Side</th>
+      <th class="num">Entry premium</th>
+      <th class="num">Underlying</th>
+      <th class="num">Stop</th>
+      <th class="num">Target</th>
+      <th>News</th>
+    </tr>
+  </thead>
+  <tbody>
+<tr>
+  <td>2026-04-27T22:12:34</td>
+  <td class="kind">AMD</td>
+  <td>STRAT_BUY_T3_TREND_EARNINGS</td>
+  <td>CALL</td>
+  <td class="num">7.75</td>
+  <td class="num">257.5519</td>
+  <td class="num">3.875</td>
+  <td class="num">15.5</td>
+  <td>BULLISH</td>
+</tr>
+<tr>
+  <td>2026-04-27T22:12:34</td>
+  <td class="kind">AVGO</td>
+  <td>STRAT_BUY_T3_TREND</td>
+  <td>CALL</td>
+  <td class="num">3.66</td>
+  <td class="num">394.2127</td>
+  <td class="num">1.83</td>
+  <td class="num">7.32</td>
+  <td>BULLISH</td>
+</tr>
+<tr>
+  <td>2026-04-27T22:12:34</td>
+  <td class="kind">MSFT</td>
+  <td>STRAT_BUY_T3_TREND_EARNINGS</td>
+  <td>CALL</td>
+  <td class="num">1.63</td>
+  <td class="num">412.93</td>
+  <td class="num">0.815</td>
+  <td class="num">3.26</td>
+  <td>BULLISH</td>
+</tr>
+<tr>
+  <td>2026-04-27T22:12:34</td>
+  <td class="kind">PLTR</td>
+  <td>STRAT_BUY_T3_TREND_EARNINGS</td>
+  <td>CALL</td>
+  <td class="num">2.15</td>
+  <td class="num">142.07</td>
+  <td class="num">1.075</td>
+  <td class="num">4.3</td>
+  <td>BULLISH</td>
+</tr>
+<tr>
+  <td>2026-04-27T22:12:34</td>
+  <td class="kind">QQQ</td>
+  <td>STRAT_BUY_T3_TREND</td>
+  <td>CALL</td>
+  <td class="num">3.55</td>
+  <td class="num">636.9801</td>
+  <td class="num">1.775</td>
+  <td class="num">7.1</td>
+  <td>BULLISH</td>
+</tr>
+<tr>
+  <td>2026-04-27T22:12:34</td>
+  <td class="kind">SMCI</td>
+  <td>STRAT_BUY_T1_ACCUM_EARNINGS</td>
+  <td>CALL</td>
+  <td class="num">1.24</td>
+  <td class="num">27.29</td>
+  <td class="num">0.62</td>
+  <td class="num">2.48</td>
+  <td>BULLISH</td>
+</tr>
+<tr>
+  <td>2026-04-27T22:12:34</td>
+  <td class="kind">TSLA</td>
+  <td>STRAT_BUY_T3_TREND</td>
+  <td>CALL</td>
+  <td class="num">3.9</td>
+  <td class="num">392.45</td>
+  <td class="num">1.95</td>
+  <td class="num">7.8</td>
+  <td>BULLISH</td>
+</tr></tbody>
+</table>
+
+<h3>Source: swing_v2 (4 fire(s))</h3>
+<table>
+  <thead>
+    <tr>
+      <th>Time (UTC)</th>
+      <th>Ticker</th>
+      <th>Kind</th>
+      <th>Side</th>
+      <th class="num">Entry premium</th>
+      <th class="num">Underlying</th>
+      <th class="num">Stop</th>
+      <th class="num">Target</th>
+      <th>News</th>
+    </tr>
+  </thead>
+  <tbody>
+<tr>
+  <td>2026-04-27T22:12:34</td>
+  <td class="kind">AMZN</td>
+  <td>V2_PROBE_PUT</td>
+  <td>PUT</td>
+  <td class="num">3.69</td>
+  <td class="num">—</td>
+  <td class="num">—</td>
+  <td class="num">—</td>
+  <td>—</td>
+</tr>
+<tr>
+  <td>2026-04-27T22:12:34</td>
+  <td class="kind">PLTR</td>
+  <td>V2_PROBE_PUT</td>
+  <td>PUT</td>
+  <td class="num">2.14</td>
+  <td class="num">—</td>
+  <td class="num">—</td>
+  <td class="num">—</td>
+  <td>—</td>
+</tr>
+<tr>
+  <td>2026-04-27T22:12:34</td>
+  <td class="kind">SPY</td>
+  <td>V2_PROBE_PUT</td>
+  <td>PUT</td>
+  <td class="num">10.5</td>
+  <td class="num">—</td>
+  <td class="num">—</td>
+  <td class="num">—</td>
+  <td>—</td>
+</tr>
+<tr>
+  <td>2026-04-27T22:12:34</td>
+  <td class="kind">V</td>
+  <td>V2_PROBE_PUT</td>
+  <td>PUT</td>
+  <td class="num">4.72</td>
+  <td class="num">—</td>
+  <td class="num">—</td>
+  <td class="num">—</td>
+  <td>—</td>
+</tr></tbody>
+</table>
+
+</div>
+
+
+<div class="tab" id="tab-ml">
+  <h2>ML readiness ledger</h2>
+  <div class="note">
+    <div class="title">Graduation rule</div>
+    A kind becomes ML-trainable when it has <b>≥ 30 unique trading days</b> AND
+    <b>≥ 100 deduped fires</b>. Below that, sample noise &gt; signal — rules-only is the right tool.
+    No model training in v1; this is the ledger that tells us when each class is ready to graduate.
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Kind</th>
+        <th class="num">Fires</th>
+        <th class="num">Days</th>
+        <th class="num">Wins (under)</th>
+        <th class="num">Wins (opt 5.5×)</th>
+        <th class="num">Days→min</th>
+        <th class="num">Fires→min</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+<tr>
+  <td class="kind">PRE_CALL_COIL</td>
+  <td class="num">84</td>
+  <td class="num">1</td>
+  <td class="num">48</td>
+  <td class="num">0</td>
+  <td class="num">29</td>
+  <td class="num">16</td>
+  <td><span class="badge need-both">need both</span></td>
+</tr>
+<tr>
+  <td class="kind">PRE_PUT_COIL</td>
+  <td class="num">71</td>
+  <td class="num">1</td>
+  <td class="num">31</td>
+  <td class="num">0</td>
+  <td class="num">29</td>
+  <td class="num">29</td>
+  <td><span class="badge need-both">need both</span></td>
+</tr>
+<tr>
+  <td class="kind">PUT_CONVICTION</td>
+  <td class="num">18</td>
+  <td class="num">1</td>
+  <td class="num">3</td>
+  <td class="num">0</td>
+  <td class="num">29</td>
+  <td class="num">82</td>
+  <td><span class="badge need-both">need both</span></td>
+</tr>
+<tr>
+  <td class="kind">CALL_MORNING</td>
+  <td class="num">15</td>
+  <td class="num">1</td>
+  <td class="num">9</td>
+  <td class="num">0</td>
+  <td class="num">29</td>
+  <td class="num">85</td>
+  <td><span class="badge need-both">need both</span></td>
+</tr>
+<tr>
+  <td class="kind">PRE_CALL_RAMP</td>
+  <td class="num">15</td>
+  <td class="num">1</td>
+  <td class="num">5</td>
+  <td class="num">0</td>
+  <td class="num">29</td>
+  <td class="num">85</td>
+  <td><span class="badge need-both">need both</span></td>
+</tr>
+<tr>
+  <td class="kind">PRE_PUT_RAMP</td>
+  <td class="num">12</td>
+  <td class="num">1</td>
+  <td class="num">3</td>
+  <td class="num">0</td>
+  <td class="num">29</td>
+  <td class="num">88</td>
+  <td><span class="badge need-both">need both</span></td>
+</tr>
+<tr>
+  <td class="kind">CALL_CONT_CALL</td>
+  <td class="num">8</td>
+  <td class="num">1</td>
+  <td class="num">6</td>
+  <td class="num">0</td>
+  <td class="num">29</td>
+  <td class="num">92</td>
+  <td><span class="badge need-both">need both</span></td>
+</tr>
+<tr>
+  <td class="kind">CALL_CONVICTION</td>
+  <td class="num">6</td>
+  <td class="num">1</td>
+  <td class="num">5</td>
+  <td class="num">0</td>
+  <td class="num">29</td>
+  <td class="num">94</td>
+  <td><span class="badge need-both">need both</span></td>
+</tr>
+<tr>
+  <td class="kind">CALL_V4SIGNALS</td>
+  <td class="num">3</td>
+  <td class="num">1</td>
+  <td class="num">3</td>
+  <td class="num">0</td>
+  <td class="num">29</td>
+  <td class="num">97</td>
+  <td><span class="badge need-both">need both</span></td>
+</tr></tbody>
+  </table>
+</div>
+
+
+<div class="tab" id="tab-archive">
+  <h2>Archived dashboards</h2>
+  <div class="note">
+    <div class="title">Read-only mirrors</div>
+    Snapshots of every HTML dashboard from engine_v4 and swing_engine_v2 — copied into
+    <code>output/archive/</code> so this page is self-contained. Originals untouched.
+  </div>
+  <h3>engine_v4_dashboard</h3><div class="archive-grid">
+<a class="archive-card" href="archive/engine_v4_dashboard/analyze.html" target="_blank">
+  <div class="src">engine_v4_dashboard</div>
+  <div class="name">analyze</div>
+</a>
+<a class="archive-card" href="archive/engine_v4_dashboard/breakout.html" target="_blank">
+  <div class="src">engine_v4_dashboard</div>
+  <div class="name">breakout</div>
+</a>
+<a class="archive-card" href="archive/engine_v4_dashboard/breakouts.html" target="_blank">
+  <div class="src">engine_v4_dashboard</div>
+  <div class="name">breakouts</div>
+</a>
+<a class="archive-card" href="archive/engine_v4_dashboard/catalyst.html" target="_blank">
+  <div class="src">engine_v4_dashboard</div>
+  <div class="name">catalyst</div>
+</a>
+<a class="archive-card" href="archive/engine_v4_dashboard/continuation.html" target="_blank">
+  <div class="src">engine_v4_dashboard</div>
+  <div class="name">continuation</div>
+</a>
+<a class="archive-card" href="archive/engine_v4_dashboard/conviction.html" target="_blank">
+  <div class="src">engine_v4_dashboard</div>
+  <div class="name">conviction</div>
+</a>
+<a class="archive-card" href="archive/engine_v4_dashboard/index.html" target="_blank">
+  <div class="src">engine_v4_dashboard</div>
+  <div class="name">index</div>
+</a>
+<a class="archive-card" href="archive/engine_v4_dashboard/live.html" target="_blank">
+  <div class="src">engine_v4_dashboard</div>
+  <div class="name">live</div>
+</a>
+<a class="archive-card" href="archive/engine_v4_dashboard/morning.html" target="_blank">
+  <div class="src">engine_v4_dashboard</div>
+  <div class="name">morning</div>
+</a>
+<a class="archive-card" href="archive/engine_v4_dashboard/prebreakout.html" target="_blank">
+  <div class="src">engine_v4_dashboard</div>
+  <div class="name">prebreakout</div>
+</a>
+<a class="archive-card" href="archive/engine_v4_dashboard/put_backtest.html" target="_blank">
+  <div class="src">engine_v4_dashboard</div>
+  <div class="name">put_backtest</div>
+</a>
+<a class="archive-card" href="archive/engine_v4_dashboard/scalp_all_signals.html" target="_blank">
+  <div class="src">engine_v4_dashboard</div>
+  <div class="name">scalp_all_signals</div>
+</a>
+<a class="archive-card" href="archive/engine_v4_dashboard/scalp_backtest.html" target="_blank">
+  <div class="src">engine_v4_dashboard</div>
+  <div class="name">scalp_backtest</div>
+</a>
+<a class="archive-card" href="archive/engine_v4_dashboard/scanners.html" target="_blank">
+  <div class="src">engine_v4_dashboard</div>
+  <div class="name">scanners</div>
+</a>
+<a class="archive-card" href="archive/engine_v4_dashboard/short_term.html" target="_blank">
+  <div class="src">engine_v4_dashboard</div>
+  <div class="name">short_term</div>
+</a>
+<a class="archive-card" href="archive/engine_v4_dashboard/today.html" target="_blank">
+  <div class="src">engine_v4_dashboard</div>
+  <div class="name">today</div>
+</a></div><h3>swing_engine_v2_templates</h3><div class="archive-grid">
+<a class="archive-card" href="archive/swing_engine_v2_templates/index.html" target="_blank">
+  <div class="src">swing_engine_v2_templates</div>
+  <div class="name">index</div>
+</a></div>
+</div>
+
+
+<div class="footer">
+  scalp_backtest v0.1.0 · DESIGN.md v4 · brand-styled · read-only on engine_v4/swing_engine_v2/swing_trade_strategy
+</div>
+
+</div>
+<script>
+(function() {
+  const tabs = document.querySelectorAll('.tab-bar a');
+  const panes = document.querySelectorAll('.tab');
+  // show first by default
+  document.querySelector('#tab-overview').classList.add('active');
+  tabs.forEach(t => t.addEventListener('click', () => {
+    tabs.forEach(x => x.classList.remove('active'));
+    panes.forEach(p => p.classList.remove('active'));
+    t.classList.add('active');
+    document.querySelector('#tab-' + t.dataset.tab).classList.add('active');
+  }));
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,402 @@
+[
+  {
+    "ticker": "NVDA",
+    "date": "2026-04-27",
+    "expected": "expected: CALL",
+    "had_lifecycle": true,
+    "n_snapshots": 521,
+    "kinds_fired": [
+      [
+        "2026-04-27T18:00:08.806609+00:00",
+        "PRE_CALL_COIL"
+      ]
+    ],
+    "day_pct_min": 1.94,
+    "day_pct_max": 3.15,
+    "day_pct_first": 2.03,
+    "day_pct_last": 3.09,
+    "rvol_max": 5.79,
+    "modes": {
+      "TRADE": 516,
+      "WATCH": 5
+    },
+    "final_open_trade": {
+      "kind": "PRE_CALL_COIL",
+      "side": null,
+      "entry": 215.905,
+      "underlying_pct": 0.296,
+      "best_pct": 7.32,
+      "worst_pct": 0.0,
+      "state": "OPEN",
+      "exit_reason": null
+    },
+    "n_news": 8,
+    "n_flow": 0,
+    "had_conviction": true,
+    "mode_transitions": [
+      {
+        "time_utc": "2026-04-27T18:00:08.806609+00:00",
+        "mode": "TRADE",
+        "day_pct": 2.03,
+        "rvol": 0.55
+      },
+      {
+        "time_utc": "2026-04-27T18:08:34.242944+00:00",
+        "mode": "WATCH",
+        "day_pct": 2.24,
+        "rvol": 1.79
+      },
+      {
+        "time_utc": "2026-04-27T18:13:35.994157+00:00",
+        "mode": "TRADE",
+        "day_pct": 2.15,
+        "rvol": 1.53
+      },
+      {
+        "time_utc": "2026-04-27T18:42:44.463983+00:00",
+        "mode": "WATCH",
+        "day_pct": 2.12,
+        "rvol": 1.18
+      },
+      {
+        "time_utc": "2026-04-27T18:44:48.282505+00:00",
+        "mode": "TRADE",
+        "day_pct": 2.23,
+        "rvol": 2.46
+      }
+    ],
+    "scalp_signals_generated": 2,
+    "scalp_details": [
+      {
+        "time": "17:23",
+        "kind": "CALL_MORNING",
+        "side": "CALL",
+        "conf": null,
+        "atr_pnl_pct": 0.2756070215365046,
+        "label_under": 1,
+        "label_opt": -1,
+        "fire_has_flow": false,
+        "fire_has_news": true,
+        "fire_has_conv": true
+      },
+      {
+        "time": "17:37",
+        "kind": "PRE_CALL_COIL",
+        "side": "CALL",
+        "conf": null,
+        "atr_pnl_pct": 0.06935742945120583,
+        "label_under": 1,
+        "label_opt": -1,
+        "fire_has_flow": false,
+        "fire_has_news": true,
+        "fire_has_conv": true
+      }
+    ],
+    "alpaca_last5": [
+      {
+        "date": "2026-04-21",
+        "o": 202.12,
+        "h": 202.75,
+        "l": 199.0,
+        "c": 199.82,
+        "v": 3229557,
+        "chg_pct": 0.0
+      },
+      {
+        "date": "2026-04-22",
+        "o": 200.99,
+        "h": 202.49,
+        "l": 199.35,
+        "c": 202.42,
+        "v": 2926364,
+        "chg_pct": 1.301171053948551
+      },
+      {
+        "date": "2026-04-23",
+        "o": 202.4,
+        "h": 203.805,
+        "l": 197.25,
+        "c": 199.68,
+        "v": 3564667,
+        "chg_pct": -1.3536211836774927
+      },
+      {
+        "date": "2026-04-24",
+        "o": 200.025,
+        "h": 210.94,
+        "l": 199.81,
+        "c": 208.18,
+        "v": 7097391,
+        "chg_pct": 4.256810897435898
+      },
+      {
+        "date": "2026-04-27",
+        "o": 209.61,
+        "h": 216.82,
+        "l": 207.395,
+        "c": 216.54,
+        "v": 5989408,
+        "chg_pct": 4.015755596118736
+      }
+    ],
+    "today_range_pct": 4.496445780258567,
+    "today_close_vs_open_pct": 3.30613997423786,
+    "uw_flow": {
+      "n_alerts": 6,
+      "sweep_n": 0,
+      "call_prem_m": 2.021,
+      "put_prem_m": 0.0,
+      "net_call_skew_m": 2.021,
+      "call_share": 1.0
+    },
+    "diagnosis": [
+      "engine fired: PRE_CALL_COIL \u2014 check if direction matches expected (expected: CALL)",
+      "\u2713 Alpaca close-vs-open (+3.31%) aligns with expected direction"
+    ],
+    "historical_lookup": {
+      "2026-04-27": [],
+      "2026-04-24": []
+    },
+    "historical_total": 103
+  },
+  {
+    "ticker": "ARM",
+    "date": "2026-04-27",
+    "expected": "expected: PUT",
+    "had_lifecycle": true,
+    "n_snapshots": 505,
+    "kinds_fired": [],
+    "day_pct_min": -4.62,
+    "day_pct_max": -3.72,
+    "day_pct_first": -4.03,
+    "day_pct_last": -4.16,
+    "rvol_max": 1.32,
+    "modes": {
+      "WATCH": 505
+    },
+    "n_news": 5,
+    "n_flow": 3,
+    "had_conviction": true,
+    "mode_transitions": [
+      {
+        "time_utc": "2026-04-27T17:57:33.372601+00:00",
+        "mode": "WATCH",
+        "day_pct": -4.03,
+        "rvol": 0.19
+      }
+    ],
+    "scalp_signals_generated": 1,
+    "scalp_details": [
+      {
+        "time": "17:23",
+        "kind": "CALL_CONT_CALL",
+        "side": "CALL",
+        "conf": null,
+        "atr_pnl_pct": 0.1838516547480446,
+        "label_under": 1,
+        "label_opt": -1,
+        "fire_has_flow": true,
+        "fire_has_news": true,
+        "fire_has_conv": true
+      }
+    ],
+    "alpaca_last5": [
+      {
+        "date": "2026-04-21",
+        "o": 175.37,
+        "h": 179.36,
+        "l": 173.4,
+        "c": 175.42,
+        "v": 273256,
+        "chg_pct": 0.0
+      },
+      {
+        "date": "2026-04-22",
+        "o": 179.75,
+        "h": 196.65,
+        "l": 178.475,
+        "c": 196.61,
+        "v": 479056,
+        "chg_pct": 12.07958043552618
+      },
+      {
+        "date": "2026-04-23",
+        "o": 194.28,
+        "h": 210.78,
+        "l": 192.31,
+        "c": 204.72,
+        "v": 532987,
+        "chg_pct": 4.124917349066672
+      },
+      {
+        "date": "2026-04-24",
+        "o": 222.2,
+        "h": 237.59,
+        "l": 218.53,
+        "c": 234.83,
+        "v": 668759,
+        "chg_pct": 14.707893708479883
+      },
+      {
+        "date": "2026-04-27",
+        "o": 225.28,
+        "h": 227.1,
+        "l": 210.07,
+        "c": 215.9,
+        "v": 624843,
+        "chg_pct": -8.061150619597157
+      }
+    ],
+    "today_range_pct": 7.55948153409091,
+    "today_close_vs_open_pct": -4.163707386363635,
+    "diagnosis": [
+      "engine stayed in WATCH the entire session \u2014 RVOL/conviction gates never tripped",
+      "\u2713 Alpaca close-vs-open (-4.16%) aligns with expected direction"
+    ],
+    "historical_lookup": {
+      "2026-04-27": [],
+      "2026-04-24": [
+        {
+          "strategy": "scalp_options_backtest",
+          "label": "MOMENTUM \u2014 full universe (real options)",
+          "trigger": "MOMENTUM_UP",
+          "direction": "CALL",
+          "entry_t": null,
+          "exit_t": null,
+          "entry_px": 234.53,
+          "exit_px": null,
+          "minutes_held": null,
+          "pnl_pct": null,
+          "outcome": "NO_FWD_OPTION_BARS",
+          "exit_reason": null,
+          "category": "PRIMARY"
+        }
+      ]
+    },
+    "historical_total": 169
+  },
+  {
+    "ticker": "QCOM",
+    "date": "2026-04-27",
+    "expected": "expected: PUT",
+    "had_lifecycle": true,
+    "n_snapshots": 449,
+    "kinds_fired": [
+      [
+        "2026-04-27T18:00:08.873332+00:00",
+        "CALL_CONT_CALL"
+      ]
+    ],
+    "day_pct_min": -4.47,
+    "day_pct_max": -3.46,
+    "day_pct_first": -4.45,
+    "day_pct_last": -3.8,
+    "rvol_max": 0.7,
+    "modes": {
+      "TRADE": 7,
+      "WATCH": 442
+    },
+    "n_news": 6,
+    "n_flow": 3,
+    "had_conviction": true,
+    "mode_transitions": [
+      {
+        "time_utc": "2026-04-27T18:00:08.873332+00:00",
+        "mode": "TRADE",
+        "day_pct": -4.45,
+        "rvol": 0.23
+      },
+      {
+        "time_utc": "2026-04-27T18:28:52.099624+00:00",
+        "mode": "WATCH",
+        "day_pct": -4.07,
+        "rvol": 0.13
+      }
+    ],
+    "scalp_signals_generated": 2,
+    "scalp_details": [
+      {
+        "time": "17:23",
+        "kind": "CALL_MORNING",
+        "side": "CALL",
+        "conf": null,
+        "atr_pnl_pct": -0.08514251177604909,
+        "label_under": 0,
+        "label_opt": -1,
+        "fire_has_flow": true,
+        "fire_has_news": true,
+        "fire_has_conv": true
+      },
+      {
+        "time": "17:54",
+        "kind": "CALL_CONT_CALL",
+        "side": "CALL",
+        "conf": null,
+        "atr_pnl_pct": 0.1317477336039232,
+        "label_under": 1,
+        "label_opt": -1,
+        "fire_has_flow": true,
+        "fire_has_news": true,
+        "fire_has_conv": true
+      }
+    ],
+    "alpaca_last5": [
+      {
+        "date": "2026-04-21",
+        "o": 138.23,
+        "h": 138.23,
+        "l": 135.08,
+        "c": 135.51,
+        "v": 240352,
+        "chg_pct": 0.0
+      },
+      {
+        "date": "2026-04-22",
+        "o": 136.71,
+        "h": 137.415,
+        "l": 135.57,
+        "c": 136.11,
+        "v": 231848,
+        "chg_pct": 0.44277175116229267
+      },
+      {
+        "date": "2026-04-23",
+        "o": 136.325,
+        "h": 136.89,
+        "l": 132.1,
+        "c": 133.98,
+        "v": 297203,
+        "chg_pct": -1.5649107339651926
+      },
+      {
+        "date": "2026-04-24",
+        "o": 145.54,
+        "h": 151.51,
+        "l": 143.615,
+        "c": 148.925,
+        "v": 824289,
+        "chg_pct": 11.154649947753413
+      },
+      {
+        "date": "2026-04-27",
+        "o": 156.255,
+        "h": 160.84,
+        "l": 147.09,
+        "c": 150.31,
+        "v": 836067,
+        "chg_pct": 0.9299983213026629
+      }
+    ],
+    "today_range_pct": 8.799718409010913,
+    "today_close_vs_open_pct": -3.804678250295986,
+    "diagnosis": [
+      "engine fired: CALL_CONT_CALL \u2014 check if direction matches expected (expected: PUT)",
+      "\u2713 Alpaca close-vs-open (-3.80%) aligns with expected direction"
+    ],
+    "historical_lookup": {
+      "2026-04-27": [],
+      "2026-04-24": []
+    },
+    "historical_total": 0
+  }
+]

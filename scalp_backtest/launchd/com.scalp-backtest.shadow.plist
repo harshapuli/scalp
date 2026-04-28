@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  com.scalp-backtest.shadow.plist
+  Auto-start the swing shadow logger at 06:00 PT (= 13:00 UTC during PDT, 14:00 UTC during PST).
+  We use Hour=13 + KeepAlive so it keeps running through the trading day and survives crashes.
+
+  Install:
+    cp launchd/com.scalp-backtest.shadow.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.scalp-backtest.shadow.plist
+
+  Uninstall:
+    launchctl unload ~/Library/LaunchAgents/com.scalp-backtest.shadow.plist
+    rm ~/Library/LaunchAgents/com.scalp-backtest.shadow.plist
+
+  Logs: scalp_backtest/data/swing_log/daemon.log
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.scalp-backtest.shadow</string>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/harshapuli/Downloads/spy QQQ/claude/gemini /scalp_backtest/src</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>shadow_logger_swing.py</string>
+    <string>--daemon</string>
+  </array>
+
+  <key>StandardOutPath</key>
+  <string>/Users/harshapuli/Downloads/spy QQQ/claude/gemini /scalp_backtest/data/swing_log/daemon.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/harshapuli/Downloads/spy QQQ/claude/gemini /scalp_backtest/data/swing_log/daemon.err</string>
+
+  <!-- Start on load and keep alive (auto-restart if it crashes) -->
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <!-- Also explicitly start at 06:00 local time every day (covers reboot edge cases) -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>6</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+</dict>
+</plist>

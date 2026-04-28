@@ -1,0 +1,36 @@
+# scalp_backtest .gitignore
+# We commit source + analytical artifacts; we exclude caches and per-ticker
+# rendered HTML (regenerated each run, ~11MB).
+#
+# Note: parent .gitignore at gemini/.gitignore has `*.json` which would
+# exclude all our analytical run JSONs. Override with explicit !-rules below
+# so the seven_year_backtest, pretrade_predictor, and multi_day_backtest
+# artifacts are committed.
+
+# Override parent: keep analytical run artifacts
+!data/seven_year_backtest/run_*.json
+!data/pretrade_slow_predictor/run_*.json
+!data/multi_day_backtest/run_*.json
+!data/miss_reports/*.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Caches (regenerated)
+data/slices/*.pkl
+data/bars_cache/
+data/uw_cache/
+
+# Per-ticker lifecycle drilldown HTML — regenerated each run, ~287 files / 11MB
+output/lifecycle/
+
+# Local archive copies (mirrored from elsewhere, not source-of-truth here)
+output/archive/
+
+# Misc
+.DS_Store
+*.log
+*.swp

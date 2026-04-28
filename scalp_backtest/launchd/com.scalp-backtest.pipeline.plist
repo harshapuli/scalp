@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  com.scalp-backtest.pipeline.plist
+  Re-run the full pipeline (loaders + outcomes + stats + render) at three checkpoints:
+    • 09:35 PT — early-morning snapshot (capture pre-market + morning open fires)
+    • 12:30 PT — lunchtime snapshot
+    • 13:30 PT — EOD snapshot (US close)
+
+  Pipeline writes output/index.html (overwrite) AND output/snapshots/<DATE>/<HHMM>/index.html
+  so we keep a per-checkpoint history.
+
+  Install:
+    cp launchd/com.scalp-backtest.pipeline.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.scalp-backtest.pipeline.plist
+
+  Logs: scalp_backtest/data/pipeline.log
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.scalp-backtest.pipeline</string>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/harshapuli/Downloads/spy QQQ/claude/gemini /scalp_backtest/src</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>pipeline.py</string>
+    <string>--snapshot</string>
+  </array>
+
+  <key>StandardOutPath</key>
+  <string>/Users/harshapuli/Downloads/spy QQQ/claude/gemini /scalp_backtest/data/pipeline.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/harshapuli/Downloads/spy QQQ/claude/gemini /scalp_backtest/data/pipeline.err</string>
+
+  <key>RunAtLoad</key>
+  <false/>
+
+  <!-- Three checkpoints per day -->
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict>
+      <key>Hour</key><integer>9</integer>
+      <key>Minute</key><integer>35</integer>
+    </dict>
+    <dict>
+      <key>Hour</key><integer>12</integer>
+      <key>Minute</key><integer>30</integer>
+    </dict>
+    <dict>
+      <key>Hour</key><integer>13</integer>
+      <key>Minute</key><integer>30</integer>
+    </dict>
+  </array>
+</dict>
+</plist>
