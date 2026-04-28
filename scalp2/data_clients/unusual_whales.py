@@ -348,10 +348,12 @@ class UWClient:
         )
 
     def greek_exposure_history(self, ticker: str, days: int = 252) -> list[GEXSnapshot]:
-        """FND-3.3 — GEX history."""
+        """FND-3.3 — GEX history. UW exposes this via the same `greek-exposure`
+        endpoint (returns a daily array). Pass `days` to bound the lookback.
+        """
         data = self._get(
-            f"/api/stock/{ticker}/greek-exposure-history",
-            params={"days": days},
+            f"/api/stock/{ticker}/greek-exposure",
+            params={"days": min(days, 365)},
         )
         rows = data.get("data") if isinstance(data, dict) else data
         out: list[GEXSnapshot] = []

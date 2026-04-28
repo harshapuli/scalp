@@ -162,33 +162,102 @@ async def bar_feed_loop(*,
         uw.close()
 
 
-async def evaluate_s5_on_state_change(features, scalp_state, cfg):
-    """Default on_state_change: if state is REVERSE, evaluate S5 gate.
+async def evaluate_strategies_on_state_change(features, scalp_state, cfg):
+    """Multi-strategy dispatcher. Each scalp state can trigger different gates:
 
-    For now we don't have pre-staged candidates wired (no scanner running yet);
-    we just log what the gate would say if it were triggered.
+      SURGE_REVERSE   → evaluate S5 (short)
+      TANK_REVERSE    → evaluate S5 (long)
+      SURGE_IGNITION  → evaluate S2 (long), S4 (long if flow agrees)
+      SURGE_CONTINUATION → evaluate S3 (long), S4 (long)
+      TANK_IGNITION   → evaluate S2 (short), S4 (short if flow agrees)
+      TANK_CONTINUATION → evaluate S3 (short), S4 (short)
     """
     from strategies.s5_gamma_reversal.allow_s5_trade import allow_s5_trade
     from journal.decision_log import log_decision_sync
 
-    if scalp_state.name not in ("SURGE_REVERSE", "TANK_REVERSE"):
-        return
+    # ── S5 — Reversal states ───────────────────────────────────────────────
+    if scalp_state.name in ("SURGE_REVERSE", "TANK_REVERSE"):
+        decision = allow_s5_trade(
+            features=features, model=None,
+            threshold=0.50, cfg=cfg,
+            risk_manager_allows=True,                # placeholder
+            expected_value_net=0.0,                  # placeholder
+            reversal_score=scalp_state.score,
+            candidate_id=f"live-S5-{features.ticker}-{features.bar_idx}",
+        )
+        _safe_log(decision, features, "rules_only_v0")
+        _print_decision("S5", features.ticker, scalp_state.name, decision)
 
-    # Quick rules-only gate (no ML model loaded)
-    decision = allow_s5_trade(
-        features=features, model=None,
-        threshold=0.50, cfg=cfg,
-        risk_manager_allows=True,                # placeholder until risk_manager wired
-        expected_value_net=0.0,                  # placeholder
-        reversal_score=scalp_state.score,
-        candidate_id=f"live-{features.ticker}-{features.bar_idx}",
-    )
+    # ── S3 — Continuation states (avoid S5 conflict) ─────────────────────
+    if scalp_state.name in ("SURGE_CONTINUATION", "TANK_CONTINUATION"):
+        from strategies.s3_momentum.allow_s3_trade import allow_s3_trade
+        from strategies.s3_momentum.setup import S3SetupContext
+        from scalp_brain.scores import reversal_score as rev_score
+
+        # Build setup context from features (placeholders for missing data)
+        direction = "long" if scalp_state.name == "SURGE_CONTINUATION" else "short"
+        ctx = S3SetupContext(
+            ticker=features.ticker,
+            session_return_atr=features.extension_from_prior_close_atr,
+            vwap_distance_atr=features.extension_from_vwap_atr,
+            consecutive_higher_lows=4 if direction == "long" and not features.pullback_break else 0,
+            consecutive_lower_highs=4 if direction == "short" and not features.pullback_break else 0,
+            aggressor_avg_30m=features.aggressor_recent,
+            near_htf_level_atr=features.near_htf_level_atr,
+            distance_to_pos_gex_atr=abs(features.distance_to_major_pos_gex_atr),
+        )
+        rs = rev_score(features, "short" if direction == "long" else "long", cfg)
+        decision = allow_s3_trade(
+            setup_ctx=ctx, features=features, scalp_state=scalp_state,
+            reversal_score=rs, cfg=cfg,
+            risk_manager_allows=True,
+            candidate_id=f"live-S3-{features.ticker}-{features.bar_idx}",
+        )
+        _safe_log(decision, features, "rules_only_v0")
+        _print_decision("S3", features.ticker, scalp_state.name, decision)
+
+    # ── S4 — Flow-aligned ignition / continuation ──────────────────────────
+    if scalp_state.name in ("SURGE_IGNITION", "SURGE_CONTINUATION",
+                              "TANK_IGNITION", "TANK_CONTINUATION"):
+        from strategies.s4_signed_flow.allow_s4_trade import allow_s4_trade
+        from strategies.s4_signed_flow.setup import S4SetupContext
+
+        ctx = S4SetupContext(
+            ticker=features.ticker,
+            signed_flow_score=features.signed_flow_score,
+            price_return_30m_atr=features.extension_from_vwap_atr,
+            iv_percentile=features.iv_percentile,
+            distance_to_pos_gex_atr=abs(features.distance_to_major_pos_gex_atr),
+            earnings_blackout=features.earnings_blackout,
+            daily_relative_volume=1.5,         # placeholder until daily-vol feed wired
+        )
+        decision = allow_s4_trade(
+            setup_ctx=ctx, features=features, scalp_state=scalp_state, cfg=cfg,
+            risk_manager_allows=True,
+            candidate_id=f"live-S4-{features.ticker}-{features.bar_idx}",
+        )
+        _safe_log(decision, features, "rules_only_v0")
+        _print_decision("S4", features.ticker, scalp_state.name, decision)
+
+
+def _safe_log(decision, features, model_version):
+    from journal.decision_log import log_decision_sync
     try:
-        log_decision_sync(decision, features, model_version="rules_only_v0")
+        log_decision_sync(decision, features, model_version=model_version)
     except Exception as e:
         print(f"[evaluate] log_decision failed: {e}", file=sys.stderr)
-    print(f"[evaluate] {features.ticker} {scalp_state.name} → "
-          f"{decision.decision} ({decision.pass_reason or 'TRADE'})")
+
+
+def _print_decision(strategy, ticker, scalp_state_name, decision):
+    if decision.decision == "TRADE":
+        print(f"[evaluate] {strategy} {ticker} {scalp_state_name} → ✓ TRADE")
+    else:
+        print(f"[evaluate] {strategy} {ticker} {scalp_state_name} → "
+                f"PASS ({decision.pass_reason})")
+
+
+# Keep old name as alias for backwards compat with code that may still reference it
+evaluate_s5_on_state_change = evaluate_strategies_on_state_change
 
 
 async def health_monitor_loop(redis_async, cfg):
