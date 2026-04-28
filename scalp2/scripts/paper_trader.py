@@ -22,12 +22,15 @@ import threading
 import traceback
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime, time as dt_time, timezone
+from datetime import datetime, time as dt_time, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
+
+# SQLite-backed setup persistence so cards survive daemon restart.
+DB_PATH = PROJECT_ROOT / "data" / "dev_journal.db"
 
 
 # Default universe — load from latest backtest run JSON so live trading is
@@ -232,6 +235,22 @@ class PaperTrader:
             print(f"[paper_trader] UW client unavailable: {e} — S4 will not fire")
             uw = None
 
+        # Reload any in-flight setups from SQLite (crash recovery).
+        try:
+            from journal.setups_store import (
+                init_setups_table, load_active_setups, load_taken_ids,
+            )
+            init_setups_table(DB_PATH)
+            today_str = datetime.now(tz=timezone.utc).date().isoformat()
+            for row in load_active_setups(DB_PATH, today_str):
+                self.status.setups[row["id"]] = dict(row)
+            self.status.taken_signal_ids |= load_taken_ids(DB_PATH, today_str)
+            if self.status.setups:
+                print(f"[paper_trader] restored {len(self.status.setups)} "
+                      f"active setup(s) from {DB_PATH.name}")
+        except Exception as e:
+            print(f"[paper_trader] setup reload failed (will start clean): {e}")
+
         STALE_SETUP_MIN = 30
 
         alp = AlpacaClient()
@@ -274,17 +293,23 @@ class PaperTrader:
                             "reason": f"{type(e).__name__}: {e}",
                         })
 
-                # Drop setups not refreshed in STALE_SETUP_MIN min
-                cutoff = now.timestamp() - (STALE_SETUP_MIN * 60)
-                for tk in list(self.status.setups.keys()):
-                    s = self.status.setups[tk]
+                # Drop setups not refreshed in STALE_SETUP_MIN min (memory + DB)
+                cutoff_dt = now.timestamp() - (STALE_SETUP_MIN * 60)
+                for sid in list(self.status.setups.keys()):
+                    s = self.status.setups[sid]
                     last_iso = (s.get("last_evaluated_at") or "").rstrip("Z")
                     try:
                         last_ts = datetime.fromisoformat(last_iso).timestamp()
                     except Exception:
                         last_ts = now.timestamp()
-                    if last_ts < cutoff:
-                        self.status.setups.pop(tk, None)
+                    if last_ts < cutoff_dt:
+                        self.status.setups.pop(sid, None)
+                try:
+                    from journal.setups_store import delete_stale_setups
+                    cutoff_iso = (now - timedelta(minutes=STALE_SETUP_MIN)).isoformat(timespec="seconds") + "Z"
+                    delete_stale_setups(DB_PATH, cutoff_iso)
+                except Exception:
+                    pass
 
                 self.status.last_state_changes = changes_this_tick
                 await self._interruptible_sleep(self.status.poll_seconds)
@@ -434,10 +459,16 @@ class PaperTrader:
         """Drop any setup cards for `ticker` whose id is NOT in keep_ids.
         Lets multi-strategy evaluation safely refresh only the strategies
         that just ran without nuking sibling cards (e.g., S2 firing alongside S4)."""
+        from journal.setups_store import delete_setups_for_ticker
         for sid in list(self.status.setups.keys()):
             row = self.status.setups[sid]
             if row.get("ticker") == ticker and sid not in keep_ids:
                 self.status.setups.pop(sid, None)
+        # Mirror the in-memory drop into SQLite
+        try:
+            delete_setups_for_ticker(DB_PATH, ticker, keep_ids)
+        except Exception:
+            pass
 
     def _build_s2_decision(self, features, scalp_state, cfg, alp, bars, now):
         """Returns (decision, direction) for S2, or (None, None) if can't evaluate."""
@@ -624,6 +655,12 @@ class PaperTrader:
                 "last_evaluated_at": now_iso,
             }
             self.status.setups[signal_id] = setup_row
+            # Persist so daemon restart doesn't lose this card
+            try:
+                from journal.setups_store import persist_setup
+                persist_setup(DB_PATH, setup_row)
+            except Exception:
+                pass
 
             self._add_decision({
                 "ts": now_iso, "ticker": features.ticker,
@@ -638,6 +675,11 @@ class PaperTrader:
                     and self.status.phase == "open"):
                 await self._submit_from_setup(alp, setup_row)
                 self.status.taken_signal_ids.add(signal_id)
+                try:
+                    from journal.setups_store import mark_setup_taken
+                    mark_setup_taken(DB_PATH, signal_id)
+                except Exception:
+                    pass
 
         # Drop sibling setups for this ticker that were NOT regenerated this tick
         # (e.g., S3 evaluation stopped because state moved to S2 IGNITION).
@@ -719,6 +761,11 @@ class PaperTrader:
             }
             self.status.orders.appendleft(order_row)
             self.status.taken_signal_ids.add(signal_id)
+            try:
+                from journal.setups_store import mark_setup_taken
+                mark_setup_taken(DB_PATH, signal_id)
+            except Exception:
+                pass
             return {"ok": True, **order_row}
         except Exception as e:
             return {"ok": False, "error": f"{type(e).__name__}: {e}"}
