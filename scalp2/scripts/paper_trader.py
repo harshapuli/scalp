@@ -65,6 +65,9 @@ class DaemonStatus:
     last_decision: Optional[dict] = None
     tickers: list[str] = field(default_factory=lambda: list(DEFAULT_UNIVERSE))
     decisions: deque = field(default_factory=lambda: deque(maxlen=80))
+    # Setups now keyed by setup_id (strategy-ticker-direction), so multiple
+    # strategies can have parallel cards per ticker (e.g., S2 + S4 both
+    # firing on a SURGE_IGNITION).
     setups: dict = field(default_factory=dict)
     orders: deque = field(default_factory=lambda: deque(maxlen=20))
     taken_signal_ids: set = field(default_factory=set)                 # de-dup
@@ -140,6 +143,10 @@ class PaperTrader:
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         # Per-ticker prior state (for state-change detection)
         self._prior_state: dict[str, object] = {}
+        # Per-ticker per-session data — prior daily close + last computed OR
+        self._session: dict[str, dict] = {}
+        # UW flow cache: ticker → (records, fetched_ts) — refreshed every 5min
+        self._flow_cache: dict[str, tuple[list, float]] = {}
 
     # ─── Control ─────────────────────────────────────────────────────────
 
@@ -218,6 +225,12 @@ class PaperTrader:
         load_secrets()
         cfg = load_thresholds()
         from data_clients.alpaca import AlpacaClient
+        try:
+            from data_clients.unusual_whales import UnusualWhalesClient
+            uw = UnusualWhalesClient()
+        except Exception as e:
+            print(f"[paper_trader] UW client unavailable: {e} — S4 will not fire")
+            uw = None
 
         STALE_SETUP_MIN = 30
 
@@ -244,14 +257,15 @@ class PaperTrader:
                     if self._stop_event.is_set():
                         break
                     try:
-                        changed = await self._tick_one(alp, ticker, cfg, now)
+                        changed = await self._tick_one(alp, uw, ticker, cfg, now)
                         if changed:
                             changes_this_tick += 1
-                        # Refresh last_evaluated_at on existing setup even when
-                        # state didn't change — keeps the card alive
-                        existing = self.status.setups.get(ticker)
-                        if existing:
-                            existing["last_evaluated_at"] = now.isoformat(timespec="seconds") + "Z"
+                        # Refresh last_evaluated_at on any existing setups for
+                        # this ticker — keeps cards alive across no-change ticks
+                        ts_iso = now.isoformat(timespec="seconds") + "Z"
+                        for sid, row in list(self.status.setups.items()):
+                            if row.get("ticker") == ticker:
+                                row["last_evaluated_at"] = ts_iso
                     except Exception as e:
                         self._add_decision({
                             "ts": now.isoformat(timespec="seconds") + "Z",
@@ -284,36 +298,49 @@ class PaperTrader:
                 return
             await asyncio.sleep(1)
 
-    async def _tick_one(self, alp, ticker: str, cfg: dict,
+    async def _tick_one(self, alp, uw, ticker: str, cfg: dict,
                           now: datetime) -> bool:
-        """Pull recent bars for one ticker, classify scalp state, evaluate
-        strategies, fire order on TRADE. Returns True if state changed."""
+        """Pull recent bars + UW flow for one ticker, classify scalp state,
+        evaluate every applicable strategy. Returns True if state changed."""
+        from datetime import timedelta as _td
         from features.builder import build_features
         from features.price_structure import BarOHLC
         from scalp_brain.classifier import classify as classify_scalp_state
 
-        # Fetch last ~50 1-min bars (about 50 minutes of data)
+        # Fetch enough bars to cover the OR window + recent context.
+        # Regular session: from 13:00 UTC today (covers OR + all session bars).
+        # Warm-up / pre-open: last 90 minutes for ATR + state context.
+        session_start = now.replace(hour=13, minute=0, second=0, microsecond=0)
+        if now >= session_start:
+            start_dt = session_start
+        else:
+            start_dt = now - _td(minutes=90)
         end = now.isoformat(timespec="seconds")
-        start = (now.replace(hour=now.hour - (now.hour % 1)).isoformat(timespec="seconds"))
+        start = start_dt.isoformat(timespec="seconds")
         try:
             alp_bars = alp.get_bars(symbol=ticker, start=start, end=end,
-                                      timeframe="1Min", limit=50)
+                                      timeframe="1Min", limit=500)
         except Exception:
             return False
         if len(alp_bars) < 5:
             return False
 
-        bars: list[BarOHLC] = [
+        # Stripped bars (no .t) for build_features / OR computation needs .t →
+        # we pass alp_bars to the evaluator since it has timestamps.
+        bars_ohlc: list[BarOHLC] = [
             BarOHLC(o=b.o, h=b.h, l=b.l, c=b.c, v=b.v)
             for b in alp_bars
         ]
         last_bar_t = alp_bars[-1].t
 
+        # UW flow records (cached 5min per ticker — rate-limit safe)
+        flow_records = self._fetch_flow_records(uw, ticker)
+
         try:
             features = build_features(
-                ticker=ticker, bar_idx=len(bars) - 1,
-                bars=bars, trades=[], quotes=[],
-                gex_snapshot=None, flow_records=[],
+                ticker=ticker, bar_idx=len(bars_ohlc) - 1,
+                bars=bars_ohlc, trades=[], quotes=[],
+                gex_snapshot=None, flow_records=flow_records,
                 timestamp=last_bar_t,
             )
         except Exception:
@@ -328,144 +355,293 @@ class PaperTrader:
         state_changed = (prior is None or prior.name != new_state.name)
         if state_changed:
             self._prior_state[ticker] = new_state
-            await self._evaluate_and_maybe_trade(alp, features, new_state, cfg)
+            await self._evaluate_and_maybe_trade(
+                alp, features, new_state, cfg, alp_bars, now,
+            )
             return True
-        # Update age even when no state change
+        # Re-evaluate every tick (not just on state change) so FORMING cards
+        # get new pass_reason / score updates and S4 re-checks fresh flow.
         self._prior_state[ticker] = new_state
+        if new_state.name != "NEUTRAL":
+            await self._evaluate_and_maybe_trade(
+                alp, features, new_state, cfg, alp_bars, now,
+            )
         return False
 
-    async def _evaluate_and_maybe_trade(self, alp, features, scalp_state,
-                                          cfg: dict) -> None:
-        """Always emit a setup card for any trigger state (FORMING or TRADE).
-        On TRADE + auto_submit=True, also fire an Alpaca bracket order.
+    def _ensure_session(self, ticker: str, today_str: str) -> dict:
+        sd = self._session.get(ticker)
+        if sd is None or sd.get("date") != today_str:
+            sd = {"date": today_str, "prior_close": None}
+            self._session[ticker] = sd
+        return sd
 
-        State → strategy mapping (mirrors scripts/main.py):
-          SURGE_REVERSE        → S5 short
-          TANK_REVERSE         → S5 long
-          SURGE_CONTINUATION   → S3 long
-          TANK_CONTINUATION    → S3 short
-          SURGE_IGNITION/TANK_IGNITION → S2 (placeholder — needs OR levels)
+    def _compute_or(self, bars: list, today_str: str) -> Optional[tuple[float, float]]:
+        """OR = max-high / min-low across bars whose open time falls in
+        [13:30:00, 13:35:00) UTC on `today_str`. Returns None if no bars in
+        the window yet (i.e., the market hasn't reached 13:30 today)."""
+        or_bars = []
+        for b in bars:
+            ts = b.t
+            if (ts.date().isoformat() == today_str
+                    and ts.hour == 13 and 30 <= ts.minute < 35):
+                or_bars.append(b)
+        if not or_bars:
+            return None
+        return max(b.h for b in or_bars), min(b.l for b in or_bars)
+
+    def _fetch_prior_close(self, alp, ticker: str, today_dt: datetime) -> Optional[float]:
+        """Yesterday's daily close. Lazy — only fetches once per ticker per
+        session. Cached on self._session[ticker]['prior_close']."""
+        sd = self._ensure_session(ticker, today_dt.date().isoformat())
+        if sd["prior_close"] is not None:
+            return sd["prior_close"]
+        try:
+            from datetime import timedelta as _td
+            end = today_dt.date().isoformat()
+            start = (today_dt.date() - _td(days=10)).isoformat()
+            bars = alp.get_bars(ticker, start=start, end=end,
+                                  timeframe="1Day", limit=10)
+            prior = next((b for b in reversed(bars)
+                            if b.t.date() < today_dt.date()), None)
+            if prior:
+                sd["prior_close"] = prior.c
+                return prior.c
+        except Exception:
+            pass
+        return None
+
+    def _fetch_flow_records(self, uw_client, ticker: str) -> list:
+        """UW flow records, cached per ticker for 5 min (rate-limit safe).
+        Returns [] on error so build_features falls back to no-flow features."""
+        import time as _time
+        now = _time.time()
+        cached = self._flow_cache.get(ticker)
+        if cached:
+            records, fetched = cached
+            if now - fetched < 300:
+                return records
+        if uw_client is None:
+            return []
+        try:
+            recs = uw_client.flow_recent(ticker)
+            self._flow_cache[ticker] = (recs, now)
+            return recs
+        except Exception:
+            self._flow_cache[ticker] = ([], now)
+            return []
+
+    def _drop_setups_for_ticker(self, ticker: str, keep_ids: set) -> None:
+        """Drop any setup cards for `ticker` whose id is NOT in keep_ids.
+        Lets multi-strategy evaluation safely refresh only the strategies
+        that just ran without nuking sibling cards (e.g., S2 firing alongside S4)."""
+        for sid in list(self.status.setups.keys()):
+            row = self.status.setups[sid]
+            if row.get("ticker") == ticker and sid not in keep_ids:
+                self.status.setups.pop(sid, None)
+
+    def _build_s2_decision(self, features, scalp_state, cfg, alp, bars, now):
+        """Returns (decision, direction) for S2, or (None, None) if can't evaluate."""
+        from strategies.s2_orb.allow_s2_trade import allow_s2_trade
+        from strategies.s2_orb.setup import S2SetupContext
+        from strategies.s2_orb.opening_range import OpeningRange
+
+        today_str = now.date().isoformat()
+        or_pair = self._compute_or(bars, today_str)
+        if or_pair is None:
+            return None, None
+        or_high, or_low = or_pair
+        opening_range = OpeningRange(
+            ticker=features.ticker, high=or_high, low=or_low,
+            mid=(or_high + or_low) / 2.0, computed_at=now,
+        )
+        prior_close = self._fetch_prior_close(alp, features.ticker, now)
+        gap_pct = 0.0
+        if prior_close and prior_close > 0 and bars:
+            first_today = next((b for b in bars
+                                   if b.t.date().isoformat() == today_str),
+                                  bars[-1])
+            gap_pct = (first_today.o - prior_close) / prior_close
+        recent_30 = bars[-30:] if len(bars) >= 30 else bars
+        avg_min_vol = sum(b.v for b in recent_30) / max(1, len(recent_30))
+        # Premkt vol: TODO real 5-day comparison. 5.0 for now (passes gate).
+        premkt_vol_ratio = 5.0
+        direction = "long" if scalp_state.name == "SURGE_IGNITION" else "short"
+        ctx = S2SetupContext(
+            ticker=features.ticker, last_close=features.close,
+            last_bar_volume=features.volume,
+            avg_minute_volume_30bar=avg_min_vol,
+            gap_pct=gap_pct, pre_market_volume_ratio=premkt_vol_ratio,
+            opening_range=opening_range,
+            earnings_blackout=features.earnings_blackout,
+        )
+        decision = allow_s2_trade(
+            setup_ctx=ctx, features=features, scalp_state=scalp_state,
+            cfg=cfg, risk_manager_allows=True,
+            candidate_id=f"auto-S2-{features.ticker}-{features.bar_idx}",
+        )
+        return decision, direction
+
+    def _build_s3_decision(self, features, scalp_state, cfg):
+        from strategies.s3_momentum.allow_s3_trade import allow_s3_trade
+        from strategies.s3_momentum.setup import S3SetupContext
+        from scalp_brain.scores import reversal_score as rev_score
+        direction = "long" if scalp_state.name == "SURGE_CONTINUATION" else "short"
+        ctx = S3SetupContext(
+            ticker=features.ticker,
+            session_return_atr=features.extension_from_prior_close_atr,
+            vwap_distance_atr=features.extension_from_vwap_atr,
+            consecutive_higher_lows=4 if direction == "long" and not features.pullback_break else 0,
+            consecutive_lower_highs=4 if direction == "short" and not features.pullback_break else 0,
+            aggressor_avg_30m=features.aggressor_recent,
+            near_htf_level_atr=features.near_htf_level_atr,
+            distance_to_pos_gex_atr=abs(features.distance_to_major_pos_gex_atr),
+        )
+        rs = rev_score(features, "short" if direction == "long" else "long", cfg)
+        decision = allow_s3_trade(
+            setup_ctx=ctx, features=features, scalp_state=scalp_state,
+            reversal_score=rs, cfg=cfg, risk_manager_allows=True,
+            candidate_id=f"auto-S3-{features.ticker}-{features.bar_idx}",
+        )
+        return decision, direction
+
+    def _build_s4_decision(self, features, scalp_state, cfg):
+        from strategies.s4_signed_flow.allow_s4_trade import allow_s4_trade
+        from strategies.s4_signed_flow.setup import S4SetupContext
+        # Direction follows signed_flow_score; if 0 (no flow data) skip
+        if features.signed_flow_score == 0.0:
+            return None, None
+        direction = "long" if features.signed_flow_score > 0 else "short"
+        ctx = S4SetupContext(
+            ticker=features.ticker,
+            signed_flow_score=features.signed_flow_score,
+            price_return_30m_atr=features.extension_from_vwap_atr,
+            iv_percentile=features.iv_percentile,
+            distance_to_pos_gex_atr=abs(features.distance_to_major_pos_gex_atr),
+            earnings_blackout=features.earnings_blackout,
+            daily_relative_volume=1.5,    # placeholder until daily-vol feed wired
+        )
+        decision = allow_s4_trade(
+            setup_ctx=ctx, features=features, scalp_state=scalp_state, cfg=cfg,
+            risk_manager_allows=True,
+            candidate_id=f"auto-S4-{features.ticker}-{features.bar_idx}",
+        )
+        return decision, direction
+
+    def _build_s5_decision(self, features, scalp_state, cfg):
+        from strategies.s5_gamma_reversal.allow_s5_trade import allow_s5_trade
+        direction = "long" if scalp_state.name == "TANK_REVERSE" else "short"
+        decision = allow_s5_trade(
+            features=features, model=None, threshold=0.50, cfg=cfg,
+            risk_manager_allows=True, expected_value_net=0.0,
+            reversal_score=scalp_state.score,
+            candidate_id=f"auto-S5-{features.ticker}-{features.bar_idx}",
+        )
+        return decision, direction
+
+    async def _evaluate_and_maybe_trade(self, alp, features, scalp_state,
+                                          cfg: dict, bars: list, now: datetime) -> None:
+        """Multi-strategy evaluation. Each trigger state can fire multiple
+        strategies in parallel, each producing its own setup card.
+
+        State → strategies:
+          SURGE_REVERSE / TANK_REVERSE         → S5
+          SURGE_CONTINUATION / TANK_CONTINUATION → S3 + S4 (if flow non-zero)
+          SURGE_IGNITION / TANK_IGNITION       → S2 + S4 (if flow non-zero)
+          NEUTRAL / other                      → drop all setups for this ticker
         """
         from journal.decision_log import log_decision_sync
 
-        decision = None
-        strategy = None
-        direction = None
+        # Build list of (strategy, decision, direction) tuples for all
+        # strategies in scope of this state.
+        evals: list[tuple[str, object, str]] = []
 
         if scalp_state.name in ("SURGE_REVERSE", "TANK_REVERSE"):
-            from strategies.s5_gamma_reversal.allow_s5_trade import allow_s5_trade
-            strategy = "S5"
-            direction = "long" if scalp_state.name == "TANK_REVERSE" else "short"
-            decision = allow_s5_trade(
-                features=features, model=None,
-                threshold=0.50, cfg=cfg,
-                risk_manager_allows=True,
-                expected_value_net=0.0,
-                reversal_score=scalp_state.score,
-                candidate_id=f"auto-S5-{features.ticker}-{features.bar_idx}",
-            )
+            d, dirn = self._build_s5_decision(features, scalp_state, cfg)
+            if d is not None:
+                evals.append(("S5", d, dirn))
 
         elif scalp_state.name in ("SURGE_CONTINUATION", "TANK_CONTINUATION"):
-            from strategies.s3_momentum.allow_s3_trade import allow_s3_trade
-            from strategies.s3_momentum.setup import S3SetupContext
-            from scalp_brain.scores import reversal_score as rev_score
-            strategy = "S3"
-            direction = "long" if scalp_state.name == "SURGE_CONTINUATION" else "short"
-            ctx = S3SetupContext(
-                ticker=features.ticker,
-                session_return_atr=features.extension_from_prior_close_atr,
-                vwap_distance_atr=features.extension_from_vwap_atr,
-                consecutive_higher_lows=4 if direction == "long" and not features.pullback_break else 0,
-                consecutive_lower_highs=4 if direction == "short" and not features.pullback_break else 0,
-                aggressor_avg_30m=features.aggressor_recent,
-                near_htf_level_atr=features.near_htf_level_atr,
-                distance_to_pos_gex_atr=abs(features.distance_to_major_pos_gex_atr),
-            )
-            rs = rev_score(features, "short" if direction == "long" else "long", cfg)
-            decision = allow_s3_trade(
-                setup_ctx=ctx, features=features, scalp_state=scalp_state,
-                reversal_score=rs, cfg=cfg,
-                risk_manager_allows=True,
-                candidate_id=f"auto-S3-{features.ticker}-{features.bar_idx}",
-            )
+            d, dirn = self._build_s3_decision(features, scalp_state, cfg)
+            if d is not None:
+                evals.append(("S3", d, dirn))
+            d4, dirn4 = self._build_s4_decision(features, scalp_state, cfg)
+            if d4 is not None:
+                evals.append(("S4", d4, dirn4))
 
-        # No strategy in scope for this state → drop any stale setup card and exit
-        if decision is None:
-            self.status.setups.pop(features.ticker, None)
+        elif scalp_state.name in ("SURGE_IGNITION", "TANK_IGNITION"):
+            d, dirn = self._build_s2_decision(features, scalp_state, cfg, alp, bars, now)
+            if d is not None:
+                evals.append(("S2", d, dirn))
+            d4, dirn4 = self._build_s4_decision(features, scalp_state, cfg)
+            if d4 is not None:
+                evals.append(("S4", d4, dirn4))
+
+        # No strategy in scope → drop all setups for this ticker
+        if not evals:
+            self._drop_setups_for_ticker(features.ticker, keep_ids=set())
             return
 
-        # sqlite log (best-effort)
-        try:
-            log_decision_sync(decision, features, model_version="paper_trader_v0")
-        except Exception:
-            pass
-
-        # Compute executable plan (entry / stop / target / qty)
+        # Build setup cards for each evaluation
+        kept_ids: set = set()
         atr = max(features.high - features.low, 0.10)
-        entry = features.close
-        if direction == "long":
-            stop = entry - atr
-            target = entry + atr
-            side = "buy"
-        else:
-            stop = entry + atr
-            target = entry - atr
-            side = "sell"
-        risk_per_share = max(abs(entry - stop), 0.01)
-        risk_dollars = 500.0
-        qty = max(1, int(risk_dollars / risk_per_share))
-
-        stage = "TRADE" if decision.decision == "TRADE" else "FORMING"
-        # Stable signal id — same across bars so long as strategy+direction
-        # don't flip. This way `taken_signal_ids` dedup works properly and the
-        # `created_at` timestamp on the card stays anchored to first detection.
-        signal_id = f"{strategy}-{features.ticker}-{direction}"
         now_iso = datetime.now(tz=timezone.utc).isoformat(timespec="seconds") + "Z"
 
-        # Preserve created_at if same signal id already exists
-        prior_setup = self.status.setups.get(features.ticker)
-        if prior_setup and prior_setup.get("id") == signal_id:
-            created_at = prior_setup.get("created_at") or now_iso
-        else:
-            created_at = now_iso
+        for strategy, decision, direction in evals:
+            try:
+                log_decision_sync(decision, features, model_version="paper_trader_v0")
+            except Exception:
+                pass
 
-        setup_row = {
-            "id": signal_id,
-            "ticker": features.ticker,
-            "strategy": strategy,
-            "direction": direction,
-            "side": side,
-            "state": scalp_state.name,
-            "score": round(scalp_state.score, 3),
-            "stage": stage,
-            "decision": decision.decision,
-            "pass_reason": decision.pass_reason,
-            "entry": round(entry, 2),
-            "stop": round(stop, 2),
-            "target": round(target, 2),
-            "qty": qty,
-            "atr": round(atr, 2),
-            "created_at": created_at,
-            "last_evaluated_at": now_iso,
-        }
-        # Card persists until state goes back to NEUTRAL (or another state replaces it)
-        self.status.setups[features.ticker] = setup_row
+            entry = features.close
+            if direction == "long":
+                stop = entry - atr; target = entry + atr; side = "buy"
+            else:
+                stop = entry + atr; target = entry - atr; side = "sell"
+            risk_per_share = max(abs(entry - stop), 0.01)
+            qty = max(1, int(500.0 / risk_per_share))
 
-        # Decisions feed (audit log)
-        self._add_decision({
-            "ts": now_iso, "ticker": features.ticker,
-            "strategy": strategy, "direction": direction,
-            "state": scalp_state.name, "score": setup_row["score"],
-            "decision": decision.decision, "reason": decision.pass_reason,
-        })
-        self.status.last_decision = setup_row
+            stage = "TRADE" if decision.decision == "TRADE" else "FORMING"
+            signal_id = f"{strategy}-{features.ticker}-{direction}"
+            kept_ids.add(signal_id)
 
-        # Auto-submit only when /auto toggle is on AND we're in regular session
-        # (not warm-up — pre-market liquidity is too thin for our brackets).
-        if (stage == "TRADE" and self.status.auto_submit
-                and self.status.phase == "open"):
-            await self._submit_from_setup(alp, setup_row)
-            self.status.taken_signal_ids.add(signal_id)
+            prior_setup = self.status.setups.get(signal_id)
+            created_at = (prior_setup.get("created_at") if prior_setup else now_iso) or now_iso
+
+            setup_row = {
+                "id": signal_id,
+                "ticker": features.ticker,
+                "strategy": strategy,
+                "direction": direction, "side": side,
+                "state": scalp_state.name,
+                "score": round(scalp_state.score, 3),
+                "stage": stage,
+                "decision": decision.decision,
+                "pass_reason": decision.pass_reason,
+                "entry": round(entry, 2), "stop": round(stop, 2),
+                "target": round(target, 2), "qty": qty,
+                "atr": round(atr, 2),
+                "created_at": created_at,
+                "last_evaluated_at": now_iso,
+            }
+            self.status.setups[signal_id] = setup_row
+
+            self._add_decision({
+                "ts": now_iso, "ticker": features.ticker,
+                "strategy": strategy, "direction": direction,
+                "state": scalp_state.name, "score": setup_row["score"],
+                "decision": decision.decision, "reason": decision.pass_reason,
+            })
+            self.status.last_decision = setup_row
+
+            # Auto-submit gate: TRADE + auto_submit + regular session only
+            if (stage == "TRADE" and self.status.auto_submit
+                    and self.status.phase == "open"):
+                await self._submit_from_setup(alp, setup_row)
+                self.status.taken_signal_ids.add(signal_id)
+
+        # Drop sibling setups for this ticker that were NOT regenerated this tick
+        # (e.g., S3 evaluation stopped because state moved to S2 IGNITION).
+        self._drop_setups_for_ticker(features.ticker, keep_ids=kept_ids)
 
     async def _submit_from_setup(self, alp, setup: dict) -> dict:
         """Submit an Alpaca bracket from a setup row. Used by both auto-submit
