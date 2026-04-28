@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>scalp 2 — trader dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&family=Lora&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Lora', Georgia, serif;
+      color: #141413;
+      background: #faf9f5;
+      margin: 0;
+      padding: 28px 36px;
+      max-width: 1320px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    h1, h2, h3 { font-family: 'Poppins', Arial, sans-serif; font-weight: 600; }
+    h1 { font-size: 26px; color: #d97757; margin-bottom: 0; }
+    h2 { font-size: 18px; margin-top: 32px; border-bottom: 1px solid #e8e6dc;
+          padding-bottom: 6px; }
+    .header-sub { color: #b0aea5; font-size: 13px; margin-bottom: 14px; }
+    code { background: #e8e6dc; padding: 1px 6px; border-radius: 3px;
+            font-family: 'SF Mono', Menlo, Monaco, monospace; font-size: 12px; }
+
+    /* Strategy cards */
+    .strategy-row { display: flex; gap: 14px; flex-wrap: wrap; margin: 14px 0; }
+    .strategy-card {
+      background: white; border: 1px solid #e8e6dc;
+      border-radius: 8px; padding: 16px 20px; flex: 1; min-width: 240px;
+    }
+    .strategy-header { display: flex; justify-content: space-between; align-items: center;
+                        margin-bottom: 12px; }
+    .strategy-name { font-family: 'Poppins', Arial, sans-serif; font-weight: 600;
+                      font-size: 18px; color: #141413; }
+    .strategy-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; }
+    .strategy-metrics .label { font-size: 11px; color: #b0aea5;
+                                 text-transform: uppercase; letter-spacing: 0.04em;
+                                 display: block; }
+    .strategy-metrics .value { font-family: 'Poppins', Arial, sans-serif;
+                                 font-weight: 600; font-size: 16px; display: block; }
+    .pos { color: #788c5d; }
+    .neg { color: #b85436; }
+    .zero { color: #b0aea5; }
+
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 3px;
+              font-size: 10px; font-family: 'Poppins', Arial, sans-serif;
+              font-weight: 600; letter-spacing: 0.06em; }
+    .badge.pos { background: #788c5d; color: white; }
+    .badge.neg { background: #b85436; color: white; }
+    .badge.zero { background: #e8e6dc; color: #141413; }
+
+    /* Tables */
+    table { width: 100%; border-collapse: collapse; margin: 12px 0;
+              background: white; border: 1px solid #e8e6dc;
+              border-radius: 6px; overflow: hidden; }
+    th, td { padding: 7px 11px; text-align: left;
+              border-bottom: 1px solid #e8e6dc; font-size: 13px; }
+    th { background: #e8e6dc; font-family: 'Poppins', Arial, sans-serif;
+          font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em;
+          font-size: 11px; color: #141413; }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    th.num { text-align: right; }
+    .small { font-size: 11px; color: #b0aea5; }
+
+    .note { border-left: 4px solid #6a9bcc; background: #e8e6dc;
+              padding: 12px 16px; border-radius: 0 4px 4px 0; margin: 12px 0; font-size: 13px; }
+    </style>
+</head>
+<body>
+  <h1>scalp 2 — trader dashboard</h1>
+  <div class="header-sub">
+    Generated 2026-04-28T06:07:34+00:00Z · backtest window 2026-04-14 → 2026-04-25 ·
+    branch <code>dev/harsha/slaudesadvstartegy</code>
+  </div>
+
+  <h2>Strategy edge — backtest verdict</h2>
+  <div class="strategy-row">
+<div class="strategy-card">
+  <div class="strategy-header">
+    <span class="strategy-name">S2</span>
+    <span class="badge pos">TRADE</span>
+  </div>
+  <div class="strategy-metrics">
+    <div><span class="label">trades</span><span class="value">10</span></div>
+    <div><span class="label">win %</span><span class="value">70.0%</span></div>
+    <div><span class="label">avg PnL</span><span class="value pos">+0.40 ATR</span></div>
+    <div><span class="label">Sharpe (ann)</span><span class="value pos">+6.57</span></div>
+  </div>
+</div>
+<div class="strategy-card">
+  <div class="strategy-header">
+    <span class="strategy-name">S3</span>
+    <span class="badge pos">TRADE</span>
+  </div>
+  <div class="strategy-metrics">
+    <div><span class="label">trades</span><span class="value">42</span></div>
+    <div><span class="label">win %</span><span class="value">64.3%</span></div>
+    <div><span class="label">avg PnL</span><span class="value pos">+0.29 ATR</span></div>
+    <div><span class="label">Sharpe (ann)</span><span class="value pos">+4.68</span></div>
+  </div>
+</div>
+<div class="strategy-card">
+  <div class="strategy-header">
+    <span class="strategy-name">S5</span>
+    <span class="badge zero">NO DATA</span>
+  </div>
+  <div class="strategy-metrics">
+    <div><span class="label">trades</span><span class="value">0</span></div>
+    <div><span class="label">win %</span><span class="value">0.0%</span></div>
+    <div><span class="label">avg PnL</span><span class="value zero">+0.00 ATR</span></div>
+    <div><span class="label">Sharpe (ann)</span><span class="value zero">+0.00</span></div>
+  </div>
+</div></div>
+
+  <h2>Account: $74,867 equity, $319,977 BP, daytrade count 395</h2>
+
+  
+<h2>Open positions (32) — net unrealized: <span class="neg">$-10,791</span></h2>
+<table>
+  <thead><tr><th>Symbol</th><th class="num">Qty</th><th class="num">Avg entry</th><th class="num">Current</th><th class="num">Mkt value</th><th class="num">Unrealized P&L</th></tr></thead>
+  <tbody><tr>
+  <td><code>AAPL260508C00277500</code></td>
+  <td class="num">2</td>
+  <td class="num small">$3.80</td>
+  <td class="num small">$2.82</td>
+  <td class="num small">$564</td>
+  <td class="num neg">$-196 (-25.8%)</td>
+</tr><tr>
+  <td><code>AMD260508C00357500</code></td>
+  <td class="num">1</td>
+  <td class="num small">$18.45</td>
+  <td class="num small">$10.10</td>
+  <td class="num small">$1,010</td>
+  <td class="num neg">$-835 (-45.3%)</td>
+</tr><tr>
+  <td><code>AMZN260508C00270000</code></td>
+  <td class="num">2</td>
+  <td class="num small">$7.70</td>
+  <td class="num small">$6.50</td>
+  <td class="num small">$1,300</td>
+  <td class="num neg">$-240 (-15.6%)</td>
+</tr><tr>
+  <td><code>ARM260508C00240000</code></td>
+  <td class="num">1</td>
+  <td class="num small">$19.40</td>
+  <td class="num small">$8.40</td>
+  <td class="num small">$840</td>
+  <td class="num neg">$-1,100 (-56.7%)</td>
+</tr><tr>
+  <td><code>AVGO260508C00430000</code></td>
+  <td class="num">2</td>
+  <td class="num small">$12.10</td>
+  <td class="num small">$9.25</td>
+  <td class="num small">$1,850</td>
+  <td class="num neg">$-570 (-23.6%)</td>
+</tr><tr>
+  <td><code>BKSY260515P00030000</code></td>
+  <td class="num">2</td>
+  <td class="num small">$3.40</td>
+  <td class="num small">$2.35</td>
+  <td class="num small">$470</td>
+  <td class="num neg">$-210 (-30.9%)</td>
+</tr><tr>
+  <td><code>CAR260508P00180000</code></td>
+  <td class="num">1</td>
+  <td class="num small">$19.90</td>
+  <td class="num small">$17.90</td>
+  <td class="num small">$1,790</td>
+  <td class="num neg">$-200 (-10.1%)</td>
+</tr><tr>
+  <td><code>CRDO260508C00202500</code></td>
+  <td class="num">2</td>
+  <td class="num small">$13.10</td>
+  <td class="num small">$5.00</td>
+  <td class="num small">$1,000</td>
+  <td class="num neg">$-1,620 (-61.8%)</td>
+</tr><tr>
+  <td><code>DELL260515C00220000</code></td>
+  <td class="num">2</td>
+  <td class="num small">$9.70</td>
+  <td class="num small">$9.00</td>
+  <td class="num small">$1,800</td>
+  <td class="num neg">$-140 (-7.2%)</td>
+</tr><tr>
+  <td><code>FCX260508C00063000</code></td>
+  <td class="num">2</td>
+  <td class="num small">$1.38</td>
+  <td class="num small">$1.11</td>
+  <td class="num small">$222</td>
+  <td class="num neg">$-54 (-19.6%)</td>
+</tr><tr>
+  <td><code>GLD260508C00443000</code></td>
+  <td class="num">2</td>
+  <td class="num small">$4.50</td>
+  <td class="num small">$1.88</td>
+  <td class="num small">$376</td>
+  <td class="num neg">$-524 (-58.2%)</td>
+</tr><tr>
+  <td><code>HELE260515P00022500</code></td>
+  <td class="num">1</td>
+  <td class="num small">$0.80</td>
+  <td class="num small">$0.85</td>
+  <td class="num small">$85</td>
+  <td class="num pos">$+5 (+6.2%)</td>
+</tr><tr>
+  <td><code>HTZ260508P00005000</code></td>
+  <td class="num">9</td>
+  <td class="num small">$0.26</td>
+  <td class="num small">$0.23</td>
+  <td class="num small">$207</td>
+  <td class="num neg">$-27 (-11.5%)</td>
+</tr><tr>
+  <td><code>INTC260508C00085000</code></td>
+  <td class="num">1</td>
+  <td class="num small">$4.45</td>
+  <td class="num small">$4.75</td>
+  <td class="num small">$475</td>
+  <td class="num pos">$+30 (+6.7%)</td>
+</tr><tr>
+  <td><code>INTC260508C00089000</code></td>
+  <td class="num">2</td>
+  <td class="num small">$4.45</td>
+  <td class="num small">$3.10</td>
+  <td class="num small">$620</td>
+  <td class="num neg">$-270 (-30.3%)</td>
+</tr><tr>
+  <td><code>IWM260618C00285000</code></td>
+  <td class="num">2</td>
+  <td class="num small">$5.93</td>
+  <td class="num small">$5.88</td>
+  <td class="num small">$1,176</td>
+  <td class="num neg">$-10 (-0.8%)</td>
+</tr><tr>
+  <td><code>KLAC260515C01980000</code></td>
+  <td class="num">1</td>
+  <td class="num small">$94.00</td>
+  <td class="num small">$67.60</td>
+  <td class="num small">$6,760</td>
+  <td class="num neg">$-2,640 (-28.1%)</td>
+</tr><tr>
+  <td><code>LULU260508P00144000</code></td>
+  <td class="num">1</td>
+  <td class="num small">$3.25</td>
+  <td class="num small">$3.05</td>
+  <td class="num small">$305</td>
+  <td class="num neg">$-20 (-6.2%)</td>
+</tr><tr>
+  <td><code>MU260508C00537500</code></td>
+  <td class="num">1</td>
+  <td class="num small">$26.85</td>
+  <td class="num small">$25.35</td>
+  <td class="num small">$2,535</td>
+  <td class="num neg">$-150 (-5.6%)</td>
+</tr><tr>
+  <td><code>NVDA260511C00220000</code></td>
+  <td class="num">2</td>
+  <td class="num small">$5.30</td>
+  <td class="num small">$5.30</td>
+  <td class="num small">$1,060</td>
+  <td class="num pos">$+0 (+0.0%)</td>
+</tr><tr>
+  <td><code>ON260508C00100000</code></td>
+  <td class="num">2</td>
+  <td class="num small">$5.50</td>
+  <td class="num small">$5.20</td>
+  <td class="num small">$1,040</td>
+  <td class="num neg">$-60 (-5.5%)</td>
+</tr><tr>
+  <td><code>POET260508C00008500</code></td>
+  <td class="num">2</td>
+  <td class="num small">$0.84</td>
+  <td class="num small">$0.60</td>
+  <td class="num small">$120</td>
+  <td class="num neg">$-48 (-28.6%)</td>
+</tr><tr>
+  <td><code>QQQ260508C00295000</code></td>
+  <td class="num">1</td>
+  <td class="num small">$370.42</td>
+  <td class="num small">$367.77</td>
+  <td class="num small">$36,777</td>
+  <td class="num neg">$-265 (-0.7%)</td>
+</tr><tr>
+  <td><code>SLB260508C00057000</code></td>
+  <td class="num">2</td>
+  <td class="num small">$1.15</td>
+  <td class="num small">$0.84</td>
+  <td class="num small">$168</td>
+  <td class="num neg">$-62 (-27.0%)</td>
+</tr><tr>
+  <td><code>SLV260508C00070500</code></td>
+  <td class="num">2</td>
+  <td class="num small">$2.11</td>
+  <td class="num small">$1.41</td>
+  <td class="num small">$282</td>
+  <td class="num neg">$-140 (-33.2%)</td>
+</tr><tr>
+  <td><code>SMH260508C00520000</code></td>
+  <td class="num">2</td>
+  <td class="num small">$12.65</td>
+  <td class="num small">$10.00</td>
+  <td class="num small">$2,000</td>
+  <td class="num neg">$-530 (-20.9%)</td>
+</tr><tr>
+  <td><code>SPY260508P00666000</code></td>
+  <td class="num">2</td>
+  <td class="num small">$0.93</td>
+  <td class="num small">$0.45</td>
+  <td class="num small">$90</td>
+  <td class="num neg">$-96 (-51.6%)</td>
+</tr><tr>
+  <td><code>TLRY260508P00006000</code></td>
+  <td class="num">13</td>
+  <td class="num small">$0.19</td>
+  <td class="num small">$0.08</td>
+  <td class="num small">$104</td>
+  <td class="num neg">$-143 (-57.9%)</td>
+</tr><tr>
+  <td><code>TQQQ260508C00064000</code></td>
+  <td class="num">2</td>
+  <td class="num small">$2.31</td>
+  <td class="num small">$2.03</td>
+  <td class="num small">$406</td>
+  <td class="num neg">$-56 (-12.1%)</td>
+</tr><tr>
+  <td><code>TSM260508C00415000</code></td>
+  <td class="num">2</td>
+  <td class="num small">$11.10</td>
+  <td class="num small">$9.40</td>
+  <td class="num small">$1,880</td>
+  <td class="num neg">$-340 (-15.3%)</td>
+</tr></tbody>
+</table>
+
+  <h2>Per-ticker recommendations (29 tickers in backtest)</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Ticker</th>
+        <th>S2 status</th>
+        <th class="num">S2 history n (win%) avg ATR</th>
+        <th>S3 status</th>
+        <th class="num">S3 history n (win%) avg ATR</th>
+      </tr>
+    </thead>
+    <tbody><tr>
+  <td><b>AAPL</b></td>
+  <td>🔇 MUTE</td>
+  <td class="num small">—</td>
+  <td>✅ TRADE</td>
+  <td class="num small">3 (0%) -1.00</td>
+</tr><tr>
+  <td><b>ABNB</b></td>
+  <td>🔇 MUTE</td>
+  <td class="num small">—</td>
+  <td>✅ TRADE</td>
+  <td class="num small">1 (100%) +1.00</td>
+</tr><tr>
+  <td><b>AMZN</b></td>
+  <td>🔇 MUTE</td>
+  <td class="num small">—</td>
+  <td>✅ TRADE</td>
+  <td class="num small">3 (100%) +1.00</td>
+</tr><tr>
+  <td><b>ARM</b></td>
+  <td>🔇 MUTE</td>
+  <td class="num small">—</td>
+  <td>✅ TRADE</td>
+  <td class="num small">1 (100%) +1.00</td>
+</tr><tr>
+  <td><b>AVGO</b></td>
+  <td>🔇 MUTE</td>
+  <td class="num small">—</td>
+  <td>✅ TRADE</td>
+  <td class="num small">1 (100%) +1.00</td>
+</tr><tr>
+  <td><b>COIN</b></td>
+  <td>🔇 MUTE</td>
+  <td class="num small">—</td>
+  <td>✅ TRADE</td>
+  <td class="num small">3 (100%) +1.00</td>
+</tr><tr>
+  <td><b>CRWD</b></td>
+  <td>🔇 MUTE</td>
+  <td class="num small">—</td>
+  <td>✅ TRADE</td>
+  <td class="num small">1 (0%) -1.00</td>
+</tr><tr>
+  <td><b>CRWV</b></td>
+  <td>🔇 MUTE</td>
+  <td class="num small">—</td>
+  <td>✅ TRADE</td>
+  <td class="num small">4 (75%) +0.50</td>
+</tr><tr>
+  <td><b>DIA</b></td>
+  <td>✅ TRADE</td>
+  <td class="num small">—</td>
+  <td>✅ TRADE</td>
+  <td class="num small">2 (100%) +1.00</td>
+</tr><tr>
+  <td><b>HOOD</b></td>
+  <td>🔇 MUTE</td>
+  <td class="num small">—</td>
+  <td>✅ TRADE</td>
+  <td class="num small">1 (100%) +1.00</td>
+</tr><tr>
+  <td><b>IWM</b></td>
+  <td>✅ TRADE</td>
+  <td class="num small">1 (100%) +1.00</td>
+  <td>✅ TRADE</td>
+  <td class="num small">1 (100%) +1.00</td>
+</tr><tr>
+  <td><b>MSFT</b></td>
+  <td>🔇 MUTE</td>
+  <td class="num small">—</td>
+  <td>✅ TRADE</td>
+  <td class="num small">2 (50%) +0.00</td>
+</tr><tr>
+  <td><b>MU</b></td>
+  <td>🔇 MUTE</td>
+  <td class="num small">—</td>
+  <td>✅ TRADE</td>
+  <td class="num small">1 (100%) +1.00</td>
+</tr><tr>
+  <td><b>NFLX</b></td>
+  <td>🔇 MUTE</td>
+  <td class="num small">—</td>
+  <td>✅ TRADE</td>
+  <td class="num small">1 (0%) -1.00</td>
+</tr><tr>
+  <td><b>NVDA</b></td>
+  <td>🔇 MUTE</td>
+  <td class="num small">—</td>
+  <td>✅ TRADE</td>
+  <td class="num small">1 (100%) +1.00</td>
+</tr><tr>
+  <td><b>PLTR</b></td>
+  <td>🔇 MUTE</td>
+  <td class="num small">—</td>
+  <td>✅ TRADE</td>
+  <td class="num small">1 (0%) -1.00</td>
+</tr><tr>
+  <td><b>QQQ</b></td>
+  <td>✅ TRADE</td>
+  <td class="num small">1 (100%) +1.00</td>
+  <td>✅ TRADE</td>
+  <td class="num small">—</td>
+</tr><tr>
+  <td><b>RDDT</b></td>
+  <td>🔇 MUTE</td>
+  <td class="num small">—</td>
+  <td>✅ TRADE</td>
+  <td class="num small">1 (0%) -1.00</td>
+</tr><tr>
+  <td><b>ROKU</b></td>
+  <td>🔇 MUTE</td>
+  <td class="num small">—</td>
+  <td>✅ TRADE</td>
+  <td class="num small">1 (0%) -1.00</td>
+</tr><tr>
+  <td><b>SHOP</b></td>
+  <td>🔇 MUTE</td>
+  <td class="num small">—</td>
+  <td>✅ TRADE</td>
+  <td class="num small">1 (100%) +1.00</td>
+</tr><tr>
+  <td><b>SMH</b></td>
+  <td>✅ TRADE</td>
+  <td class="num small">—</td>
+  <td>✅ TRADE</td>
+  <td class="num small">2 (100%) +1.00</td>
+</tr><tr>
+  <td><b>SNDK</b></td>
+  <td>🔇 MUTE</td>
+  <td class="num small">—</td>
+  <td>✅ TRADE</td>
+  <td class="num small">2 (50%) +0.00</td>
+</tr><tr>
+  <td><b>SOXS</b></td>
+  <td>✅ TRADE</td>
+  <td class="num small">2 (50%) +0.00</td>
+  <td>✅ TRADE</td>
+  <td class="num small">1 (100%) +1.00</td>
+</tr><tr>
+  <td><b>SOXX</b></td>
+  <td>✅ TRADE</td>
+  <td class="num small">1 (100%) +1.00</td>
+  <td>✅ TRADE</td>
+  <td class="num small">—</td>
+</tr><tr>
+  <td><b>SPY</b></td>
+  <td>✅ TRADE</td>
+  <td class="num small">1 (100%) +1.00</td>
+  <td>✅ TRADE</td>
+  <td class="num small">3 (67%) +0.33</td>
+</tr><tr>
+  <td><b>SQQQ</b></td>
+  <td>✅ TRADE</td>
+  <td class="num small">2 (50%) +0.00</td>
+  <td>✅ TRADE</td>
+  <td class="num small">—</td>
+</tr><tr>
+  <td><b>TQQQ</b></td>
+  <td>✅ TRADE</td>
+  <td class="num small">1 (100%) +1.00</td>
+  <td>✅ TRADE</td>
+  <td class="num small">1 (100%) +1.00</td>
+</tr><tr>
+  <td><b>XLE</b></td>
+  <td>✅ TRADE</td>
+  <td class="num small">—</td>
+  <td>✅ TRADE</td>
+  <td class="num small">2 (0%) -1.00</td>
+</tr><tr>
+  <td><b>XLF</b></td>
+  <td>✅ TRADE</td>
+  <td class="num small">1 (0%) -1.00</td>
+  <td>✅ TRADE</td>
+  <td class="num small">1 (0%) -1.00</td>
+</tr></tbody>
+  </table>
+
+  <h2>Today's live signals</h2>
+  
+<div class="note">
+  <b>No live signals yet today.</b> Start the daemon during market hours:
+  <code>python3 scripts/main.py --tickers SPY,QQQ,NVDA,...</code>
+  Decisions log to <code>data/dev_journal.db</code> and surface here on next refresh.
+</div>
+</body>
+</html>

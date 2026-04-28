@@ -164,9 +164,32 @@ s1:
 s2:
   gap_pct_min: 0.02
   pre_market_volume_ratio_min: 5.0
-  breakout_volume_ratio_min: 1.5
+  breakout_volume_ratio_min: 1.5     # tighten to 2.5+ post-tuning if false breakouts persist
   scan_window: ['09:35', '11:00']  # ET
   ignition_score_min: 0.50
+  # Universe restriction per backtest finding (37-ticker × 12-day):
+  # S2 wins on indices/ETFs (63.6% win) but loses on single names (33% / 18%).
+  # Daemon should only evaluate S2 for tickers in this list.
+  universe_allowlist:
+    - SPY
+    - QQQ
+    - IWM
+    - DIA
+    - SOXX
+    - SOXS
+    - SQQQ
+    - TQQQ
+    - XLE
+    - XLF
+    - XLK
+    - SMH
+  # S2-specific fake_breakout — STRICTER than S5's defaults (single-name volatility
+  # blew through S5's 0.40 wick / 0.45 aggressor thresholds in backtest):
+  fake_breakout:
+    wick_pct_max: 0.30                   # was 0.40 (S5 default); tighter for ORB
+    aggressor_collapse_long: 0.55        # was 0.45 → require stronger buying confirmation
+    aggressor_collapse_short: 0.45       # was 0.55 → require stronger selling confirmation
+    flow_contradicts_dollars: 200000     # was 300000 → tighter flow contradict gate
 
 s3:
   session_return_atr_min: 1.5
@@ -177,6 +200,9 @@ s3:
   gex_proximity_atr_min: 1.0
   scan_window: ['10:00', '15:00']
   continuation_score_min: 0.55
+  # Universe per backtest: edge across all classes (64.3% win, +0.286 ATR avg).
+  # No allowlist needed — trade all tickers in the watch universe.
+  universe_allowlist: null
 
 s4:
   signed_flow_score_min_abs: 0.65
