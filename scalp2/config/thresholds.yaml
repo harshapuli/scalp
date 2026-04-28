@@ -1,0 +1,180 @@
+# Configuration for Edge-Centric Trading System v2.2
+# Source of truth: every threshold the system uses lives here.
+# Calibrated values get written back here. Hot-reload OK; never edit in code.
+#
+# Reference: docs/spec/trading_system_lifecycle.docx §10.4
+# Loaded by: infra/config_loader.py (TODO M1 of FND-E1)
+
+# === FOUNDATION ===
+polygon:
+  ws_reconnect_max_seconds: 60
+  rest_rate_limit_per_min: 5
+
+uw:
+  base_url: 'https://api.unusualwhales.com'
+  gex_max_age_min: 30           # tighten after FND-3.1 verification (BLOCKER)
+  schema_check_interval_min: 60
+
+alpaca:
+  endpoint: 'https://paper-api.alpaca.markets'  # flip 'live-api...' for live
+  client_order_id_prefix: 'edge'
+
+# === SCALP BRAIN (v2.2 §B4) ===
+scalp:
+  state_min_age_bars: 2          # hysteresis (SCALP-2.2)
+  ignition_score:
+    weight_extension: 0.35
+    weight_volume: 0.30
+    weight_aggressor: 0.25
+    weight_flow: 0.10
+    threshold: 0.50
+  continuation_score:
+    weight_higher_lows: 0.30
+    weight_aggressor_persist: 0.30
+    weight_volume_steady: 0.20
+    weight_vwap_distance: 0.20
+    threshold: 0.55
+  climax_score:
+    weight_extreme_extension: 0.40
+    weight_volume_decline: 0.30
+    weight_wick_pct: 0.20
+    weight_aggressor_decay: 0.10
+    threshold: 0.60
+  reversal_score:
+    weight_failed_extension: 0.30
+    weight_wick: 0.20
+    weight_aggressor_flip: 0.25
+    weight_volume_divergence: 0.15
+    weight_flow_flip: 0.10
+    threshold_long: 0.50      # TANK_REVERSE
+    threshold_short: 0.55     # SURGE_REVERSE (asymmetry from v2.2 §15)
+
+# === SWING BRAIN ===
+swing:
+  candidate_ttl_min:
+    s1: -1                    # window-driven
+    s2: 30
+    s3: 30
+    s4: 45
+    s5: 30
+  scanner_interval_min:
+    s1: 1440                  # daily
+    s2: 1                     # 09:35-11:00 only
+    s3: 5
+    s4: 5
+    s5: 5
+  max_candidates_per_strategy: 50
+
+# === S5 SETUP & TRIGGER (v2.2 §14, §15) ===
+s5:
+  setup:
+    near_gex_atr: 0.50
+    extended_atr_min: 1.50
+    at_liquidity_atr: 0.50
+    gex_strike_dte_min: 6     # v2.2 §22b
+    gex_snapshot_max_age_min: 30  # v2.2 §22a
+  trigger:
+    pierce_buffer_atr: 0.25
+    surge_reverse_score_min: 0.55
+    tank_reverse_score_min: 0.50
+  fake_breakout:
+    wick_pct_max: 0.40
+    aggressor_collapse_long: 0.45
+    aggressor_collapse_short: 0.55
+    flow_contradicts_dollars: 300000
+  execution:
+    dte_min: 7
+    dte_max: 14
+    delta_min: 0.35
+    delta_max: 0.45
+    debit_to_width_max: 0.40
+    option_spread_pct_max: 0.12
+    limit_buffer: 1.02         # 2% above mid
+  risk:
+    per_trade_pct_paper: 0.005   # 0.5%
+    per_trade_pct_full: 0.010    # 1.0% after Phase 7
+    concurrent_max: 2
+    same_ticker_max: 1
+    sector_max: 1
+    daily_kill_pct: -0.020
+    weekly_soft_pct: -0.040
+    iv_crush_vega_pct_of_premium: 0.50  # vega-weighted exit
+    iv_crush_placeholder_pct: 0.35      # until 30-trade calibration
+    drift_disable_pp: 10                # hit rate -10pp disables ML
+    model_max_age_hours: 48
+    bid_ask_spread_pct_max: 0.05
+    option_volume_5d_min: 200
+  ml:
+    threshold_low: 0.50
+    threshold_high: 0.85
+    threshold_extreme_warn_low: 0.51
+    threshold_extreme_warn_high: 0.83
+    min_validation_trades_per_threshold: 30
+    preferred_validation_trades: 50
+    pass:
+      auc_min: 0.62
+      ev_lift_min_pct: 0.15
+      brier_improvement_pct: 0.10
+      top_decile_precision_min: 0.60
+      calibration_slope_min: 0.85
+      calibration_slope_max: 1.15
+      feature_stability_min: 0.60
+      sample_size_min_per_direction: 200
+      sample_size_preferred: 300
+  posterior:
+    long_after_tank:
+      alpha: 5.5    # 10 * 0.55
+      beta: 4.5     # 10 * 0.45
+    short_after_surge:
+      alpha: 5.0
+      beta: 5.0
+    drift_alert_pp: 10
+    direction_divergence_pp: 15
+  cost_model:
+    commission_per_contract: 0.65
+    slippage_pct: 0.03         # 3% of premium
+    spread_cost_pct: 0.06      # weekly singles ~6% RT
+    recalibrate_after_paper_trades: 50
+    recalibrate_threshold_ratio: 0.20
+  paper:
+    min_days: 60
+    min_candidates: 50         # whichever LATER (S5-51 fix)
+    hit_rate_tolerance_pp: 15
+  ramp:
+    sizing_p1: 0.25            # quarter-Kelly multiplier
+    sizing_p2: 0.50
+    sizing_full: 1.00
+    p1_min_trades: 30
+    p2_min_trades: 30
+    full_min_cumulative: 100
+
+# === S1-S4 (per-strategy) ===
+s1:
+  vix_regime_max: 35
+  setup_window_hours: 24
+  forced_exit_minutes_before_announcement: 5
+  universe: ['SPY', 'QQQ', 'IWM']
+
+s2:
+  gap_pct_min: 0.02
+  pre_market_volume_ratio_min: 5.0
+  breakout_volume_ratio_min: 1.5
+  scan_window: ['09:35', '11:00']  # ET
+  ignition_score_min: 0.50
+
+s3:
+  session_return_atr_min: 1.5
+  vwap_distance_atr_min: 0.75
+  consecutive_structure_min: 4
+  aggressor_long_min: 0.60
+  aggressor_short_max: 0.40
+  gex_proximity_atr_min: 1.0
+  scan_window: ['10:00', '15:00']
+  continuation_score_min: 0.55
+
+s4:
+  signed_flow_score_min_abs: 0.65
+  iv_percentile_max: 0.80
+  gex_proximity_atr_min: 0.50
+  daily_relative_volume_min: 1.2
+  ttl_min: 45

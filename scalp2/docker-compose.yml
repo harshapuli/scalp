@@ -1,0 +1,47 @@
+# scalp2 / Edge-Centric Trading System v2.2 — local dev stack.
+# Per spec §10.8 build recipe:
+#   $ docker-compose up -d        # starts postgres + redis
+#   $ alembic upgrade head        # creates all tables from §10.3
+#
+# Postgres: 5 tables (decision_log, candidate_transitions, trades, ml_models,
+#           slippage_log) per spec §10.3
+# Redis: state + pubsub per spec §10.6 conventions
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: scalp2_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: trading
+      POSTGRES_USER: trading
+      POSTGRES_PASSWORD: changeme_in_secrets_env
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trading"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: scalp2_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pg_data:
+  redis_data:
