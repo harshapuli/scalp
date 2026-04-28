@@ -84,6 +84,45 @@ def _render_once() -> None:
 _LIVE_STATE: dict = {"generated_utc": "", "stale": True}
 _LIVE_LOCK = threading.Lock()
 
+# Pre-breakout scan cache (60s TTL)
+_PB_STATE: dict = {}
+_PB_LOCK = threading.Lock()
+_PB_TTL_SECONDS = 60
+
+
+def _pb_stale(cached: dict) -> bool:
+    ts = cached.get("scanned_at") or ""
+    if not ts:
+        return True
+    try:
+        when = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        return (datetime.now(tz=timezone.utc) - when).total_seconds() > _PB_TTL_SECONDS
+    except Exception:
+        return True
+
+
+def _pb_loop(interval_s: int) -> None:
+    """Refresh prebreakout scan in the background. Cheap when nothing's
+    coiling (most tickers fail compression). Caches the full ranked result."""
+    while not _stop_event.is_set():
+        try:
+            from prebreakout.scanner import scan_universe
+            fresh = scan_universe()
+            with _PB_LOCK:
+                _PB_STATE.clear()
+                _PB_STATE.update(fresh)
+            n_s = fresh.get("summary", {}).get("n_surge", 0)
+            n_t = fresh.get("summary", {}).get("n_tank", 0)
+            if n_s or n_t:
+                _log(f"prebreakout scan: surge={n_s} tank={n_t} "
+                      f"vix={fresh.get('vix_bucket')} tod={fresh.get('tod_bucket')}")
+        except Exception as e:
+            _log(f"prebreakout scan failed: {e}")
+        for _ in range(interval_s):
+            if _stop_event.is_set():
+                return
+            time.sleep(1)
+
 
 def _refresh_live_state() -> None:
     """Pulls Alpaca account / positions / orders + dev_journal decisions and
@@ -327,16 +366,49 @@ class _QuietHandler(http.server.SimpleHTTPRequestHandler):
             }
             return _send_json(self, probes)
 
-        # /api/prebreakout?ticker=X&side=CALL — composite pre-breakout score
-        # 501 stub. Per design doc, M1-M7 (~33h) of build before this is real.
+        # /api/prebreakout/scan — full universe scan, cached 60s
+        if path == "/api/prebreakout/scan":
+            with _PB_LOCK:
+                cached = dict(_PB_STATE) if _PB_STATE.get("scanned_at") else None
+            if cached and not _pb_stale(cached):
+                return _send_json(self, cached)
+            # Trigger fresh scan if cache empty or stale
+            try:
+                from prebreakout.scanner import scan_universe
+                fresh = scan_universe()
+                # Strip raw[] from API response (keep only summary + ranked lists)
+                resp = {k: v for k, v in fresh.items() if k != "raw"}
+                with _PB_LOCK:
+                    _PB_STATE.clear()
+                    _PB_STATE.update(fresh)
+                return _send_json(self, resp)
+            except Exception as e:
+                return _send_json(self, {"error": f"{type(e).__name__}: {e}"}, 500)
+
+        # /api/prebreakout?ticker=X&side=long — single-ticker compute
         if path == "/api/prebreakout":
-            return _send_json(self, {
-                "error": "not implemented",
-                "status": "ui_scaffold_only",
-                "next_build": "M1 Polygon aux client (4h) → M2 F1-F4 (8h) → "
-                              "M3 UW wrapper (4h) → M4 F5-F6 (6h) → "
-                              "M5 composite scorer (3h) → M7 audit page (4h)",
-            }, 501)
+            from prebreakout.scanner import scan_one, f7_vix_bucket, f8_time_of_day
+            from data_clients.alpaca import AlpacaClient
+            from datetime import datetime as _dt, timezone as _tz
+            qs = parse_qs(parsed.query)
+            tk = (qs.get("ticker") or [""])[0].upper().strip()
+            side = (qs.get("side") or ["CALL"])[0].upper()
+            if not tk:
+                return _send_json(self, {"error": "ticker required"}, 400)
+            try:
+                from data_clients.unusual_whales import UWClient
+                uw = UWClient()
+            except Exception:
+                uw = None
+            try:
+                with AlpacaClient() as alp:
+                    now = _dt.now(tz=_tz.utc)
+                    r = scan_one(alp, uw, tk, now=now,
+                                  vix_bucket=f7_vix_bucket(alp, now),
+                                  tod_bucket=f8_time_of_day(now))
+                return _send_json(self, r)
+            except Exception as e:
+                return _send_json(self, {"error": f"{type(e).__name__}: {e}"}, 500)
 
         # /api/review?date=YYYY-MM-DD — daily EOD review (cached unless force=1)
         if path == "/api/review":
@@ -522,6 +594,9 @@ def main() -> int:
     # Background live-state loop (drives /api/live for browser polling)
     t2 = threading.Thread(target=_live_loop, args=(args.live_interval,), daemon=True)
     t2.start()
+    # Pre-breakout scanner — runs every 60s
+    t3 = threading.Thread(target=_pb_loop, args=(60,), daemon=True)
+    t3.start()
 
     # Auto-start the paper trader in scan-only mode so /trade.html shows
     # FORMING/TRADE cards without the user having to click "Start" first.

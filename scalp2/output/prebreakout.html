@@ -3,17 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>scalp 2 — pre-breakout factor stack</title>
+<title>scalp 2 — pre-breakout scanner</title>
 <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;500&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
     --ink:#141413; --bg:#faf9f5; --panel:#fff; --hair:#e8e6dc;
     --dim:#6b6a65; --mid:#b0aea5;
-    --accent:#d97757; --accent-soft:#fceee7; --blue:#6a9bcc; --blue-soft:#e4edf6;
-    --bull:#3d7c5e; --bear:#b03528; --warn:#a16207;
-    --bull-soft:#e7ece0; --bear-soft:#f9e0dd;
+    --accent:#d97757; --accent-soft:#fceee7;
+    --bull:#3d7c5e; --bull-soft:#e7ece0; --bear:#b03528; --bear-soft:#f9e0dd;
+    --warn:#a16207; --warn-soft:#fef3c7;
   }
-  * { box-sizing:border-box; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   body { margin:0; font:13px/1.4 'Lora',Georgia,serif; background:var(--bg); color:var(--ink);
     padding-bottom:env(safe-area-inset-bottom); }
   h2, h3, h4, .poppins { font-family:'Poppins',Arial,sans-serif; letter-spacing:-.01em; }
@@ -28,86 +28,74 @@
   .topnav a .sub { font-size:10px; color:var(--mid); font-weight:400; }
   .topnav a.active .sub { color:var(--accent); }
 
-  main { max-width:1100px; margin:0 auto; padding:14px 12px 30px; }
-  h2 { font-size:16px; color:var(--accent); margin:0 0 6px; font-weight:700; }
-  .lede { color:var(--dim); font-size:12px; margin-bottom:14px; }
+  main { max-width:1200px; margin:0 auto; padding:14px 12px 30px; }
+  h2 { font-size:16px; color:var(--accent); margin:0 0 4px; font-weight:700; }
+  .lede { color:var(--dim); font-size:12px; margin-bottom:10px; }
 
-  /* Composite-score banner */
-  .composite {
-    background:var(--panel); border:1px solid var(--hair); border-radius:14px;
-    padding:18px 22px; margin-bottom:14px;
-  }
-  .composite h3 { font-size:11px; color:var(--dim); text-transform:uppercase;
-    letter-spacing:.08em; margin:0 0 8px; font-weight:600; }
-  .score-bar { position:relative; height:34px; background:linear-gradient(90deg,
-    var(--bear) 0%, var(--bear-soft) 30%, var(--hair) 50%, var(--bull-soft) 70%, var(--bull) 100%);
-    border-radius:6px; overflow:hidden; }
-  .score-bar .marker { position:absolute; top:-4px; bottom:-4px; width:3px;
-    background:var(--ink); transition:left .3s; }
-  .score-bar .marker::after { content:''; position:absolute; left:-4px; top:0;
-    width:11px; height:11px; background:var(--ink); border-radius:50%; }
-  .score-bar .label { position:absolute; top:50%; transform:translateY(-50%);
-    font-family:'Poppins',Arial,sans-serif; font-weight:700; font-size:14px;
-    color:#fff; padding:0 12px; text-shadow:0 1px 1px rgba(0,0,0,.3); }
-  .score-thresholds { display:flex; justify-content:space-between; font-family:'Poppins',Arial,sans-serif;
-    font-size:9px; color:var(--dim); margin-top:6px; letter-spacing:.04em; }
+  .status-bar { display:flex; gap:8px; flex-wrap:wrap; padding:8px 0 12px;
+    border-bottom:1px solid var(--hair); margin-bottom:14px; }
+  .pill { font-family:'Poppins',Arial,sans-serif; font-size:11px; font-weight:500;
+    padding:4px 10px; border-radius:999px;
+    background:var(--panel); border:1px solid var(--hair); color:var(--dim); }
+  .pill.on { background:var(--bull-soft); color:var(--bull); border-color:rgba(61,124,94,.3); }
+  .pill.warn { background:var(--warn-soft); color:var(--warn); }
 
-  .verdict { font-family:'Poppins',Arial,sans-serif; font-weight:700; font-size:18px;
-    margin-top:10px; }
-  .verdict.go { color:var(--bull); }
-  .verdict.skip { color:var(--bear); }
-  .verdict.neutral { color:var(--dim); }
-  .verdict-sub { font-size:11px; color:var(--dim); }
+  /* Two-column SURGE / TANK */
+  .columns { display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:start; }
+  @media (max-width:780px) { .columns { grid-template-columns:1fr; } }
 
-  /* Factor grid */
-  .factor-section { margin-bottom:18px; }
-  .factor-section h3 { font-size:11px; color:var(--dim); text-transform:uppercase;
-    letter-spacing:.08em; margin:0 0 8px; font-weight:600; }
-  .factors { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:8px; }
-  .factor { background:var(--panel); border:1px solid var(--hair); border-radius:10px;
+  .col { background:var(--panel); border:1px solid var(--hair); border-radius:10px;
     padding:12px 14px; }
-  .factor-head { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px; }
-  .factor-name { font-family:'Poppins',Arial,sans-serif; font-weight:700; font-size:13px; }
-  .factor-id { font-family:'SF Mono',Menlo,monospace; font-size:10px; color:var(--mid); }
-  .factor-weight { font-family:'Poppins',Arial,sans-serif; font-size:10px; color:var(--accent);
-    background:var(--accent-soft); padding:2px 6px; border-radius:3px; font-weight:600; }
-  .factor-desc { font-size:11px; color:var(--dim); line-height:1.4; margin:4px 0 8px; }
+  .col.surge { border-color:rgba(61,124,94,.4); }
+  .col.tank { border-color:rgba(176,53,40,.4); }
+  .col h3 { font-size:11px; text-transform:uppercase; letter-spacing:.08em;
+    margin:0 0 8px; font-weight:700; display:flex; justify-content:space-between; align-items:center; }
+  .col.surge h3 { color:var(--bull); }
+  .col.tank h3 { color:var(--bear); }
+  .count { background:var(--hair); color:var(--ink); padding:1px 8px; border-radius:999px;
+    font-size:10px; font-weight:700; }
 
-  .factor-score-bar { height:6px; background:linear-gradient(90deg,
-    var(--bear) 0%, var(--hair) 50%, var(--bull) 100%);
-    border-radius:3px; position:relative; }
-  .factor-score-bar .marker { position:absolute; top:-3px; width:2px; height:12px;
-    background:var(--ink); transition:left .3s; }
-  .factor-status { display:flex; justify-content:space-between; font-family:'Poppins',Arial,sans-serif;
-    font-size:10px; margin-top:5px; }
-  .factor-status .val { font-weight:700; font-variant-numeric:tabular-nums; }
-  .factor-status .val.pos { color:var(--bull); }
-  .factor-status .val.neg { color:var(--bear); }
-  .factor-status .val.zero { color:var(--mid); }
-  .factor-status .source { color:var(--dim); font-size:10px; }
+  /* Setup card */
+  .setup { background:#fff; border:1px solid var(--hair); border-radius:8px;
+    padding:10px 12px; margin-bottom:7px; }
+  .setup.strong-align { border-color:rgba(217,119,87,.6); box-shadow:0 2px 8px rgba(217,119,87,.18); }
+  .setup.align { border-color:rgba(217,119,87,.4); }
+  .setup.counter { opacity:.7; }
 
-  .stub { font-style:italic; font-size:10px; color:var(--mid); margin-top:4px; }
+  .s-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:5px; }
+  .s-tk { font-family:'Poppins',Arial,sans-serif; font-weight:700; font-size:18px; }
+  .s-conf { font-family:'Poppins',Arial,sans-serif; font-size:18px; font-weight:700;
+    font-variant-numeric:tabular-nums; color:var(--accent); }
 
-  /* Ticker selector */
-  .ticker-select { display:flex; gap:8px; align-items:center; flex-wrap:wrap;
-    padding:8px 0 14px; border-bottom:1px solid var(--hair); margin-bottom:14px; }
-  .ticker-select label { font-family:'Poppins',Arial,sans-serif; font-size:11px;
-    color:var(--dim); text-transform:uppercase; letter-spacing:.06em; }
-  .ticker-select input { padding:6px 10px; border:1px solid var(--hair); border-radius:6px;
-    font-family:'Lora',Georgia,serif; font-size:13px; background:#fff; color:var(--ink);
-    text-transform:uppercase; font-weight:600; width:100px; }
-  .side-toggle { display:flex; gap:0; border:1px solid var(--hair); border-radius:6px;
-    overflow:hidden; }
-  .side-toggle button { padding:6px 14px; border:none; background:#fff;
-    font-family:'Poppins',Arial,sans-serif; font-weight:700; font-size:11px;
-    cursor:pointer; }
-  .side-toggle button.call.active { background:var(--bull); color:#fff; }
-  .side-toggle button.put.active { background:var(--bear); color:#fff; }
+  .s-meta { display:flex; gap:8px; flex-wrap:wrap; font-family:'Poppins',Arial,sans-serif;
+    font-size:10px; color:var(--dim); margin-bottom:6px; }
+  .s-meta span { font-variant-numeric:tabular-nums; }
+  .s-meta b { color:var(--ink); }
 
-  /* Spec card */
-  .spec { background:var(--blue-soft); border:1px solid rgba(106,155,204,.3);
-    border-radius:8px; padding:10px 14px; margin-top:14px; font-size:11px; }
-  .spec b { color:var(--ink); }
+  .verdict-pill { font-family:'Poppins',Arial,sans-serif; font-size:9px; font-weight:700;
+    letter-spacing:.05em; padding:2px 7px; border-radius:3px; text-transform:uppercase; }
+  .verdict-pill.STRONG_ALIGN { background:linear-gradient(135deg, var(--accent), #e88e6f); color:#fff; }
+  .verdict-pill.ALIGN { background:var(--accent-soft); color:var(--accent); }
+  .verdict-pill.NEUTRAL { background:var(--hair); color:var(--dim); }
+  .verdict-pill.COUNTER { background:var(--warn-soft); color:var(--warn); }
+  .verdict-pill.STRONG_COUNTER { background:var(--bear); color:#fff; }
+
+  /* Factor strip */
+  .factors { display:grid; grid-template-columns:repeat(6, 1fr); gap:3px; margin-top:6px; }
+  .f-cell { font-family:'Poppins',Arial,sans-serif; font-size:9px; padding:3px 4px; border-radius:3px;
+    text-align:center; font-variant-numeric:tabular-nums; font-weight:600; }
+  .f-cell .lbl { font-size:8px; opacity:.7; display:block; }
+  .f-cell.pos { background:var(--bull-soft); color:var(--bull); }
+  .f-cell.neg { background:var(--bear-soft); color:var(--bear); }
+  .f-cell.zero { background:var(--hair); color:var(--mid); }
+
+  .empty { text-align:center; color:var(--mid); font-style:italic; padding:30px 12px; font-size:12px; }
+
+  details { background:var(--panel); border:1px solid var(--hair); border-radius:8px;
+    margin-top:14px; padding:8px 12px; font-size:11px; }
+  details summary { font-family:'Poppins',Arial,sans-serif; font-weight:600; cursor:pointer;
+    color:var(--accent); }
+  details ul { margin:6px 0 0; padding-left:18px; color:var(--dim); }
 </style>
 </head>
 <body>
@@ -118,275 +106,131 @@
   <a href="/live.html"><span>💼 Live</span><span class="sub">positions</span></a>
   <a href="/auto.html"><span>🤖 Auto</span><span class="sub">paper bot</span></a>
   <a href="/review.html"><span>📓 Review</span><span class="sub">EOD analysis</span></a>
-  <a href="/prebreakout.html" class="active"><span>🌱 Pre-Breakout</span><span class="sub">factor stack</span></a>
+  <a href="/prebreakout.html" class="active"><span>🌱 Pre-Breakout</span><span class="sub">live scanner</span></a>
 </nav>
 
 <main>
-  <h2>Pre-breakout factor stack</h2>
+  <h2>Pre-breakout scanner</h2>
   <div class="lede">
-    8-factor probability shifter for scalp signals · 4 categories · score in [-1, +1] ·
-    composite gates entries when below counter-align threshold
+    37 tickers · 7 structural gates (compression + level + structure + proximity + volume drying + UW flow alignment)
+    + 6-factor probability stack ranked by composite score · 60s refresh
   </div>
 
-  <div class="ticker-select">
-    <label>Ticker</label>
-    <input type="text" id="ticker" value="SPY" autocomplete="off" maxlength="6">
-    <label>Side</label>
-    <div class="side-toggle">
-      <button class="call active" data-side="CALL">🐂 CALL</button>
-      <button class="put" data-side="PUT">🐻 PUT</button>
-    </div>
-    <button class="run" id="run-btn" style="background:var(--accent); color:#fff;">▶ Compute</button>
-    <span style="font-size:11px; color:var(--dim);" id="status"></span>
-  </div>
+  <div class="status-bar" id="status"><span class="pill">connecting…</span></div>
 
-  <!-- Composite score banner -->
-  <div class="composite">
-    <h3>Composite pre-breakout score</h3>
-    <div class="score-bar">
-      <div class="marker" id="score-marker" style="left:50%"></div>
-      <div class="label" style="left:50%; transform:translate(-50%, -50%);" id="score-label">0.00</div>
+  <div class="columns">
+    <div class="col surge">
+      <h3>🐂 SURGE candidates <span class="count" id="n-surge">0</span></h3>
+      <div id="surge"><div class="empty">no SURGE setups yet</div></div>
     </div>
-    <div class="score-thresholds">
-      <span>strong counter (-0.50)</span>
-      <span>counter (-0.20)</span>
-      <span>0</span>
-      <span>align (+0.20)</span>
-      <span>strong align (+0.50)</span>
-    </div>
-    <div class="verdict neutral" id="verdict">— compute to see verdict</div>
-    <div class="verdict-sub" id="verdict-sub">click compute, the score will gate / size the entry</div>
-  </div>
-
-  <!-- Factor cards -->
-  <div class="factor-section">
-    <h3>Cross-asset alignment · weight 0.30</h3>
-    <div class="factors">
-      <div class="factor" id="f1">
-        <div class="factor-head">
-          <div>
-            <div class="factor-name">Index alignment</div>
-            <div class="factor-id">F1 · weight 0.18</div>
-          </div>
-          <span class="factor-weight">+5pp / −7pp</span>
-        </div>
-        <div class="factor-desc">SPY/QQQ direction in prior 5 min vs signal side. Cross-correlation between SPY and individual names is highest at intraday timescales.</div>
-        <div class="factor-score-bar"><div class="marker" style="left:50%"></div></div>
-        <div class="factor-status">
-          <span class="val zero">—</span>
-          <span class="source">Polygon SPY/QQQ 1m bars</span>
-        </div>
-      </div>
-      <div class="factor" id="f2">
-        <div class="factor-head">
-          <div>
-            <div class="factor-name">Sector ETF lead</div>
-            <div class="factor-id">F2 · weight 0.12</div>
-          </div>
-          <span class="factor-weight">+3pp / −4pp</span>
-        </div>
-        <div class="factor-desc">Sector ETF (XLK, XLF, XLE…) direction in prior 5 min. Sector beta dominates idiosyncratic moves at scalp timescales.</div>
-        <div class="factor-score-bar"><div class="marker" style="left:50%"></div></div>
-        <div class="factor-status">
-          <span class="val zero">—</span>
-          <span class="source">Polygon sector ETF 1m bars</span>
-        </div>
-      </div>
+    <div class="col tank">
+      <h3>🐻 TANK candidates <span class="count" id="n-tank">0</span></h3>
+      <div id="tank"><div class="empty">no TANK setups yet</div></div>
     </div>
   </div>
 
-  <div class="factor-section">
-    <h3>Volume / structure · weight 0.28</h3>
-    <div class="factors">
-      <div class="factor" id="f3">
-        <div class="factor-head">
-          <div>
-            <div class="factor-name">Volume buildup</div>
-            <div class="factor-id">F3 · weight 0.15</div>
-          </div>
-          <span class="factor-weight">+4pp</span>
-        </div>
-        <div class="factor-desc">Volume in last 5 bars vs trailing 30-bar avg. Real breakouts have measurable volume lead-in; coil compressions on no volume are noise.</div>
-        <div class="factor-score-bar"><div class="marker" style="left:50%"></div></div>
-        <div class="factor-status">
-          <span class="val zero">—</span>
-          <span class="source">Alpaca 1m bars</span>
-        </div>
-      </div>
-      <div class="factor" id="f4">
-        <div class="factor-head">
-          <div>
-            <div class="factor-name">Tape strength</div>
-            <div class="factor-id">F4 · weight 0.13</div>
-          </div>
-          <span class="factor-weight">+3pp</span>
-        </div>
-        <div class="factor-desc">Lee-Ready aggressor side over prior 30 min. Sustained ask-side aggressor for CALL means print pressure aligns with the bet.</div>
-        <div class="factor-score-bar"><div class="marker" style="left:50%"></div></div>
-        <div class="factor-status">
-          <span class="val zero">—</span>
-          <span class="source">Alpaca trades + NBBO</span>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="factor-section">
-    <h3>Options flow · weight 0.27</h3>
-    <div class="factors">
-      <div class="factor" id="f5">
-        <div class="factor-head">
-          <div>
-            <div class="factor-name">Aligned flow</div>
-            <div class="factor-id">F5 · weight 0.20</div>
-          </div>
-          <span class="factor-weight">+5pp</span>
-        </div>
-        <div class="factor-desc">Net signed premium (calls bought at ask − puts bought at ask − calls sold at bid + puts sold at bid) over prior 30 min, normalized to ticker's 30-day baseline.</div>
-        <div class="factor-score-bar"><div class="marker" style="left:50%"></div></div>
-        <div class="factor-status">
-          <span class="val zero">—</span>
-          <span class="source">UW /flow-recent</span>
-        </div>
-      </div>
-      <div class="factor" id="f6">
-        <div class="factor-head">
-          <div>
-            <div class="factor-name">Sweep concentration</div>
-            <div class="factor-id">F6 · weight 0.07</div>
-          </div>
-          <span class="factor-weight">+2pp</span>
-        </div>
-        <div class="factor-desc">Count of sweep-tagged orders in prior 15 min, weighted by premium. Sweeps indicate urgency — buyer takes liquidity across exchanges.</div>
-        <div class="factor-score-bar"><div class="marker" style="left:50%"></div></div>
-        <div class="factor-status">
-          <span class="val zero">—</span>
-          <span class="source">UW /option-sweeps</span>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="factor-section">
-    <h3>Regime / timing modulators</h3>
-    <div class="factors">
-      <div class="factor" id="f7">
-        <div class="factor-head">
-          <div>
-            <div class="factor-name">VIX regime</div>
-            <div class="factor-id">F7 · multiplier</div>
-          </div>
-          <span class="factor-weight">×0.7 / ×1.0 / ×1.2</span>
-        </div>
-        <div class="factor-desc">Low (&lt;14) factors weaker · Normal (14-22) baseline · Elevated (&gt;22) factors stronger. Modulates composite, not direct score.</div>
-        <div class="factor-status">
-          <span class="val zero">—</span>
-          <span class="source">VIX quote</span>
-        </div>
-      </div>
-      <div class="factor" id="f8">
-        <div class="factor-head">
-          <div>
-            <div class="factor-name">Time of day</div>
-            <div class="factor-id">F8 · multiplier</div>
-          </div>
-          <span class="factor-weight">×0.6 — ×1.1</span>
-        </div>
-        <div class="factor-desc">Opening drive ×1.1 · Morning trend ×1.0 · Midday chop ×0.7 · Afternoon ×1.0 · Close window ×0.6. Pre-breakout reliability varies by window.</div>
-        <div class="factor-status">
-          <span class="val zero">—</span>
-          <span class="source">clock</span>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="spec">
-    <b>Status:</b> v1 design — UI scaffold ready. Factor compute layer not yet wired.
-    <code>/api/prebreakout?ticker=X&amp;side=CALL</code> returns 501 until F1-F6 implementations land.
-    <br><br>
-    <b>Per design doc:</b> tag-only mode first (every fire scored, no gating).
-    After 30 days of factor data, decide: gate v2 or document negative result.
-    Realistic ceiling on PRE_CALL_COIL: 57.1% → ~67% with full 4-factor stack aligned.
-    <br><br>
-    <b>Next build:</b> M1 Polygon aux client (4h) → M2 F1-F4 (8h) → M3 UW wrapper (4h) → M4 F5-F6 (6h) → M5 composite scorer (3h) → M7 audit page (4h).
-    Total ~33h to v1.
-  </div>
+  <details>
+    <summary>How the scoring works</summary>
+    <ul>
+      <li><b>7 hard gates</b> (filter): compression ≤1.5%, level tagged ≥2x, higher-lows / lower-highs, proximity ≤0.25%, no break yet, volume drying, aligned UW flow alert in last 10 min</li>
+      <li><b>Confidence (gates)</b> [0-100]: structural quality + flow premium magnitude + flow recency</li>
+      <li><b>Composite (factors)</b> [-1, +1]: F1 index align (0.18) + F2 sector align (0.12) + F3 vol buildup (0.15) + F4 tape (0.13) + F5 aligned flow (0.20) + F6 sweep concentration (0.07), modulated by F7 VIX × F8 time-of-day</li>
+      <li><b>Final ranking</b>: 0.5×composite + 0.005×confidence so both signals stack</li>
+      <li><b>Verdict zones</b>: ⚡ STRONG ALIGN (≥+0.50) · ✓ ALIGN (≥+0.20) · — NEUTRAL · ⚠ COUNTER (≤-0.20) · ⛔ STRONG COUNTER (≤-0.50)</li>
+    </ul>
+  </details>
 </main>
 
 <script>
   const $ = id => document.getElementById(id);
-  let activeSide = "CALL";
+  const fmtMoney = n => n == null ? "—" : "$" + Math.abs(n).toLocaleString(undefined, {maximumFractionDigits:0});
+  const ago = iso => {
+    if (!iso) return "—";
+    const ms = Date.now() - new Date(iso).getTime();
+    if (ms < 5000) return "just now";
+    if (ms < 60000) return Math.floor(ms/1000) + "s";
+    if (ms < 3_600_000) return Math.floor(ms/60000) + "m";
+    return Math.floor(ms/3_600_000) + "h";
+  };
 
-  document.querySelectorAll(".side-toggle button").forEach(b => {
-    b.addEventListener("click", () => {
-      document.querySelectorAll(".side-toggle button").forEach(x => x.classList.remove("active"));
-      b.classList.add("active");
-      activeSide = b.dataset.side;
-    });
-  });
-
-  function setMarker(barEl, score) {
-    // score in [-1, 1] → marker position [0%, 100%]
-    const pct = ((score + 1) / 2) * 100;
-    barEl.style.left = pct + "%";
+  function renderStatus(d) {
+    const pills = [];
+    pills.push(`<span class="pill">scanned ${ago(d.scanned_at)} ago</span>`);
+    pills.push(`<span class="pill">${d.universe_size} tickers</span>`);
+    pills.push(`<span class="pill ${d.vix_bucket === 'elevated' ? 'warn' : 'on'}">VIX ${d.vix_bucket || 'normal'}</span>`);
+    pills.push(`<span class="pill on">${(d.tod_bucket || '').replace(/_/g,' ')}</span>`);
+    const total = (d.summary?.n_surge || 0) + (d.summary?.n_tank || 0);
+    pills.push(total
+      ? `<span class="pill on">⚡ ${total} setup${total===1?'':'s'}</span>`
+      : `<span class="pill">no setups firing</span>`);
+    $("status").innerHTML = pills.join("");
   }
 
-  function setVerdict(score) {
-    let v, sub;
-    if (score >= 0.5) { v = ["go", "⚡ STRONG ALIGN — take with full size"]; sub = "all factor stack supports the entry"; }
-    else if (score >= 0.2) { v = ["go", "✓ ALIGN — take with reduced size (50%)"]; sub = "factor stack tilts in your favor"; }
-    else if (score >= -0.2) { v = ["neutral", "— NEUTRAL — engine's existing logic decides"]; sub = "factors don't shift probability"; }
-    else if (score >= -0.5) { v = ["skip", "⚠ COUNTER — gate the fire"]; sub = "factors lean against the entry"; }
-    else { v = ["skip", "⛔ STRONG COUNTER — skip + log as saved fire"]; sub = "factors strongly contradict"; }
-    $("verdict").className = "verdict " + v[0];
-    $("verdict").textContent = v[1];
-    $("verdict-sub").textContent = sub;
+  function fcell(label, val) {
+    const v = val ?? 0;
+    const cls = v > 0.05 ? "pos" : v < -0.05 ? "neg" : "zero";
+    return `<div class="f-cell ${cls}">
+      <span class="lbl">${label}</span>${v >= 0 ? "+" : ""}${v.toFixed(2)}
+    </div>`;
   }
 
-  async function compute() {
-    const ticker = $("ticker").value.toUpperCase();
-    if (!ticker) return;
-    $("status").textContent = "computing…";
+  function renderCard(c) {
+    const verdict = c.verdict || "NEUTRAL";
+    const cardCls = verdict === "STRONG_ALIGN" ? "strong-align"
+      : verdict === "ALIGN" ? "align"
+      : verdict === "STRONG_COUNTER" || verdict === "COUNTER" ? "counter" : "";
+    const f = c.factors || {};
+    return `<div class="setup ${cardCls}">
+      <div class="s-head">
+        <span class="s-tk">${c.ticker}</span>
+        <span class="s-conf">${c.confidence?.toFixed?.(0) ?? "—"}</span>
+      </div>
+      <div class="s-meta">
+        <span class="verdict-pill ${verdict}">${verdict.replace(/_/g,' ')}</span>
+        <span>level <b>$${(c.level || 0).toFixed(2)}</b></span>
+        <span>dist <b>${c.dist_pct}%</b></span>
+        <span>tests <b>${c.level_tests}</b></span>
+        <span>compress <b>${c.compression_pct}%</b></span>
+        <span>flow <b>${fmtMoney(c.total_aligned_premium)}</b></span>
+      </div>
+      <div class="factors">
+        ${fcell("F1 idx", f.f1_index_align)}
+        ${fcell("F2 sec", f.f2_sector_align)}
+        ${fcell("F3 vol", f.f3_volume_buildup)}
+        ${fcell("F4 tape", f.f4_tape_strength)}
+        ${fcell("F5 flow", f.f5_aligned_flow)}
+        ${fcell("F6 swp", f.f6_sweep_conc)}
+      </div>
+    </div>`;
+  }
+
+  function renderColumn(host, items, kind) {
+    if (!items.length) {
+      host.innerHTML = `<div class="empty">no ${kind} setups</div>`;
+      return;
+    }
+    host.innerHTML = items.map(renderCard).join("");
+  }
+
+  async function pull() {
     try {
-      const r = await fetch(`/api/prebreakout?ticker=${ticker}&side=${activeSide}`);
-      if (r.status === 501) {
-        $("status").textContent = "⚠ /api/prebreakout not yet wired — UI scaffold only (per design doc, M1-M7 to ship)";
-        return;
-      }
-      if (!r.ok) {
-        $("status").textContent = "FAILED: status " + r.status;
-        return;
-      }
+      const r = await fetch("/api/prebreakout/scan", {cache:"no-store"});
       const d = await r.json();
-      // Place per-factor markers
-      for (const k of ["f1","f2","f3","f4","f5","f6"]) {
-        const card = document.getElementById(k);
-        const marker = card.querySelector(".factor-score-bar .marker");
-        const valEl = card.querySelector(".factor-status .val");
-        const score = d.factors?.[k] ?? 0;
-        if (marker) setMarker(marker, score);
-        if (valEl) {
-          valEl.textContent = (score >= 0 ? "+" : "") + score.toFixed(2);
-          valEl.className = "val " + (score > 0.05 ? "pos" : score < -0.05 ? "neg" : "zero");
-        }
+      if (d.error) {
+        $("status").innerHTML = `<span class="pill warn">scan failed: ${d.error}</span>`;
+        return;
       }
-      // Composite
-      const comp = d.composite ?? 0;
-      const m = $("score-marker");
-      const lbl = $("score-label");
-      const pct = ((comp + 1) / 2) * 100;
-      m.style.left = pct + "%";
-      lbl.style.left = pct + "%";
-      lbl.textContent = (comp >= 0 ? "+" : "") + comp.toFixed(2);
-      setVerdict(comp);
-      $("status").textContent = "computed " + (d.computed_at || "");
+      renderStatus(d);
+      $("n-surge").textContent = (d.summary?.n_surge ?? 0);
+      $("n-tank").textContent = (d.summary?.n_tank ?? 0);
+      renderColumn($("surge"), d.surge || [], "SURGE");
+      renderColumn($("tank"), d.tank || [], "TANK");
     } catch (e) {
-      $("status").textContent = "FAILED: " + e;
+      $("status").innerHTML = `<span class="pill warn">fetch failed: ${e.message}</span>`;
     }
   }
-
-  $("run-btn").addEventListener("click", compute);
+  pull();
+  setInterval(pull, 5000);
 </script>
 
 </body>
