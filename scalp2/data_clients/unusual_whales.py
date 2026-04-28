@@ -214,13 +214,60 @@ class UWClient:
 
     # ─── FND-3.2 / FND-3.3 / FND-3.4 — typed endpoint methods ─────────────
 
-    def flow_recent(self, ticker: str) -> list[FlowRecord]:
-        """FND-3.2. Live signed flow records.
+    def flow_alerts_historical(self, ticker: str, target_date: date,
+                                  max_pages: int = 10, limit: int = 500) -> list[dict]:
+        """FND-3 BONUS — historical flow ALERTS for a date (high-conviction events).
+
+        Uses /api/option-trades/flow-alerts?ticker=X&date=YYYY-MM-DD&limit=N&page=K
+        which DOES return historical data (verified probe). Each call returns up
+        to 500 rows; pagination via &page=K.
+
+        Returns raw dict rows with keys including: created_at, underlying_price,
+        sector, premium, ask, bid, total_size, etc. Caller can use these to
+        build signed_flow_score per minute for backtesting S4.
+        """
+        all_rows = []
+        for page in range(1, max_pages + 1):
+            try:
+                data = self._get(
+                    "/api/option-trades/flow-alerts",
+                    params={
+                        "ticker": ticker,
+                        "date": target_date.isoformat(),
+                        "limit": str(limit), "page": str(page),
+                    },
+                )
+            except Exception:
+                break
+            rows = data.get("data") if isinstance(data, dict) else data
+            if not rows or not isinstance(rows, list):
+                break
+            all_rows.extend(rows)
+            if len(rows) < limit:
+                break    # last page
+        return all_rows
+
+    def iv_rank_history(self, ticker: str) -> list[dict]:
+        """FND-3 BONUS — historical IV rank for backtest S4 IV percentile gate.
+
+        Returns list of {date, close, volatility, iv_rank_1y, ...}.
+        """
+        try:
+            data = self._get(f"/api/stock/{ticker}/iv-rank")
+            return data.get("data") if isinstance(data, dict) else data or []
+        except Exception:
+            return []
+
+    def flow_recent(self, ticker: str, target_date: Optional[date] = None) -> list[FlowRecord]:
+        """FND-3.2. Live signed flow records (or historical with target_date).
 
         Returns: list of FlowRecord. UW endpoint shape may vary; we
         defensively coerce the JSON response into our typed dataclass.
+        Pass target_date for historical pull (verified working endpoint:
+        ?date=YYYY-MM-DD returns 50 historical records).
         """
-        data = self._get(f"/api/stock/{ticker}/flow-recent")
+        params = {"date": target_date.isoformat()} if target_date else {}
+        data = self._get(f"/api/stock/{ticker}/flow-recent", params=params)
         # UW flow-recent returns a LIST at the top level (not a dict-wrapped one).
         if isinstance(data, list):
             records = data
