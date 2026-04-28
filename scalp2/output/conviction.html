@@ -1,0 +1,1039 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#faf9f5">
+  <title>scalp 2 — Conviction</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+:root {
+  --ink: #141413; --bg: #faf9f5; --panel: #ffffff;
+  --hair: #e8e6dc; --dim: #6b6a65; --mid: #b0aea5;
+  --accent: #d97757; --accent-soft: #fceee7;
+  --blue: #6a9bcc; --blue-soft: #e4edf6;
+  --green: #788c5d; --green-soft: #e7ece0;
+  --bull: #3d7c5e; --bear: #b03528;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 15px/1.5 'Lora', Georgia, Cambria, 'Times New Roman', serif;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, .poppins {
+  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+  letter-spacing: -0.01em;
+}
+header { padding: 18px 16px 12px; max-width: 960px; margin: 0 auto; }
+h1 { margin: 0 0 6px; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+.sub-head { color: var(--dim); font-size: 13px; }
+.statusline { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+
+.topnav {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; gap: 4px; padding: 10px 14px;
+  background: var(--bg); border-bottom: 1px solid var(--hair);
+  overflow-x: auto; white-space: nowrap;
+}
+.topnav a {
+  font-family: 'Poppins', Arial, sans-serif;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px; font-size: 13px; font-weight: 500;
+  color: var(--dim); text-decoration: none;
+  border-radius: 999px; border: 1px solid transparent;
+}
+.topnav a:hover { color: var(--ink); background: var(--hair); }
+.topnav a.active {
+  color: var(--ink); background: var(--accent-soft);
+  border-color: rgba(217,119,87,0.3);
+}
+.topnav a .sub { font-size: 10px; color: var(--mid); font-weight: 400; }
+.topnav a.active .sub { color: var(--accent); }
+
+.pill {
+  font-family: 'Poppins', Arial, sans-serif;
+  padding: 4px 10px; border-radius: 999px;
+  background: var(--panel); border: 1px solid var(--hair);
+  font-size: 11px; font-weight: 500; color: var(--dim);
+}
+.pill.on { color: var(--bull); background: var(--green-soft); border-color: rgba(120,140,93,0.3); }
+.pill.off { color: var(--mid); }
+
+main { padding: 0 14px 24px; max-width: 960px; margin: 0 auto; }
+
+/* Filter chips */
+.filterbar { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 14px; }
+.filterbar .group {
+  display: flex; gap: 4px; align-items: center; padding: 4px 10px;
+  background: var(--panel); border: 1px solid var(--hair); border-radius: 999px;
+}
+.filterbar .group .lbl {
+  font-family: 'Poppins', Arial, sans-serif;
+  font-size: 10px; color: var(--mid); text-transform: uppercase;
+  letter-spacing: 0.08em; margin-right: 4px;
+}
+.fchip {
+  font-family: 'Poppins', Arial, sans-serif;
+  padding: 5px 11px; border-radius: 999px; cursor: pointer; user-select: none;
+  background: transparent; border: none; font-size: 12px; font-weight: 500;
+  color: var(--dim); display: inline-flex; align-items: center; gap: 5px;
+}
+.fchip:hover { color: var(--ink); }
+.fchip.active { background: var(--accent-soft); color: var(--accent); }
+.fchip .n {
+  font-variant-numeric: tabular-nums; font-weight: 600;
+  color: var(--ink); background: var(--hair);
+  padding: 1px 7px; border-radius: 999px; font-size: 10px;
+}
+.fchip.active .n { color: var(--accent); background: #fff; }
+
+/* Cards */
+.feed { display: flex; flex-direction: column; gap: 10px; }
+.card {
+  background: var(--panel); border: 1px solid var(--hair);
+  border-radius: 14px; padding: 14px 16px;
+  transition: border-color .15s;
+}
+.card:hover { border-color: var(--mid); }
+.card-held {
+  border-color: rgba(217,119,87,0.35);
+  background: linear-gradient(180deg, #fffaf6 0%, var(--panel) 100%);
+}
+.card.hidden { display: none; }
+
+.card-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.card-head .tick {
+  font-family: 'Poppins', Arial, sans-serif;
+  font-size: 22px; font-weight: 700; color: var(--ink);
+}
+.dir {
+  font-family: 'Poppins', Arial, sans-serif;
+  font-size: 13px; font-weight: 800; padding: 5px 12px; border-radius: 6px;
+  letter-spacing: 0.04em;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  text-shadow: 0 1px 1px rgba(0,0,0,0.15);
+  position: relative; overflow: hidden;
+}
+.dir::after {
+  content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%;
+  background: linear-gradient(110deg, transparent 0%, rgba(255,255,255,0.30) 50%, transparent 100%);
+  animation: pill-shimmer 4.5s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes pill-shimmer { 0%, 60% { left: -100%; } 100% { left: 200%; } }
+
+.strat-pill {
+  font-family: 'Poppins', Arial, sans-serif;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
+  padding: 3px 9px; border-radius: 4px;
+}
+.bucket {
+  font-family: 'Poppins', Arial, sans-serif;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.06em;
+  padding: 3px 8px; border-radius: 4px;
+}
+
+.conf-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.conf-label {
+  font-family: 'Poppins', Arial, sans-serif;
+  font-size: 11px; color: var(--dim); min-width: 72px;
+}
+.conf-bar {
+  flex: 1; height: 6px; background: var(--hair);
+  border-radius: 999px; overflow: hidden;
+}
+.conf-bar > span { display: block; height: 100%; border-radius: 999px; }
+.conf-val {
+  font-family: 'Poppins', Arial, sans-serif;
+  font-size: 12px; font-weight: 600; color: var(--ink);
+  font-variant-numeric: tabular-nums; min-width: 40px; text-align: right;
+}
+
+.signals { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+.sig {
+  font-family: 'Poppins', Arial, sans-serif;
+  font-size: 11px; padding: 3px 8px; border-radius: 4px;
+  background: var(--green-soft); color: var(--bull);
+}
+
+.meta-line {
+  margin-top: 6px; font-family: 'Poppins', Arial, sans-serif;
+  color: var(--dim); font-size: 11px; font-variant-numeric: tabular-nums;
+}
+.meta-line b { color: var(--ink); font-weight: 600; }
+
+.buy {
+  margin-top: 12px; padding: 10px 12px;
+  background: var(--accent-soft);
+  border: 1px solid rgba(217,119,87,0.25);
+  border-radius: 8px;
+  font-family: 'Poppins', Arial, sans-serif;
+  color: var(--accent); font-size: 13px; font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+footer {
+  color: var(--mid); font-size: 11px; text-align: center;
+  padding: 24px 16px; max-width: 960px; margin: 0 auto;
+}
+
+@media (max-width: 480px) {
+  body { font-size: 14px; }
+  header { padding: 14px 12px 10px; }
+  h1 { font-size: 19px; }
+  main { padding: 0 10px 20px; }
+  .card { padding: 12px 14px; border-radius: 12px; }
+  .card-head { gap: 8px; }
+  .card-head .tick { font-size: 20px; }
+  .buy { font-size: 12px; padding: 9px 11px; }
+}
+</style>
+</head>
+<body>
+<nav class="topnav">
+  <a href="trading_dashboard.html"><span>📊 Dashboard</span><span class="sub">positions + backtest</span></a>
+  <a href="conviction.html" class="active"><span>👁 Conviction</span><span class="sub">tomorrow's plan</span></a>
+</nav>
+
+<header>
+  <h1>Conviction · 2026-04-14 → 2026-04-25</h1>
+  <div class="sub-head">
+    Per-ticker conviction for tomorrow's session. Ranked by backtest edge,
+    filtered by strategy. Click a strategy chip below to focus.
+  </div>
+  <div class="statusline">
+    <span class="pill">2026-04-28T06:50:51</span>
+    <span class="pill on">PAPER mode</span>
+    <span class="pill on">S2: 70% on 10 · Sharpe +6.6</span><span class="pill on">S3: 63% on 41 · Sharpe +4.4</span><span class="pill off">S5: no trades</span>
+  </div>
+</header>
+
+<main>
+  
+<div class="filterbar">
+  <div class="group">
+    <span class="lbl">stage</span>
+    <span class="fchip active" data-filter-stage="ALL">All <span class="n">37</span></span>
+    <span class="fchip" data-filter-stage="TRADE_NOW">⚡ Trade now <span class="n">0</span></span>
+    <span class="fchip" data-filter-stage="FORMING">🌿 Forming <span class="n">8</span></span>
+    <span class="fchip" data-filter-stage="WAIT">⏸ Wait <span class="n">11</span></span>
+    <span class="fchip" data-filter-stage="PASS">— Pass <span class="n">18</span></span>
+  </div>
+  <div class="group">
+    <span class="lbl">side</span>
+    <span class="fchip active" data-filter-side="ALL">All</span>
+    <span class="fchip" data-filter-side="LONG">🐂 Long <span class="n">17</span></span>
+    <span class="fchip" data-filter-side="SHORT">🐻 Short <span class="n">12</span></span>
+    <span class="fchip" data-filter-side="CALL">🐂 Call</span>
+    <span class="fchip" data-filter-side="PUT">🐻 Put</span>
+  </div>
+  <div class="group">
+    <span class="lbl">strategy</span>
+    <span class="fchip active" data-filter-strategy="ALL">All</span>
+    <span class="fchip" data-filter-strategy="S2">S2 ORB</span>
+    <span class="fchip" data-filter-strategy="S3">S3 momentum</span>
+    <span class="fchip" data-filter-strategy="S5">S5 gamma</span>
+  </div>
+</div>
+
+  <div class="feed">
+    
+<div class="card" data-ticker="COIN" data-stage="FORMING"
+     data-strategy="S3" data-direction="SHORT" data-cap="MID">
+  <div class="card-head">
+    <span class="tick">COIN</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#dbeafe;color:#1e3a8a;border:1px solid #93c5fd;">🌿 FORMING</span>
+    <span class="strat-pill" style="background:#dbeafe;color:#1e3a8a">S3</span>
+    <span class="dir" style="background:linear-gradient(135deg,#b03528 0%,#d04638 50%,#e35344 100%);color:white;border:1px solid #8d2920;">🐻 SHORT</span>
+    <span class="bucket" style="background:#e0e7ff;color:#3730a3">MID</span>
+    
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:70%;background:#d97757"></span></div>
+  <span class="conf-val">70</span>
+</div>
+  <div class="meta-line">$196.68 · ATR $12.30 · backtest <b>3</b> trades · <b>3/3</b> wins (100%) · cumulative <b>+3.00</b> ATR</div>
+  <div class="signals"><span class="sig" title="session-trend">✓ session-trend</span><span class="sig" title="VWAP-dist≥0.75 ATR">✓ VWAP-dist≥0.75 ATR</span><span class="sig" title="structure-clean">✓ structure-clean</span></div>
+  <div class="buy">S3 momentum SHORT · enter mid-session if session-return≥1.5 ATR + VWAP-distance≥0.75 ATR + lower-highs + aggressor&lt;0.40 · stop = VWAP, target = +1 ATR ($12.30) · last close $196.68</div>
+</div>
+<div class="card" data-ticker="DIA" data-stage="FORMING"
+     data-strategy="S3" data-direction="SHORT" data-cap="ETF">
+  <div class="card-head">
+    <span class="tick">DIA</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#dbeafe;color:#1e3a8a;border:1px solid #93c5fd;">🌿 FORMING</span>
+    <span class="strat-pill" style="background:#dbeafe;color:#1e3a8a">S3</span>
+    <span class="dir" style="background:linear-gradient(135deg,#b03528 0%,#d04638 50%,#e35344 100%);color:white;border:1px solid #8d2920;">🐻 SHORT</span>
+    <span class="bucket" style="background:#e4edf6;color:#2b5b8c">ETF</span>
+    
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:60%;background:#d97757"></span></div>
+  <span class="conf-val">60</span>
+</div>
+  <div class="meta-line">$491.83 · ATR $5.90 · backtest <b>2</b> trades · <b>2/2</b> wins (100%) · cumulative <b>+2.00</b> ATR</div>
+  <div class="signals"><span class="sig" title="session-trend">✓ session-trend</span><span class="sig" title="VWAP-dist≥0.75 ATR">✓ VWAP-dist≥0.75 ATR</span><span class="sig" title="structure-clean">✓ structure-clean</span></div>
+  <div class="buy">S3 momentum SHORT · enter mid-session if session-return≥1.5 ATR + VWAP-distance≥0.75 ATR + lower-highs + aggressor&lt;0.40 · stop = VWAP, target = +1 ATR ($5.90) · last close $491.83</div>
+</div>
+<div class="card" data-ticker="ABNB" data-stage="FORMING"
+     data-strategy="S3" data-direction="LONG" data-cap="MID">
+  <div class="card-head">
+    <span class="tick">ABNB</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#dbeafe;color:#1e3a8a;border:1px solid #93c5fd;">🌿 FORMING</span>
+    <span class="strat-pill" style="background:#dbeafe;color:#1e3a8a">S3</span>
+    <span class="dir" style="background:linear-gradient(135deg,#3d7c5e 0%,#4d9b75 50%,#5fad84 100%);color:white;border:1px solid #2d6249;">🐂 LONG</span>
+    <span class="bucket" style="background:#e0e7ff;color:#3730a3">MID</span>
+    
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:50%;background:#d97757"></span></div>
+  <span class="conf-val">50</span>
+</div>
+  <div class="meta-line">$141.06 · ATR $4.72 · backtest <b>1</b> trades · <b>1/1</b> wins (100%) · cumulative <b>+1.00</b> ATR</div>
+  <div class="signals"><span class="sig" title="session-trend">✓ session-trend</span><span class="sig" title="VWAP-dist≥0.75 ATR">✓ VWAP-dist≥0.75 ATR</span><span class="sig" title="structure-clean">✓ structure-clean</span></div>
+  <div class="buy">S3 momentum LONG · enter mid-session if session-return≥1.5 ATR + VWAP-distance≥0.75 ATR + higher-lows + aggressor&gt;0.60 · stop = VWAP, target = +1 ATR ($4.72) · last close $141.06</div>
+</div>
+<div class="card" data-ticker="HOOD" data-stage="FORMING"
+     data-strategy="S3" data-direction="SHORT" data-cap="MID">
+  <div class="card-head">
+    <span class="tick">HOOD</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#dbeafe;color:#1e3a8a;border:1px solid #93c5fd;">🌿 FORMING</span>
+    <span class="strat-pill" style="background:#dbeafe;color:#1e3a8a">S3</span>
+    <span class="dir" style="background:linear-gradient(135deg,#b03528 0%,#d04638 50%,#e35344 100%);color:white;border:1px solid #8d2920;">🐻 SHORT</span>
+    <span class="bucket" style="background:#e0e7ff;color:#3730a3">MID</span>
+    
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:50%;background:#d97757"></span></div>
+  <span class="conf-val">50</span>
+</div>
+  <div class="meta-line">$83.95 · ATR $5.08 · backtest <b>1</b> trades · <b>1/1</b> wins (100%) · cumulative <b>+1.00</b> ATR</div>
+  <div class="signals"><span class="sig" title="session-trend">✓ session-trend</span><span class="sig" title="VWAP-dist≥0.75 ATR">✓ VWAP-dist≥0.75 ATR</span><span class="sig" title="structure-clean">✓ structure-clean</span></div>
+  <div class="buy">S3 momentum SHORT · enter mid-session if session-return≥1.5 ATR + VWAP-distance≥0.75 ATR + lower-highs + aggressor&lt;0.40 · stop = VWAP, target = +1 ATR ($5.08) · last close $83.95</div>
+</div>
+<div class="card" data-ticker="SHOP" data-stage="FORMING"
+     data-strategy="S3" data-direction="LONG" data-cap="MID">
+  <div class="card-head">
+    <span class="tick">SHOP</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#dbeafe;color:#1e3a8a;border:1px solid #93c5fd;">🌿 FORMING</span>
+    <span class="strat-pill" style="background:#dbeafe;color:#1e3a8a">S3</span>
+    <span class="dir" style="background:linear-gradient(135deg,#3d7c5e 0%,#4d9b75 50%,#5fad84 100%);color:white;border:1px solid #2d6249;">🐂 LONG</span>
+    <span class="bucket" style="background:#e0e7ff;color:#3730a3">MID</span>
+    
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:50%;background:#d97757"></span></div>
+  <span class="conf-val">50</span>
+</div>
+  <div class="meta-line">$124.23 · ATR $6.27 · backtest <b>1</b> trades · <b>1/1</b> wins (100%) · cumulative <b>+1.00</b> ATR</div>
+  <div class="signals"><span class="sig" title="session-trend">✓ session-trend</span><span class="sig" title="VWAP-dist≥0.75 ATR">✓ VWAP-dist≥0.75 ATR</span><span class="sig" title="structure-clean">✓ structure-clean</span></div>
+  <div class="buy">S3 momentum LONG · enter mid-session if session-return≥1.5 ATR + VWAP-distance≥0.75 ATR + higher-lows + aggressor&gt;0.60 · stop = VWAP, target = +1 ATR ($6.27) · last close $124.23</div>
+</div>
+<div class="card" data-ticker="SOXS" data-stage="FORMING"
+     data-strategy="S3" data-direction="SHORT" data-cap="ETF">
+  <div class="card-head">
+    <span class="tick">SOXS</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#dbeafe;color:#1e3a8a;border:1px solid #93c5fd;">🌿 FORMING</span>
+    <span class="strat-pill" style="background:#dbeafe;color:#1e3a8a">S3</span>
+    <span class="dir" style="background:linear-gradient(135deg,#b03528 0%,#d04638 50%,#e35344 100%);color:white;border:1px solid #8d2920;">🐻 SHORT</span>
+    <span class="bucket" style="background:#e4edf6;color:#2b5b8c">ETF</span>
+    
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:50%;background:#d97757"></span></div>
+  <span class="conf-val">50</span>
+</div>
+  <div class="meta-line">$14.03 · ATR $1.93 · backtest <b>1</b> trades · <b>1/1</b> wins (100%) · cumulative <b>+1.00</b> ATR</div>
+  <div class="signals"><span class="sig" title="session-trend">✓ session-trend</span><span class="sig" title="VWAP-dist≥0.75 ATR">✓ VWAP-dist≥0.75 ATR</span><span class="sig" title="structure-clean">✓ structure-clean</span></div>
+  <div class="buy">S3 momentum SHORT · enter mid-session if session-return≥1.5 ATR + VWAP-distance≥0.75 ATR + lower-highs + aggressor&lt;0.40 · stop = VWAP, target = +1 ATR ($1.93) · last close $14.03</div>
+</div>
+<div class="card" data-ticker="SOXX" data-stage="FORMING"
+     data-strategy="S2" data-direction="SHORT" data-cap="ETF">
+  <div class="card-head">
+    <span class="tick">SOXX</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#dbeafe;color:#1e3a8a;border:1px solid #93c5fd;">🌿 FORMING</span>
+    <span class="strat-pill" style="background:#fceee7;color:#9a3412">S2</span>
+    <span class="dir" style="background:linear-gradient(135deg,#b03528 0%,#d04638 50%,#e35344 100%);color:white;border:1px solid #8d2920;">🐻 SHORT</span>
+    <span class="bucket" style="background:#e4edf6;color:#2b5b8c">ETF</span>
+    
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:50%;background:#d97757"></span></div>
+  <span class="conf-val">50</span>
+</div>
+  <div class="meta-line">$455.41 · ATR $11.87 · backtest <b>1</b> trades · <b>1/1</b> wins (100%) · cumulative <b>+1.00</b> ATR</div>
+  <div class="signals"><span class="sig" title="OR break">✓ OR break</span><span class="sig" title="vol≥1.5×">✓ vol≥1.5×</span><span class="sig" title="ignition">✓ ignition</span><span class="sig" title="passed allowlist">✓ passed allowlist</span></div>
+  <div class="buy">S2 ORB SHORT · enter on first 5m close below OR low with vol≥1.5× · stop = OR midpoint, target = +1 ATR ($11.87) · last close $455.41</div>
+</div>
+<div class="card" data-ticker="CRWV" data-stage="FORMING"
+     data-strategy="S3" data-direction="SHORT" data-cap="SMALL">
+  <div class="card-head">
+    <span class="tick">CRWV</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#dbeafe;color:#1e3a8a;border:1px solid #93c5fd;">🌿 FORMING</span>
+    <span class="strat-pill" style="background:#dbeafe;color:#1e3a8a">S3</span>
+    <span class="dir" style="background:linear-gradient(135deg,#b03528 0%,#d04638 50%,#e35344 100%);color:white;border:1px solid #8d2920;">🐻 SHORT</span>
+    <span class="bucket" style="background:#dcfce7;color:#14532d">SMALL</span>
+    
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:49%;background:#b0aea5"></span></div>
+  <span class="conf-val">49</span>
+</div>
+  <div class="meta-line">$112.06 · ATR $9.13 · backtest <b>4</b> trades · <b>3/4</b> wins (75%) · cumulative <b>+2.00</b> ATR</div>
+  <div class="signals"><span class="sig" title="session-trend">✓ session-trend</span><span class="sig" title="VWAP-dist≥0.75 ATR">✓ VWAP-dist≥0.75 ATR</span><span class="sig" title="structure-clean">✓ structure-clean</span></div>
+  <div class="buy">S3 momentum SHORT · enter mid-session if session-return≥1.5 ATR + VWAP-distance≥0.75 ATR + lower-highs + aggressor&lt;0.40 · stop = VWAP, target = +1 ATR ($9.13) · last close $112.06</div>
+</div>
+<div class="card card-held" data-ticker="AMZN" data-stage="WAIT"
+     data-strategy="S3" data-direction="SHORT" data-cap="MEGA">
+  <div class="card-head">
+    <span class="tick">AMZN</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#854d0e;border:1px solid #fbbf24;">⏸ WAIT</span>
+    <span class="strat-pill" style="background:#dbeafe;color:#1e3a8a">S3</span>
+    <span class="dir" style="background:linear-gradient(135deg,#b03528 0%,#d04638 50%,#e35344 100%);color:white;border:1px solid #8d2920;">🐻 SHORT</span>
+    <span class="bucket" style="background:#fef3c7;color:#78350f">MEGA</span>
+    <span style="margin-left:auto;font-family:Poppins,Arial,sans-serif;font-size:10px;font-weight:600;padding:3px 8px;border-radius:999px;background:#f9e0dd;color:#b03528">held -15.6%</span>
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:70%;background:#d97757"></span></div>
+  <span class="conf-val">70</span>
+</div>
+  <div class="meta-line">$261.12 · ATR $7.19 · backtest <b>3</b> trades · <b>3/3</b> wins (100%) · cumulative <b>+3.00</b> ATR</div>
+  <div class="signals"><span class="sig" title="session-trend">✓ session-trend</span><span class="sig" title="VWAP-dist≥0.75 ATR">✓ VWAP-dist≥0.75 ATR</span><span class="sig" title="structure-clean">✓ structure-clean</span></div>
+  <div class="buy">S3 momentum SHORT · enter mid-session if session-return≥1.5 ATR + VWAP-distance≥0.75 ATR + lower-highs + aggressor&lt;0.40 · stop = VWAP, target = +1 ATR ($7.19) · last close $261.12</div>
+</div>
+<div class="card card-held" data-ticker="SMH" data-stage="WAIT"
+     data-strategy="S3" data-direction="LONG" data-cap="ETF">
+  <div class="card-head">
+    <span class="tick">SMH</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#854d0e;border:1px solid #fbbf24;">⏸ WAIT</span>
+    <span class="strat-pill" style="background:#dbeafe;color:#1e3a8a">S3</span>
+    <span class="dir" style="background:linear-gradient(135deg,#3d7c5e 0%,#4d9b75 50%,#5fad84 100%);color:white;border:1px solid #2d6249;">🐂 LONG</span>
+    <span class="bucket" style="background:#e4edf6;color:#2b5b8c">ETF</span>
+    <span style="margin-left:auto;font-family:Poppins,Arial,sans-serif;font-size:10px;font-weight:600;padding:3px 8px;border-radius:999px;background:#f9e0dd;color:#b03528">held -20.9%</span>
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:60%;background:#d97757"></span></div>
+  <span class="conf-val">60</span>
+</div>
+  <div class="meta-line">$506.26 · ATR $12.82 · backtest <b>2</b> trades · <b>2/2</b> wins (100%) · cumulative <b>+2.00</b> ATR</div>
+  <div class="signals"><span class="sig" title="session-trend">✓ session-trend</span><span class="sig" title="VWAP-dist≥0.75 ATR">✓ VWAP-dist≥0.75 ATR</span><span class="sig" title="structure-clean">✓ structure-clean</span></div>
+  <div class="buy">S3 momentum LONG · enter mid-session if session-return≥1.5 ATR + VWAP-distance≥0.75 ATR + higher-lows + aggressor&gt;0.60 · stop = VWAP, target = +1 ATR ($12.82) · last close $506.26</div>
+</div>
+<div class="card card-held" data-ticker="ARM" data-stage="WAIT"
+     data-strategy="S3" data-direction="LONG" data-cap="MID">
+  <div class="card-head">
+    <span class="tick">ARM</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#854d0e;border:1px solid #fbbf24;">⏸ WAIT</span>
+    <span class="strat-pill" style="background:#dbeafe;color:#1e3a8a">S3</span>
+    <span class="dir" style="background:linear-gradient(135deg,#3d7c5e 0%,#4d9b75 50%,#5fad84 100%);color:white;border:1px solid #2d6249;">🐂 LONG</span>
+    <span class="bucket" style="background:#e0e7ff;color:#3730a3">MID</span>
+    <span style="margin-left:auto;font-family:Poppins,Arial,sans-serif;font-size:10px;font-weight:600;padding:3px 8px;border-radius:999px;background:#f9e0dd;color:#b03528">held -56.7%</span>
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:50%;background:#d97757"></span></div>
+  <span class="conf-val">50</span>
+</div>
+  <div class="meta-line">$215.88 · ATR $12.71 · backtest <b>1</b> trades · <b>1/1</b> wins (100%) · cumulative <b>+1.00</b> ATR</div>
+  <div class="signals"><span class="sig" title="session-trend">✓ session-trend</span><span class="sig" title="VWAP-dist≥0.75 ATR">✓ VWAP-dist≥0.75 ATR</span><span class="sig" title="structure-clean">✓ structure-clean</span></div>
+  <div class="buy">S3 momentum LONG · enter mid-session if session-return≥1.5 ATR + VWAP-distance≥0.75 ATR + higher-lows + aggressor&gt;0.60 · stop = VWAP, target = +1 ATR ($12.71) · last close $215.88</div>
+</div>
+<div class="card card-held" data-ticker="AVGO" data-stage="WAIT"
+     data-strategy="S3" data-direction="LONG" data-cap="MEGA">
+  <div class="card-head">
+    <span class="tick">AVGO</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#854d0e;border:1px solid #fbbf24;">⏸ WAIT</span>
+    <span class="strat-pill" style="background:#dbeafe;color:#1e3a8a">S3</span>
+    <span class="dir" style="background:linear-gradient(135deg,#3d7c5e 0%,#4d9b75 50%,#5fad84 100%);color:white;border:1px solid #2d6249;">🐂 LONG</span>
+    <span class="bucket" style="background:#fef3c7;color:#78350f">MEGA</span>
+    <span style="margin-left:auto;font-family:Poppins,Arial,sans-serif;font-size:10px;font-weight:600;padding:3px 8px;border-radius:999px;background:#f9e0dd;color:#b03528">held -23.6%</span>
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:50%;background:#d97757"></span></div>
+  <span class="conf-val">50</span>
+</div>
+  <div class="meta-line">$418.20 · ATR $12.54 · backtest <b>1</b> trades · <b>1/1</b> wins (100%) · cumulative <b>+1.00</b> ATR</div>
+  <div class="signals"><span class="sig" title="session-trend">✓ session-trend</span><span class="sig" title="VWAP-dist≥0.75 ATR">✓ VWAP-dist≥0.75 ATR</span><span class="sig" title="structure-clean">✓ structure-clean</span></div>
+  <div class="buy">S3 momentum LONG · enter mid-session if session-return≥1.5 ATR + VWAP-distance≥0.75 ATR + higher-lows + aggressor&gt;0.60 · stop = VWAP, target = +1 ATR ($12.54) · last close $418.20</div>
+</div>
+<div class="card card-held" data-ticker="IWM" data-stage="WAIT"
+     data-strategy="S2" data-direction="LONG" data-cap="ETF">
+  <div class="card-head">
+    <span class="tick">IWM</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#854d0e;border:1px solid #fbbf24;">⏸ WAIT</span>
+    <span class="strat-pill" style="background:#fceee7;color:#9a3412">S2</span>
+    <span class="dir" style="background:linear-gradient(135deg,#3d7c5e 0%,#4d9b75 50%,#5fad84 100%);color:white;border:1px solid #2d6249;">🐂 LONG</span>
+    <span class="bucket" style="background:#e4edf6;color:#2b5b8c">ETF</span>
+    <span style="margin-left:auto;font-family:Poppins,Arial,sans-serif;font-size:10px;font-weight:600;padding:3px 8px;border-radius:999px;background:#f9e0dd;color:#b03528">held -0.8%</span>
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:50%;background:#d97757"></span></div>
+  <span class="conf-val">50</span>
+</div>
+  <div class="meta-line">$277.14 · ATR $4.43 · backtest <b>1</b> trades · <b>1/1</b> wins (100%) · cumulative <b>+1.00</b> ATR</div>
+  <div class="signals"><span class="sig" title="OR break">✓ OR break</span><span class="sig" title="vol≥1.5×">✓ vol≥1.5×</span><span class="sig" title="ignition">✓ ignition</span><span class="sig" title="passed allowlist">✓ passed allowlist</span></div>
+  <div class="buy">S2 ORB LONG · enter on first 5m close above OR high with vol≥1.5× · stop = OR midpoint, target = +1 ATR ($4.43) · last close $277.14</div>
+</div>
+<div class="card card-held" data-ticker="MU" data-stage="WAIT"
+     data-strategy="S3" data-direction="SHORT" data-cap="MID">
+  <div class="card-head">
+    <span class="tick">MU</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#854d0e;border:1px solid #fbbf24;">⏸ WAIT</span>
+    <span class="strat-pill" style="background:#dbeafe;color:#1e3a8a">S3</span>
+    <span class="dir" style="background:linear-gradient(135deg,#b03528 0%,#d04638 50%,#e35344 100%);color:white;border:1px solid #8d2920;">🐻 SHORT</span>
+    <span class="bucket" style="background:#e0e7ff;color:#3730a3">MID</span>
+    <span style="margin-left:auto;font-family:Poppins,Arial,sans-serif;font-size:10px;font-weight:600;padding:3px 8px;border-radius:999px;background:#f9e0dd;color:#b03528">held -5.6%</span>
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:50%;background:#d97757"></span></div>
+  <span class="conf-val">50</span>
+</div>
+  <div class="meta-line">$524.56 · ATR $26.40 · backtest <b>1</b> trades · <b>1/1</b> wins (100%) · cumulative <b>+1.00</b> ATR</div>
+  <div class="signals"><span class="sig" title="session-trend">✓ session-trend</span><span class="sig" title="VWAP-dist≥0.75 ATR">✓ VWAP-dist≥0.75 ATR</span><span class="sig" title="structure-clean">✓ structure-clean</span></div>
+  <div class="buy">S3 momentum SHORT · enter mid-session if session-return≥1.5 ATR + VWAP-distance≥0.75 ATR + lower-highs + aggressor&lt;0.40 · stop = VWAP, target = +1 ATR ($26.40) · last close $524.56</div>
+</div>
+<div class="card card-held" data-ticker="NVDA" data-stage="WAIT"
+     data-strategy="S3" data-direction="SHORT" data-cap="MEGA">
+  <div class="card-head">
+    <span class="tick">NVDA</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#854d0e;border:1px solid #fbbf24;">⏸ WAIT</span>
+    <span class="strat-pill" style="background:#dbeafe;color:#1e3a8a">S3</span>
+    <span class="dir" style="background:linear-gradient(135deg,#b03528 0%,#d04638 50%,#e35344 100%);color:white;border:1px solid #8d2920;">🐻 SHORT</span>
+    <span class="bucket" style="background:#fef3c7;color:#78350f">MEGA</span>
+    <span style="margin-left:auto;font-family:Poppins,Arial,sans-serif;font-size:10px;font-weight:600;padding:3px 8px;border-radius:999px;background:#e7ece0;color:#3d7c5e">held +0.0%</span>
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:50%;background:#d97757"></span></div>
+  <span class="conf-val">50</span>
+</div>
+  <div class="meta-line">$216.61 · ATR $5.63 · backtest <b>1</b> trades · <b>1/1</b> wins (100%) · cumulative <b>+1.00</b> ATR</div>
+  <div class="signals"><span class="sig" title="session-trend">✓ session-trend</span><span class="sig" title="VWAP-dist≥0.75 ATR">✓ VWAP-dist≥0.75 ATR</span><span class="sig" title="structure-clean">✓ structure-clean</span></div>
+  <div class="buy">S3 momentum SHORT · enter mid-session if session-return≥1.5 ATR + VWAP-distance≥0.75 ATR + lower-highs + aggressor&lt;0.40 · stop = VWAP, target = +1 ATR ($5.63) · last close $216.61</div>
+</div>
+<div class="card card-held" data-ticker="QQQ" data-stage="WAIT"
+     data-strategy="S2" data-direction="LONG" data-cap="ETF">
+  <div class="card-head">
+    <span class="tick">QQQ</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#854d0e;border:1px solid #fbbf24;">⏸ WAIT</span>
+    <span class="strat-pill" style="background:#fceee7;color:#9a3412">S2</span>
+    <span class="dir" style="background:linear-gradient(135deg,#3d7c5e 0%,#4d9b75 50%,#5fad84 100%);color:white;border:1px solid #2d6249;">🐂 LONG</span>
+    <span class="bucket" style="background:#e4edf6;color:#2b5b8c">ETF</span>
+    <span style="margin-left:auto;font-family:Poppins,Arial,sans-serif;font-size:10px;font-weight:600;padding:3px 8px;border-radius:999px;background:#f9e0dd;color:#b03528">held -0.7%</span>
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:50%;background:#d97757"></span></div>
+  <span class="conf-val">50</span>
+</div>
+  <div class="meta-line">$664.23 · ATR $10.17 · backtest <b>1</b> trades · <b>1/1</b> wins (100%) · cumulative <b>+1.00</b> ATR</div>
+  <div class="signals"><span class="sig" title="OR break">✓ OR break</span><span class="sig" title="vol≥1.5×">✓ vol≥1.5×</span><span class="sig" title="ignition">✓ ignition</span><span class="sig" title="passed allowlist">✓ passed allowlist</span></div>
+  <div class="buy">S2 ORB LONG · enter on first 5m close above OR high with vol≥1.5× · stop = OR midpoint, target = +1 ATR ($10.17) · last close $664.23</div>
+</div>
+<div class="card card-held" data-ticker="SPY" data-stage="WAIT"
+     data-strategy="S2" data-direction="LONG" data-cap="ETF">
+  <div class="card-head">
+    <span class="tick">SPY</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#854d0e;border:1px solid #fbbf24;">⏸ WAIT</span>
+    <span class="strat-pill" style="background:#fceee7;color:#9a3412">S2</span>
+    <span class="dir" style="background:linear-gradient(135deg,#3d7c5e 0%,#4d9b75 50%,#5fad84 100%);color:white;border:1px solid #2d6249;">🐂 LONG</span>
+    <span class="bucket" style="background:#e4edf6;color:#2b5b8c">ETF</span>
+    <span style="margin-left:auto;font-family:Poppins,Arial,sans-serif;font-size:10px;font-weight:600;padding:3px 8px;border-radius:999px;background:#f9e0dd;color:#b03528">held -51.6%</span>
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:50%;background:#d97757"></span></div>
+  <span class="conf-val">50</span>
+</div>
+  <div class="meta-line">$715.17 · ATR $7.68 · backtest <b>1</b> trades · <b>1/1</b> wins (100%) · cumulative <b>+1.00</b> ATR</div>
+  <div class="signals"><span class="sig" title="OR break">✓ OR break</span><span class="sig" title="vol≥1.5×">✓ vol≥1.5×</span><span class="sig" title="ignition">✓ ignition</span><span class="sig" title="passed allowlist">✓ passed allowlist</span></div>
+  <div class="buy">S2 ORB LONG · enter on first 5m close above OR high with vol≥1.5× · stop = OR midpoint, target = +1 ATR ($7.68) · last close $715.17</div>
+</div>
+<div class="card card-held" data-ticker="TQQQ" data-stage="WAIT"
+     data-strategy="S2" data-direction="LONG" data-cap="ETF">
+  <div class="card-head">
+    <span class="tick">TQQQ</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#854d0e;border:1px solid #fbbf24;">⏸ WAIT</span>
+    <span class="strat-pill" style="background:#fceee7;color:#9a3412">S2</span>
+    <span class="dir" style="background:linear-gradient(135deg,#3d7c5e 0%,#4d9b75 50%,#5fad84 100%);color:white;border:1px solid #2d6249;">🐂 LONG</span>
+    <span class="bucket" style="background:#e4edf6;color:#2b5b8c">ETF</span>
+    <span style="margin-left:auto;font-family:Poppins,Arial,sans-serif;font-size:10px;font-weight:600;padding:3px 8px;border-radius:999px;background:#f9e0dd;color:#b03528">held -12.1%</span>
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:50%;background:#d97757"></span></div>
+  <span class="conf-val">50</span>
+</div>
+  <div class="meta-line">$62.64 · ATR $2.41 · backtest <b>1</b> trades · <b>1/1</b> wins (100%) · cumulative <b>+1.00</b> ATR</div>
+  <div class="signals"><span class="sig" title="OR break">✓ OR break</span><span class="sig" title="vol≥1.5×">✓ vol≥1.5×</span><span class="sig" title="ignition">✓ ignition</span><span class="sig" title="passed allowlist">✓ passed allowlist</span></div>
+  <div class="buy">S2 ORB LONG · enter on first 5m close above OR high with vol≥1.5× · stop = OR midpoint, target = +1 ATR ($2.41) · last close $62.64</div>
+</div>
+<div class="card card-held" data-ticker="AAPL" data-stage="WAIT"
+     data-strategy="S3" data-direction="LONG" data-cap="MEGA">
+  <div class="card-head">
+    <span class="tick">AAPL</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#fef3c7;color:#854d0e;border:1px solid #fbbf24;">⏸ WAIT</span>
+    <span class="strat-pill" style="background:#dbeafe;color:#1e3a8a">S3</span>
+    <span class="dir" style="background:linear-gradient(135deg,#3d7c5e 0%,#4d9b75 50%,#5fad84 100%);color:white;border:1px solid #2d6249;">🐂 LONG</span>
+    <span class="bucket" style="background:#fef3c7;color:#78350f">MEGA</span>
+    <span style="margin-left:auto;font-family:Poppins,Arial,sans-serif;font-size:10px;font-weight:600;padding:3px 8px;border-radius:999px;background:#f9e0dd;color:#b03528">held -25.8%</span>
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:6%;background:#b0aea5"></span></div>
+  <span class="conf-val">6</span>
+</div>
+  <div class="meta-line">$267.61 · ATR $5.69 · backtest <b>3</b> trades · <b>0/3</b> wins (0%) · cumulative <b>-3.00</b> ATR</div>
+  <div class="signals"><span class="sig" title="session-trend">✓ session-trend</span><span class="sig" title="VWAP-dist≥0.75 ATR">✓ VWAP-dist≥0.75 ATR</span><span class="sig" title="structure-clean">✓ structure-clean</span></div>
+  <div class="buy">S3 momentum LONG · enter mid-session if session-return≥1.5 ATR + VWAP-distance≥0.75 ATR + higher-lows + aggressor&gt;0.60 · stop = VWAP, target = +1 ATR ($5.69) · last close $267.61</div>
+</div>
+<div class="card" data-ticker="MSFT" data-stage="PASS"
+     data-strategy="S3" data-direction="LONG" data-cap="MEGA">
+  <div class="card-head">
+    <span class="tick">MSFT</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#e8e6dc;color:#6b6a65;"> PASS</span>
+    <span class="strat-pill" style="background:#dbeafe;color:#1e3a8a">S3</span>
+    <span class="dir" style="background:linear-gradient(135deg,#3d7c5e 0%,#4d9b75 50%,#5fad84 100%);color:white;border:1px solid #2d6249;">🐂 LONG</span>
+    <span class="bucket" style="background:#fef3c7;color:#78350f">MEGA</span>
+    
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:4%;background:#b0aea5"></span></div>
+  <span class="conf-val">4</span>
+</div>
+  <div class="meta-line">$424.82 · ATR $11.46 · backtest <b>2</b> trades · <b>1/2</b> wins (50%) · cumulative <b>+0.00</b> ATR</div>
+  <div class="signals"><span class="sig" title="session-trend">✓ session-trend</span><span class="sig" title="VWAP-dist≥0.75 ATR">✓ VWAP-dist≥0.75 ATR</span><span class="sig" title="structure-clean">✓ structure-clean</span></div>
+  
+</div>
+<div class="card" data-ticker="SNDK" data-stage="PASS"
+     data-strategy="S3" data-direction="LONG" data-cap="MID">
+  <div class="card-head">
+    <span class="tick">SNDK</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#e8e6dc;color:#6b6a65;"> PASS</span>
+    <span class="strat-pill" style="background:#dbeafe;color:#1e3a8a">S3</span>
+    <span class="dir" style="background:linear-gradient(135deg,#3d7c5e 0%,#4d9b75 50%,#5fad84 100%);color:white;border:1px solid #2d6249;">🐂 LONG</span>
+    <span class="bucket" style="background:#e0e7ff;color:#3730a3">MID</span>
+    
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:4%;background:#b0aea5"></span></div>
+  <span class="conf-val">4</span>
+</div>
+  <div class="meta-line">$1,070.20 · ATR $64.77 · backtest <b>2</b> trades · <b>1/2</b> wins (50%) · cumulative <b>+0.00</b> ATR</div>
+  <div class="signals"><span class="sig" title="session-trend">✓ session-trend</span><span class="sig" title="VWAP-dist≥0.75 ATR">✓ VWAP-dist≥0.75 ATR</span><span class="sig" title="structure-clean">✓ structure-clean</span></div>
+  
+</div>
+<div class="card" data-ticker="SQQQ" data-stage="PASS"
+     data-strategy="S2" data-direction="SHORT" data-cap="ETF">
+  <div class="card-head">
+    <span class="tick">SQQQ</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#e8e6dc;color:#6b6a65;"> PASS</span>
+    <span class="strat-pill" style="background:#fceee7;color:#9a3412">S2</span>
+    <span class="dir" style="background:linear-gradient(135deg,#b03528 0%,#d04638 50%,#e35344 100%);color:white;border:1px solid #8d2920;">🐻 SHORT</span>
+    <span class="bucket" style="background:#e4edf6;color:#2b5b8c">ETF</span>
+    
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:4%;background:#b0aea5"></span></div>
+  <span class="conf-val">4</span>
+</div>
+  <div class="meta-line">$52.45 · ATR $2.85 · backtest <b>2</b> trades · <b>1/2</b> wins (50%) · cumulative <b>+0.00</b> ATR</div>
+  <div class="signals"><span class="sig" title="OR break">✓ OR break</span><span class="sig" title="vol≥1.5×">✓ vol≥1.5×</span><span class="sig" title="ignition">✓ ignition</span><span class="sig" title="passed allowlist">✓ passed allowlist</span></div>
+  
+</div>
+<div class="card" data-ticker="XLE" data-stage="PASS"
+     data-strategy="S3" data-direction="SHORT" data-cap="ETF">
+  <div class="card-head">
+    <span class="tick">XLE</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#e8e6dc;color:#6b6a65;"> PASS</span>
+    <span class="strat-pill" style="background:#dbeafe;color:#1e3a8a">S3</span>
+    <span class="dir" style="background:linear-gradient(135deg,#b03528 0%,#d04638 50%,#e35344 100%);color:white;border:1px solid #8d2920;">🐻 SHORT</span>
+    <span class="bucket" style="background:#e4edf6;color:#2b5b8c">ETF</span>
+    
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:4%;background:#b0aea5"></span></div>
+  <span class="conf-val">4</span>
+</div>
+  <div class="meta-line">$56.77 · ATR $1.46 · backtest <b>2</b> trades · <b>0/2</b> wins (0%) · cumulative <b>-2.00</b> ATR</div>
+  <div class="signals"><span class="sig" title="session-trend">✓ session-trend</span><span class="sig" title="VWAP-dist≥0.75 ATR">✓ VWAP-dist≥0.75 ATR</span><span class="sig" title="structure-clean">✓ structure-clean</span></div>
+  
+</div>
+<div class="card" data-ticker="CRWD" data-stage="PASS"
+     data-strategy="S3" data-direction="LONG" data-cap="MID">
+  <div class="card-head">
+    <span class="tick">CRWD</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#e8e6dc;color:#6b6a65;"> PASS</span>
+    <span class="strat-pill" style="background:#dbeafe;color:#1e3a8a">S3</span>
+    <span class="dir" style="background:linear-gradient(135deg,#3d7c5e 0%,#4d9b75 50%,#5fad84 100%);color:white;border:1px solid #2d6249;">🐂 LONG</span>
+    <span class="bucket" style="background:#e0e7ff;color:#3730a3">MID</span>
+    
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:2%;background:#b0aea5"></span></div>
+  <span class="conf-val">2</span>
+</div>
+  <div class="meta-line">$454.61 · ATR $21.66 · backtest <b>1</b> trades · <b>0/1</b> wins (0%) · cumulative <b>-1.00</b> ATR</div>
+  <div class="signals"><span class="sig" title="session-trend">✓ session-trend</span><span class="sig" title="VWAP-dist≥0.75 ATR">✓ VWAP-dist≥0.75 ATR</span><span class="sig" title="structure-clean">✓ structure-clean</span></div>
+  
+</div>
+<div class="card" data-ticker="NFLX" data-stage="PASS"
+     data-strategy="S3" data-direction="SHORT" data-cap="MEGA">
+  <div class="card-head">
+    <span class="tick">NFLX</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#e8e6dc;color:#6b6a65;"> PASS</span>
+    <span class="strat-pill" style="background:#dbeafe;color:#1e3a8a">S3</span>
+    <span class="dir" style="background:linear-gradient(135deg,#b03528 0%,#d04638 50%,#e35344 100%);color:white;border:1px solid #8d2920;">🐻 SHORT</span>
+    <span class="bucket" style="background:#fef3c7;color:#78350f">MEGA</span>
+    
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:2%;background:#b0aea5"></span></div>
+  <span class="conf-val">2</span>
+</div>
+  <div class="meta-line">$91.37 · ATR $3.16 · backtest <b>1</b> trades · <b>0/1</b> wins (0%) · cumulative <b>-1.00</b> ATR</div>
+  <div class="signals"><span class="sig" title="session-trend">✓ session-trend</span><span class="sig" title="VWAP-dist≥0.75 ATR">✓ VWAP-dist≥0.75 ATR</span><span class="sig" title="structure-clean">✓ structure-clean</span></div>
+  
+</div>
+<div class="card" data-ticker="PLTR" data-stage="PASS"
+     data-strategy="S3" data-direction="LONG" data-cap="MID">
+  <div class="card-head">
+    <span class="tick">PLTR</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#e8e6dc;color:#6b6a65;"> PASS</span>
+    <span class="strat-pill" style="background:#dbeafe;color:#1e3a8a">S3</span>
+    <span class="dir" style="background:linear-gradient(135deg,#3d7c5e 0%,#4d9b75 50%,#5fad84 100%);color:white;border:1px solid #2d6249;">🐂 LONG</span>
+    <span class="bucket" style="background:#e0e7ff;color:#3730a3">MID</span>
+    
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:2%;background:#b0aea5"></span></div>
+  <span class="conf-val">2</span>
+</div>
+  <div class="meta-line">$143.10 · ATR $7.54 · backtest <b>1</b> trades · <b>0/1</b> wins (0%) · cumulative <b>-1.00</b> ATR</div>
+  <div class="signals"><span class="sig" title="session-trend">✓ session-trend</span><span class="sig" title="VWAP-dist≥0.75 ATR">✓ VWAP-dist≥0.75 ATR</span><span class="sig" title="structure-clean">✓ structure-clean</span></div>
+  
+</div>
+<div class="card" data-ticker="RDDT" data-stage="PASS"
+     data-strategy="S3" data-direction="LONG" data-cap="MID">
+  <div class="card-head">
+    <span class="tick">RDDT</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#e8e6dc;color:#6b6a65;"> PASS</span>
+    <span class="strat-pill" style="background:#dbeafe;color:#1e3a8a">S3</span>
+    <span class="dir" style="background:linear-gradient(135deg,#3d7c5e 0%,#4d9b75 50%,#5fad84 100%);color:white;border:1px solid #2d6249;">🐂 LONG</span>
+    <span class="bucket" style="background:#e0e7ff;color:#3730a3">MID</span>
+    
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:2%;background:#b0aea5"></span></div>
+  <span class="conf-val">2</span>
+</div>
+  <div class="meta-line">$160.21 · ATR $8.56 · backtest <b>1</b> trades · <b>0/1</b> wins (0%) · cumulative <b>-1.00</b> ATR</div>
+  <div class="signals"><span class="sig" title="session-trend">✓ session-trend</span><span class="sig" title="VWAP-dist≥0.75 ATR">✓ VWAP-dist≥0.75 ATR</span><span class="sig" title="structure-clean">✓ structure-clean</span></div>
+  
+</div>
+<div class="card" data-ticker="ROKU" data-stage="PASS"
+     data-strategy="S3" data-direction="LONG" data-cap="MID">
+  <div class="card-head">
+    <span class="tick">ROKU</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#e8e6dc;color:#6b6a65;"> PASS</span>
+    <span class="strat-pill" style="background:#dbeafe;color:#1e3a8a">S3</span>
+    <span class="dir" style="background:linear-gradient(135deg,#3d7c5e 0%,#4d9b75 50%,#5fad84 100%);color:white;border:1px solid #2d6249;">🐂 LONG</span>
+    <span class="bucket" style="background:#e0e7ff;color:#3730a3">MID</span>
+    
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:2%;background:#b0aea5"></span></div>
+  <span class="conf-val">2</span>
+</div>
+  <div class="meta-line">$114.38 · ATR $4.58 · backtest <b>1</b> trades · <b>0/1</b> wins (0%) · cumulative <b>-1.00</b> ATR</div>
+  <div class="signals"><span class="sig" title="session-trend">✓ session-trend</span><span class="sig" title="VWAP-dist≥0.75 ATR">✓ VWAP-dist≥0.75 ATR</span><span class="sig" title="structure-clean">✓ structure-clean</span></div>
+  
+</div>
+<div class="card" data-ticker="XLF" data-stage="PASS"
+     data-strategy="S2" data-direction="LONG" data-cap="ETF">
+  <div class="card-head">
+    <span class="tick">XLF</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#e8e6dc;color:#6b6a65;"> PASS</span>
+    <span class="strat-pill" style="background:#fceee7;color:#9a3412">S2</span>
+    <span class="dir" style="background:linear-gradient(135deg,#3d7c5e 0%,#4d9b75 50%,#5fad84 100%);color:white;border:1px solid #2d6249;">🐂 LONG</span>
+    <span class="bucket" style="background:#e4edf6;color:#2b5b8c">ETF</span>
+    
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:2%;background:#b0aea5"></span></div>
+  <span class="conf-val">2</span>
+</div>
+  <div class="meta-line">$51.81 · ATR $0.77 · backtest <b>1</b> trades · <b>0/1</b> wins (0%) · cumulative <b>-1.00</b> ATR</div>
+  <div class="signals"><span class="sig" title="OR break">✓ OR break</span><span class="sig" title="vol≥1.5×">✓ vol≥1.5×</span><span class="sig" title="ignition">✓ ignition</span><span class="sig" title="passed allowlist">✓ passed allowlist</span></div>
+  
+</div>
+<div class="card card-held" data-ticker="AMD" data-stage="PASS"
+     data-strategy="—" data-direction="LONG" data-cap="MID">
+  <div class="card-head">
+    <span class="tick">AMD</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#e8e6dc;color:#6b6a65;"> PASS</span>
+    <span class="strat-pill" style="background:#e8e6dc;color:#6b6a65">—</span>
+    <span class="dir" style="background:linear-gradient(135deg,#3d7c5e 0%,#4d9b75 50%,#5fad84 100%);color:white;border:1px solid #2d6249;">🐂 LONG</span>
+    <span class="bucket" style="background:#e0e7ff;color:#3730a3">MID</span>
+    <span style="margin-left:auto;font-family:Poppins,Arial,sans-serif;font-size:10px;font-weight:600;padding:3px 8px;border-radius:999px;background:#f9e0dd;color:#b03528">held -45.3%</span>
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:0%;background:#b0aea5"></span></div>
+  <span class="conf-val">0</span>
+</div>
+  <div class="meta-line">$334.63 · ATR $14.73 · backtest <b>0</b> trades · <b>0/0</b> wins (0%) · cumulative <b>+0.00</b> ATR</div>
+  
+  
+</div>
+<div class="card" data-ticker="CVNA" data-stage="PASS"
+     data-strategy="—" data-direction="LONG" data-cap="MID">
+  <div class="card-head">
+    <span class="tick">CVNA</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#e8e6dc;color:#6b6a65;"> PASS</span>
+    <span class="strat-pill" style="background:#e8e6dc;color:#6b6a65">—</span>
+    <span class="dir" style="background:linear-gradient(135deg,#3d7c5e 0%,#4d9b75 50%,#5fad84 100%);color:white;border:1px solid #2d6249;">🐂 LONG</span>
+    <span class="bucket" style="background:#e0e7ff;color:#3730a3">MID</span>
+    
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:0%;background:#b0aea5"></span></div>
+  <span class="conf-val">0</span>
+</div>
+  <div class="meta-line">$406.73 · ATR $20.93 · backtest <b>0</b> trades · <b>0/0</b> wins (0%) · cumulative <b>+0.00</b> ATR</div>
+  
+  
+</div>
+<div class="card" data-ticker="GOOGL" data-stage="PASS"
+     data-strategy="—" data-direction="LONG" data-cap="MEGA">
+  <div class="card-head">
+    <span class="tick">GOOGL</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#e8e6dc;color:#6b6a65;"> PASS</span>
+    <span class="strat-pill" style="background:#e8e6dc;color:#6b6a65">—</span>
+    <span class="dir" style="background:linear-gradient(135deg,#3d7c5e 0%,#4d9b75 50%,#5fad84 100%);color:white;border:1px solid #2d6249;">🐂 LONG</span>
+    <span class="bucket" style="background:#fef3c7;color:#78350f">MEGA</span>
+    
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:0%;background:#b0aea5"></span></div>
+  <span class="conf-val">0</span>
+</div>
+  <div class="meta-line">$350.34 · ATR $8.12 · backtest <b>0</b> trades · <b>0/0</b> wins (0%) · cumulative <b>+0.00</b> ATR</div>
+  
+  
+</div>
+<div class="card" data-ticker="META" data-stage="PASS"
+     data-strategy="—" data-direction="LONG" data-cap="MEGA">
+  <div class="card-head">
+    <span class="tick">META</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#e8e6dc;color:#6b6a65;"> PASS</span>
+    <span class="strat-pill" style="background:#e8e6dc;color:#6b6a65">—</span>
+    <span class="dir" style="background:linear-gradient(135deg,#3d7c5e 0%,#4d9b75 50%,#5fad84 100%);color:white;border:1px solid #2d6249;">🐂 LONG</span>
+    <span class="bucket" style="background:#fef3c7;color:#78350f">MEGA</span>
+    
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:0%;background:#b0aea5"></span></div>
+  <span class="conf-val">0</span>
+</div>
+  <div class="meta-line">$678.62 · ATR $19.85 · backtest <b>0</b> trades · <b>0/0</b> wins (0%) · cumulative <b>+0.00</b> ATR</div>
+  
+  
+</div>
+<div class="card" data-ticker="MSTR" data-stage="PASS"
+     data-strategy="—" data-direction="LONG" data-cap="MID">
+  <div class="card-head">
+    <span class="tick">MSTR</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#e8e6dc;color:#6b6a65;"> PASS</span>
+    <span class="strat-pill" style="background:#e8e6dc;color:#6b6a65">—</span>
+    <span class="dir" style="background:linear-gradient(135deg,#3d7c5e 0%,#4d9b75 50%,#5fad84 100%);color:white;border:1px solid #2d6249;">🐂 LONG</span>
+    <span class="bucket" style="background:#e0e7ff;color:#3730a3">MID</span>
+    
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:0%;background:#b0aea5"></span></div>
+  <span class="conf-val">0</span>
+</div>
+  <div class="meta-line">$169.20 · ATR $10.56 · backtest <b>0</b> trades · <b>0/0</b> wins (0%) · cumulative <b>+0.00</b> ATR</div>
+  
+  
+</div>
+<div class="card" data-ticker="SMCI" data-stage="PASS"
+     data-strategy="—" data-direction="LONG" data-cap="MID">
+  <div class="card-head">
+    <span class="tick">SMCI</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#e8e6dc;color:#6b6a65;"> PASS</span>
+    <span class="strat-pill" style="background:#e8e6dc;color:#6b6a65">—</span>
+    <span class="dir" style="background:linear-gradient(135deg,#3d7c5e 0%,#4d9b75 50%,#5fad84 100%);color:white;border:1px solid #2d6249;">🐂 LONG</span>
+    <span class="bucket" style="background:#e0e7ff;color:#3730a3">MID</span>
+    
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:0%;background:#b0aea5"></span></div>
+  <span class="conf-val">0</span>
+</div>
+  <div class="meta-line">$27.85 · ATR $1.69 · backtest <b>0</b> trades · <b>0/0</b> wins (0%) · cumulative <b>+0.00</b> ATR</div>
+  
+  
+</div>
+<div class="card" data-ticker="TSLA" data-stage="PASS"
+     data-strategy="—" data-direction="LONG" data-cap="MEGA">
+  <div class="card-head">
+    <span class="tick">TSLA</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#e8e6dc;color:#6b6a65;"> PASS</span>
+    <span class="strat-pill" style="background:#e8e6dc;color:#6b6a65">—</span>
+    <span class="dir" style="background:linear-gradient(135deg,#3d7c5e 0%,#4d9b75 50%,#5fad84 100%);color:white;border:1px solid #2d6249;">🐂 LONG</span>
+    <span class="bucket" style="background:#fef3c7;color:#78350f">MEGA</span>
+    
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:0%;background:#b0aea5"></span></div>
+  <span class="conf-val">0</span>
+</div>
+  <div class="meta-line">$378.67 · ATR $15.33 · backtest <b>0</b> trades · <b>0/0</b> wins (0%) · cumulative <b>+0.00</b> ATR</div>
+  
+  
+</div>
+<div class="card" data-ticker="XLK" data-stage="PASS"
+     data-strategy="—" data-direction="LONG" data-cap="ETF">
+  <div class="card-head">
+    <span class="tick">XLK</span>
+    <span style="font-family:Poppins,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.06em;padding:3px 8px;border-radius:4px;background:#e8e6dc;color:#6b6a65;"> PASS</span>
+    <span class="strat-pill" style="background:#e8e6dc;color:#6b6a65">—</span>
+    <span class="dir" style="background:linear-gradient(135deg,#3d7c5e 0%,#4d9b75 50%,#5fad84 100%);color:white;border:1px solid #2d6249;">🐂 LONG</span>
+    <span class="bucket" style="background:#e4edf6;color:#2b5b8c">ETF</span>
+    
+  </div>
+  
+<div class="conf-row">
+  <span class="conf-label">Conviction</span>
+  <div class="conf-bar"><span style="width:0%;background:#b0aea5"></span></div>
+  <span class="conf-val">0</span>
+</div>
+  <div class="meta-line">$160.57 · ATR $2.91 · backtest <b>0</b> trades · <b>0/0</b> wins (0%) · cumulative <b>+0.00</b> ATR</div>
+  
+  
+</div>
+  </div>
+</main>
+
+<footer>
+  scalp 2 · conviction · last 12 backtest days · stage = TRADE_NOW &gt; FORMING &gt; WAIT &gt; PASS
+</footer>
+
+
+<script>
+(function() {
+  const state = { stage: 'ALL', side: 'ALL', strategy: 'ALL' };
+  const cards = Array.from(document.querySelectorAll('.card'));
+  const groups = {
+    stage: document.querySelectorAll('[data-filter-stage]'),
+    side: document.querySelectorAll('[data-filter-side]'),
+    strategy: document.querySelectorAll('[data-filter-strategy]'),
+  };
+
+  function apply() {
+    cards.forEach(c => {
+      const stage = c.dataset.stage || 'PASS';
+      const dir = c.dataset.direction || '';
+      const strat = c.dataset.strategy || '';
+      let show = true;
+      if (state.stage !== 'ALL' && stage !== state.stage) show = false;
+      if (state.side !== 'ALL') {
+        // 'CALL' filter shows only S5 LONG cards (which display CALL pill).
+        // 'PUT' filter shows only S5 SHORT cards (PUT pill).
+        // 'LONG' / 'SHORT' apply across S2/S3/S5.
+        if (state.side === 'LONG' && dir !== 'LONG' && dir !== 'CALL') show = false;
+        else if (state.side === 'SHORT' && dir !== 'SHORT' && dir !== 'PUT') show = false;
+        else if (state.side === 'CALL' && dir !== 'CALL') show = false;
+        else if (state.side === 'PUT' && dir !== 'PUT') show = false;
+      }
+      if (state.strategy !== 'ALL' && strat !== state.strategy) show = false;
+      c.classList.toggle('hidden', !show);
+    });
+  }
+
+  function wire(group, key) {
+    group.forEach(el => el.addEventListener('click', () => {
+      group.forEach(x => x.classList.remove('active'));
+      el.classList.add('active');
+      state[key] = el.dataset['filter' + key.charAt(0).toUpperCase() + key.slice(1)];
+      apply();
+    }));
+  }
+  wire(groups.stage, 'stage');
+  wire(groups.side, 'side');
+  wire(groups.strategy, 'strategy');
+})();
+</script>
+
+</body>
+</html>

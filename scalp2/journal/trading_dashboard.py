@@ -745,9 +745,38 @@ def render_trading_dashboard(ctx: dict) -> str:
     .live-trades h2 {{ color: {BRAND['orange']}; border-bottom-color: {BRAND['orange']}; }}
     .live-trades h3 {{ font-size: 13px; margin: 14px 0 6px; }}
     .live-trades table {{ box-shadow: 0 1px 3px rgba(20,20,19,0.06); }}
+
+    /* Top nav (matches conviction page) */
+    .topnav {{
+      position: sticky; top: 0; z-index: 20;
+      display: flex; gap: 4px; padding: 10px 14px;
+      background: {BRAND['light']}; border-bottom: 1px solid {BRAND['light_gray']};
+      overflow-x: auto; white-space: nowrap;
+    }}
+    .topnav a {{
+      font-family: 'Poppins', Arial, sans-serif;
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 14px; font-size: 13px; font-weight: 500;
+      color: {BRAND['mid_gray']}; text-decoration: none;
+      border-radius: 999px; border: 1px solid transparent;
+    }}
+    .topnav a:hover {{ color: {BRAND['dark']}; background: {BRAND['light_gray']}; }}
+    .topnav a.active {{
+      color: {BRAND['dark']}; background: #fceee7;
+      border-color: rgba(217,119,87,0.3);
+    }}
+    .topnav a .sub {{ font-size: 10px; color: {BRAND['mid_gray']}; font-weight: 400; }}
+    .topnav a.active .sub {{ color: {BRAND['orange']}; }}
     """
 
+    topnav = f"""
+<nav class="topnav">
+  <a href="trading_dashboard.html" class="active"><span>📊 Dashboard</span><span class="sub">positions + backtest</span></a>
+  <a href="conviction.html"><span>👁 Conviction</span><span class="sub">tomorrow's plan</span></a>
+</nav>"""
+
     body = f"""
+{topnav}
 {_header_bar(account, daily_pnl, generated, mode)}
 
 <div class="container">
