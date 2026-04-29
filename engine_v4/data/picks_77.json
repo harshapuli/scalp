@@ -1,0 +1,806 @@
+{
+  "generated_utc": "2026-04-29T20:24:26",
+  "source": "user-pasted 156 tickers, Apr 29 2026",
+  "thresholds": {
+    "mega_min": 200,
+    "mid_min": 20,
+    "small_min": 0,
+    "unit": "B"
+  },
+  "counts": {
+    "mega": 23,
+    "mid": 32,
+    "small": 16,
+    "unscannable": 85
+  },
+  "buckets": {
+    "mega": [
+      {
+        "ticker": "NVDA",
+        "mcap_b": 5180.0,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "MSFT",
+        "mcap_b": 3187.5,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "AMZN",
+        "mcap_b": 2787.9,
+        "sector": "Consumer Cyclical"
+      },
+      {
+        "ticker": "TSM",
+        "mcap_b": 2100.0,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "AVGO",
+        "mcap_b": 1893.1,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "GOOG",
+        "mcap_b": 1879.4,
+        "sector": "Communication Services"
+      },
+      {
+        "ticker": "META",
+        "mcap_b": 1468.3,
+        "sector": "Communication Services"
+      },
+      {
+        "ticker": "TSLA",
+        "mcap_b": 1412.2,
+        "sector": "Consumer Cyclical"
+      },
+      {
+        "ticker": "LLY",
+        "mcap_b": 824.5,
+        "sector": "Healthcare"
+      },
+      {
+        "ticker": "MU",
+        "mcap_b": 568.7,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "ASML",
+        "mcap_b": 533.6,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "AMD",
+        "mcap_b": 527.0,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "ORCL",
+        "mcap_b": 477.3,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "QQQ",
+        "mcap_b": 429.2,
+        "sector": ""
+      },
+      {
+        "ticker": "INTC",
+        "mcap_b": 424.8,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "NFLX",
+        "mcap_b": 388.7,
+        "sector": "Communication Services"
+      },
+      {
+        "ticker": "UNH",
+        "mcap_b": 332.9,
+        "sector": "Healthcare"
+      },
+      {
+        "ticker": "PLTR",
+        "mcap_b": 323.5,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "AMAT",
+        "mcap_b": 302.5,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "BABA",
+        "mcap_b": 302.2,
+        "sector": "Consumer Cyclical"
+      },
+      {
+        "ticker": "GEV",
+        "mcap_b": 292.6,
+        "sector": "Utilities"
+      },
+      {
+        "ticker": "ANET",
+        "mcap_b": 207.7,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "SPY",
+        "mcap_b": 0.0,
+        "sector": ""
+      }
+    ],
+    "mid": [
+      {
+        "ticker": "ADI",
+        "mcap_b": 187.1,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "DIS",
+        "mcap_b": 179.8,
+        "sector": "Communication Services"
+      },
+      {
+        "ticker": "QCOM",
+        "mcap_b": 160.1,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "UBER",
+        "mcap_b": 152.5,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "DE",
+        "mcap_b": 152.3,
+        "sector": "Industrials"
+      },
+      {
+        "ticker": "SNDK",
+        "mcap_b": 147.9,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "PANW",
+        "mcap_b": 147.7,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "APP",
+        "mcap_b": 137.9,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "MRVL",
+        "mcap_b": 134.0,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "CRWD",
+        "mcap_b": 115.4,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "ADBE",
+        "mcap_b": 98.3,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "NOW",
+        "mcap_b": 93.3,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "NET",
+        "mcap_b": 66.2,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "DELL",
+        "mcap_b": 65.6,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "HOOD",
+        "mcap_b": 64.9,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "CVNA",
+        "mcap_b": 58.0,
+        "sector": "Consumer Cyclical"
+      },
+      {
+        "ticker": "NKE",
+        "mcap_b": 54.0,
+        "sector": "Consumer Cyclical"
+      },
+      {
+        "ticker": "MSTR",
+        "mcap_b": 52.1,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "SNOW",
+        "mcap_b": 49.3,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "RKLB",
+        "mcap_b": 44.6,
+        "sector": "Industrials"
+      },
+      {
+        "ticker": "NVO",
+        "mcap_b": 44.3,
+        "sector": "Healthcare"
+      },
+      {
+        "ticker": "CRWV",
+        "mcap_b": 44.2,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "COIN",
+        "mcap_b": 43.3,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "DDOG",
+        "mcap_b": 43.2,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "SLV",
+        "mcap_b": 35.6,
+        "sector": ""
+      },
+      {
+        "ticker": "ALAB",
+        "mcap_b": 31.2,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "CRDO",
+        "mcap_b": 30.6,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "NBIS",
+        "mcap_b": 27.1,
+        "sector": "Communication Services"
+      },
+      {
+        "ticker": "SOFI",
+        "mcap_b": 23.4,
+        "sector": "Financial Services"
+      },
+      {
+        "ticker": "CRCL",
+        "mcap_b": 21.5,
+        "sector": "Financial Services"
+      },
+      {
+        "ticker": "MDB",
+        "mcap_b": 20.8,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "GLD",
+        "mcap_b": 0.0,
+        "sector": ""
+      }
+    ],
+    "small": [
+      {
+        "ticker": "RIVN",
+        "mcap_b": 20.0,
+        "sector": "Consumer Cyclical"
+      },
+      {
+        "ticker": "SATS",
+        "mcap_b": 19.5,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "SMCI",
+        "mcap_b": 16.3,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "LULU",
+        "mcap_b": 15.7,
+        "sector": "Consumer Cyclical"
+      },
+      {
+        "ticker": "IREN",
+        "mcap_b": 14.8,
+        "sector": "Financial Services"
+      },
+      {
+        "ticker": "OKLO",
+        "mcap_b": 12.0,
+        "sector": "Utilities"
+      },
+      {
+        "ticker": "WULF",
+        "mcap_b": 8.8,
+        "sector": "Financial Services"
+      },
+      {
+        "ticker": "CAR",
+        "mcap_b": 6.4,
+        "sector": "Industrials"
+      },
+      {
+        "ticker": "RIOT",
+        "mcap_b": 6.3,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "RGTI",
+        "mcap_b": 5.4,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "ONDS",
+        "mcap_b": 4.9,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "ENPH",
+        "mcap_b": 4.5,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "MARA",
+        "mcap_b": 4.2,
+        "sector": "Financial Services"
+      },
+      {
+        "ticker": "SMR",
+        "mcap_b": 3.8,
+        "sector": "Industrials"
+      },
+      {
+        "ticker": "BULL",
+        "mcap_b": 3.1,
+        "sector": "Technology"
+      },
+      {
+        "ticker": "CRML",
+        "mcap_b": 1.2,
+        "sector": "Basic Materials"
+      }
+    ],
+    "unscannable": [
+      {
+        "ticker": "ABAT",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "ACHR",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "ADSK",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "AFRM",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "ALB",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "AMBA",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "AMC",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "APLD",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "ARM",
+        "mcap_b": null,
+        "reason": "mcap data missing"
+      },
+      {
+        "ticker": "ARQQ",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "ASTS",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "AZO",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "BBAI",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "BE",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "BETR",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "BLSH",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "BYND",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "CELH",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "CIFR",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "COPX",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "CORZ",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "CRM",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "DNUT",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "DUOL",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "DVLT",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "FIG",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "FUBO",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "GBTC",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "GME",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "HIMS",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "IBRX",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "INTU",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "IONQ",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "ISRG",
+        "mcap_b": null,
+        "reason": "mcap data missing"
+      },
+      {
+        "ticker": "JBLU",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "LAC",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "LAR",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "LASR",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "LITE",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "LMND",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "LTBR",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "LUMN",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "LUNR",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "MELI",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "MP",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "NIQ",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "NNE",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "NVTS",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "OCUL",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "OKTA",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "OPEN",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "OSCR",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "PATH",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "PL",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "PLUG",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "PONY",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "PTON",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "QBTS",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "QS",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "QSI",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "QUBT",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "RDDT",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "RDW",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "RILY",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "RR",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "RZLV",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "SBET",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "SERV",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "SHOP",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "SIL",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "SNPS",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "SOUN",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "SPOT",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "TEM",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "TLRY",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "TMC",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "TSLL",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "TTD",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "UEC",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "ULTA",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "UPST",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "USAR",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "UUUU",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "VST",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      },
+      {
+        "ticker": "ZETA",
+        "mcap_b": null,
+        "reason": "not in snapshot universe"
+      }
+    ]
+  }
+}
