@@ -641,25 +641,34 @@ def main():
 
     print(f"Scanning {len(today_data)} tickers from snapshot {today_name}", file=sys.stderr)
 
-    # Build daily bars from alpaca_bars (each snapshot has 5-min bars; we need daily)
-    # Use alpaca_snapshot.dailyBar + prior snapshots for history
+    # Build chronologically-sorted unique daily bars per ticker.
+    #
+    # Bug fix (Apr 29 2026): the prior version appended each snapshot's
+    # dailyBar AND prevDailyBar without deduplication. Because prevDailyBar
+    # of snap_N == dailyBar of snap_(N-1), the bars list ended with the
+    # MOST RECENT prevDailyBar (= yesterday's close), making
+    # `daily_bars[-1]` yesterday's bar instead of today's. That inverted
+    # today_pct, cum_3d, had_recent_5pct, etc. across the entire universe
+    # — every CALL/PUT direction call was off by one day.
+    #
+    # Fix: dedupe on bar's own `t` timestamp (the date string, first 10
+    # chars). prevDailyBar is only added if its date isn't already in the
+    # set (gives us 1 extra prior day for the OLDEST snapshot).
     def get_daily_history(tkr):
-        bars = []
+        by_date = {}  # 'YYYY-MM-DD' → bar dict
         for snap_name, snap in snaps_loaded:
             tdata = snap.get('data', {}).get(tkr, {})
-            db = (tdata.get('alpaca_snapshot') or {}).get('dailyBar') or {}
-            if db.get('c'):
-                d_iso = snap_name.replace('v4_snapshot_','').replace('.json','')
-                bars.append({'t': d_iso, 'o': db.get('o'), 'h': db.get('h'),
-                             'l': db.get('l'), 'c': db.get('c'), 'v': db.get('v', 0)})
-            # Also pull prevDailyBar if that's the only one and we don't have other days
-            pdb = (tdata.get('alpaca_snapshot') or {}).get('prevDailyBar') or {}
-            if pdb.get('c'):
-                # Check if we already have this date
-                bars.append({'t': 'prev_'+snap_name, 'o': pdb.get('o'), 'h': pdb.get('h'),
-                             'l': pdb.get('l'), 'c': pdb.get('c'), 'v': pdb.get('v', 0)})
-        # Dedup by close (rough — just pass through)
-        return bars
+            ap = tdata.get('alpaca_snapshot') or {}
+            db, pdb = ap.get('dailyBar') or {}, ap.get('prevDailyBar') or {}
+            for bar in (db, pdb):
+                c = bar.get('c'); t = bar.get('t')
+                if c is None or not t: continue
+                iso = t[:10]  # 'YYYY-MM-DD'
+                if iso in by_date: continue  # already have this date — skip dup
+                by_date[iso] = {'t': iso, 'o': bar.get('o'), 'h': bar.get('h'),
+                                'l': bar.get('l'), 'c': bar.get('c'),
+                                'v': bar.get('v', 0)}
+        return [by_date[k] for k in sorted(by_date.keys())]
 
     # Load enrichment signals (graceful: empty dict if file missing)
     uw_signals_per_ticker = load_uw_signals()
