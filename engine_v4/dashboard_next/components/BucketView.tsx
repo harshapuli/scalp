@@ -368,10 +368,12 @@ function priorityScore(r: RowState): number {
     else if (r.last_hr_call_m <= -5) s -= 35;
     else if (r.last_hr_call_m <= -1) s -= 12;
   }
-  // Cross-engine signals
-  if (r.triggered_today) s += r.triggered_strong ? 25 : 15;
+  // Cross-engine signals — only continuation matters for entry timing.
+  // Breakout-today is "missed the trigger" so it gets only a small bump.
+  if (r.triggered_today) s += 5;  // small acknowledgment, not actionable
   if (r.continuation_chain_days && r.continuation_chain_days >= 1) {
-    s += Math.min(r.continuation_chain_days * 5, 25);  // longer chain = more weight, capped
+    // Longer chain holding = stronger signal, but cap to avoid runaway sort
+    s += Math.min(r.continuation_chain_days * 8, 40);
   }
   return s;
 }
@@ -697,20 +699,20 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
             labels.push({ text: '☠ STEALTH-DIST', bg: 'rgba(176,53,40,0.10)', fg: 'var(--bear)',
               title: 'Multi-day institutional distribution' });
           }
-          // Breakout fired today (replaces /breakout page chip)
-          if (r.triggered_today) {
-            labels.push({
-              text: r.triggered_strong ? '🚀 STRONG BREAK' : '🚀 BREAK',
-              bg: 'var(--bull-soft)', fg: 'var(--bull)',
-              title: 'v4_today_breakout_scanner fired today — ticker broke above N-day high or vol threshold.',
-            });
-          }
-          // Multi-day continuation chain (replaces /continuation page chip)
+          // Breakout-fired-today chip removed per user feedback:
+          // "if it broke today you missed the entry — only continuation
+          //  matters because that's where you can still get in."
+          // The triggered_today fact still feeds the priority sort
+          // (slightly), but no chip — keeps the row uncluttered.
+          //
+          // Multi-day continuation chain — THIS is the actionable signal.
+          // Means: ticker broke out N days ago AND is still holding above
+          // the breakout origin. Entry on a pullback is still viable.
           if (r.continuation_chain_days && r.continuation_chain_days >= 1) {
             labels.push({
-              text: `🏃 CONT × ${r.continuation_chain_days}d`,
-              bg: 'rgba(120,140,93,0.15)', fg: 'var(--green, #788c5d)',
-              title: `In a ${r.continuation_chain_days}-day breakout continuation chain (D1 broke, holding above origin).`,
+              text: `🏃 CONTINUE × ${r.continuation_chain_days}d`,
+              bg: 'rgba(120,140,93,0.18)', fg: 'var(--green, #788c5d)',
+              title: `In a ${r.continuation_chain_days}-day breakout continuation chain. Origin breakout still holding — entry on a pullback is still viable.`,
             });
           }
           // Flip warning
