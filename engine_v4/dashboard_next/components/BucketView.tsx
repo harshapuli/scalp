@@ -43,6 +43,12 @@ interface RowState {
   staging_put_score?: number;
   is_buy?: boolean;
   is_put_buy?: boolean;
+  // late-hour flow surge ("someone always knows" signal)
+  // Source: patrol factors.last_hr_call_$ — net call premium in final hour.
+  // Backtested 2026-04-22→29 (n=1024 ticker-days):
+  //   ≥$5M  → 45.5% win rate (3d+0.5%)  vs 14.8% baseline (+30.7 pp)
+  //   ≤−$5M → 10.3% gap-up rate next day vs 27.4% baseline (-17.1 pp)
+  last_hr_call_m?: number;
 }
 
 // Single primary action per ticker — what to do, at a glance.
@@ -55,6 +61,23 @@ function actionFor(r: RowState): { action: ActionLevel; bg: string; fg: string; 
   const u = r.cv_urgency;
   const inst = (r.positioning_score || 0) >= 60;
   const dayPct = r.day_pct || 0;
+
+  // 0. EOD SURGE — strongest single-signal edge in our backtest (+30.7pp).
+  // Promote any ticker with last-hour call surge ≥$5M to BUY (or PUT for sell-side).
+  if (r.last_hr_call_m != null && r.last_hr_call_m >= 5 && !r.has_flip) {
+    return {
+      action: 'BUY',
+      bg: 'rgba(63,140,71,0.32)', fg: 'var(--bull)',
+      why: 'Late-hour call surge ≥$5M — backtested 45.5% win rate (+30.7pp). Scalp setup.',
+    };
+  }
+  if (r.last_hr_call_m != null && r.last_hr_call_m <= -5 && !r.has_flip) {
+    return {
+      action: 'PUT',
+      bg: 'rgba(176,53,40,0.30)', fg: '#fff',
+      why: 'Late-hour call premium ≤−$5M (calls being sold) — backtested 10.3% gap-up rate (−17.1pp). PUT setup.',
+    };
+  }
 
   // 1. FLIP overrides everything — institutions undecided
   if (r.has_flip) return {
@@ -187,6 +210,13 @@ function priorityScore(r: RowState): number {
   if (r.has_flip) s -= 10;
   // Net fire count tilt
   s += (r.acc_n - r.dist_n) * 2;
+  // Late-hour flow surge — backtested +30.7pp edge for ≥$5M call surges
+  if (r.last_hr_call_m != null) {
+    if (r.last_hr_call_m >= 5)  s += 35;   // SURGE_5M+ tier (45.5% win rate)
+    else if (r.last_hr_call_m >= 1)  s += 12;
+    else if (r.last_hr_call_m <= -5) s -= 35;
+    else if (r.last_hr_call_m <= -1) s -= 12;
+  }
   return s;
 }
 
@@ -243,6 +273,9 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
       }
       const cvr = cvByT[t.ticker] || {};
       const sr = stByT[t.ticker] || {};
+      const factors = (p as any).factors || {};
+      const last_hr_raw = factors['last_hr_call_$'];
+      const last_hr_call_m = (typeof last_hr_raw === 'number') ? last_hr_raw / 1e6 : undefined;
       return {
         ticker: t.ticker,
         mcap_b: t.mcap_b ?? null,
@@ -262,6 +295,7 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
         staging_put_score: sr.put_score,
         is_buy: sr.is_buy,
         is_put_buy: sr.is_put_buy,
+        last_hr_call_m,
       };
     });
   }, [picks, patrol, cvByT, stByT, bucket]);
@@ -463,6 +497,34 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
             labels.push({ text: '⚠ FLIP', bg: 'rgba(176,53,40,0.10)', fg: 'var(--bear)',
               title: 'Patrol flipped direction today (ACC↔DIST) — mixed signal' });
           }
+          // Late-hour flow surge (backtested +30.7pp edge for ≥$5M tier)
+          if (r.last_hr_call_m != null) {
+            if (r.last_hr_call_m >= 5) {
+              labels.push({
+                text: `🎯 EOD CALL +$${r.last_hr_call_m.toFixed(0)}M`,
+                bg: 'var(--bull-soft)', fg: 'var(--bull)',
+                title: `Last hour net call premium +$${r.last_hr_call_m.toFixed(1)}M. Backtested 45.5% win rate (+30.7pp vs 14.8% baseline) for ≥$5M surges in last 30 min.`,
+              });
+            } else if (r.last_hr_call_m >= 1) {
+              labels.push({
+                text: `📞 EOD CALL +$${r.last_hr_call_m.toFixed(1)}M`,
+                bg: 'var(--bull-soft)', fg: 'var(--bull)',
+                title: `Last hour net call premium +$${r.last_hr_call_m.toFixed(1)}M. STRONG ($1-5M) tier — 47.6% next-day gap-up rate.`,
+              });
+            } else if (r.last_hr_call_m <= -5) {
+              labels.push({
+                text: `🎯 EOD PUT -$${Math.abs(r.last_hr_call_m).toFixed(0)}M`,
+                bg: 'var(--bear-soft)', fg: 'var(--bear)',
+                title: `Last hour net call premium -$${Math.abs(r.last_hr_call_m).toFixed(1)}M (calls being SOLD). Backtested only 10.3% gap-up rate next day (-17.1pp).`,
+              });
+            } else if (r.last_hr_call_m <= -1) {
+              labels.push({
+                text: `📞 EOD PUT -$${Math.abs(r.last_hr_call_m).toFixed(1)}M`,
+                bg: 'var(--bear-soft)', fg: 'var(--bear)',
+                title: `Last hour net call premium -$${Math.abs(r.last_hr_call_m).toFixed(1)}M — institutions selling calls late.`,
+              });
+            }
+          }
 
           // Primary action — what to do, at a glance
           const act = actionFor(r);
@@ -496,16 +558,25 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
                     fontFamily: 'Poppins, Arial, sans-serif', whiteSpace: 'nowrap',
                   }}>{l.text}</span>
                 ))}
-                <span title={`Today: ${r.acc_n} CALL fires, ${r.dist_n} PUT fires. Higher counts = more institutional confirmations.`}
-                      style={{ fontSize: 11, color: 'var(--dim)', marginLeft: 4 }}>
+                <span title={`Patrol fired ${r.acc_n} CALL alert${r.acc_n === 1 ? '' : 's'} and ${r.dist_n} PUT alert${r.dist_n === 1 ? '' : 's'} today. More alerts = more institutional confirmations during the session.`}
+                      style={{ fontSize: 11, color: 'var(--dim)', marginLeft: 6 }}>
                   {(r.acc_n > 0 || r.dist_n > 0) ? (
                     <>
-                      <span style={{ color: 'var(--bull)', fontWeight: 600 }}>{r.acc_n}↑ call</span>
-                      <span style={{ margin: '0 4px', color: 'var(--mid)' }}>·</span>
-                      <span style={{ color: 'var(--bear)', fontWeight: 600 }}>{r.dist_n}↓ put</span>
+                      today:&nbsp;
+                      {r.acc_n > 0 && (
+                        <span style={{ color: 'var(--bull)', fontWeight: 600 }}>
+                          {r.acc_n}× call alert{r.acc_n === 1 ? '' : 's'}
+                        </span>
+                      )}
+                      {r.acc_n > 0 && r.dist_n > 0 && <span style={{ color: 'var(--mid)' }}>, </span>}
+                      {r.dist_n > 0 && (
+                        <span style={{ color: 'var(--bear)', fontWeight: 600 }}>
+                          {r.dist_n}× put alert{r.dist_n === 1 ? '' : 's'}
+                        </span>
+                      )}
                     </>
                   ) : (
-                    <span style={{ color: 'var(--mid)' }}>no fires today</span>
+                    <span style={{ color: 'var(--mid)' }}>today: no alerts</span>
                   )}
                 </span>
               </div>
