@@ -28,6 +28,7 @@ from v4_staging_scanner import (
     staging_score_v7, staging_score_v8,
     staging_score_v7_put, staging_score_v8_put,
     V7_BUY_THRESHOLD, V8_BUY_THRESHOLD,
+    _apply_directional_gate,
 )
 THRESHOLDS = {'v7': V7_BUY_THRESHOLD, 'v8': V8_BUY_THRESHOLD}
 # Use the relaxed feature extractor from v4_winners_vs_losers (≥2 priors).
@@ -116,8 +117,13 @@ def main():
             ec = f['today_close']
             if not ec: continue
 
-            v7s = staging_score_v7(f, uw_signals=uw.get(tkr))
-            v8s = staging_score_v8(f, uw_signals=uw.get(tkr))
+            # Compute raw scores then apply the same directional gate
+            # the live scanner uses (zero-out CALL on clearly-down days,
+            # PUT on clearly-up days). Apples-to-apples for both versions.
+            v7s_raw = staging_score_v7(f, uw_signals=uw.get(tkr))
+            v8s_raw = staging_score_v8(f, uw_signals=uw.get(tkr))
+            v7s, _ = _apply_directional_gate(f, v7s_raw, 0)  # only need CALL side here
+            v8s, _ = _apply_directional_gate(f, v8s_raw, 0)
 
             sector = f.get('sector') or '—'
             beta = f.get('beta') or 0
