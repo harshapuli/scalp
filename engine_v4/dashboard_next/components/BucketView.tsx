@@ -124,38 +124,32 @@ function predictionFor(r: RowState): Prediction | null {
   // ─── PATH A: z-score-based (STRONG / USABLE baseline) ───
   if (z != null && (bq === 'STRONG' || bq === 'USABLE')) {
     const baselineLbl = `z=${z.toFixed(2)}σ vs ticker baseline ($${r.baseline?.median_m.toFixed(1)}M ± $${r.baseline?.std_floor_m.toFixed(1)}M${bq === 'USABLE' ? ', n='+r.baseline?.n_days+' days' : ''})`;
-    // CALL z ≥ +2.0 (rare, strong)
-    if (z >= 2.0) {
-      // Magnitude depends on regime
+    // CALL z ≥ +2.0 (rare, strong) — but EARN_WK CALL has NO edge (regime sweep)
+    if (z >= 2.0 && reg !== 'EARN_WK') {
       const [lo, hi] = reg === 'NO_EARN' ? [2, 8] : reg === 'EARN_MTH' ? [1, 5] : [1, 6];
       return mk('CALL', lo, hi, 67, 6, `Z≥+2 / ${reg || 'unknown'}`,
         `Unusual late-hour call surge — ${baselineLbl}. Backtested 67% 3d-up, +44pp edge.`);
     }
-    if (z >= 1.5) {
+    if (z >= 1.5 && reg !== 'EARN_WK') {
       const [lo, hi] = reg === 'NO_EARN' ? [1, 5] : [0, 3];
       return mk('CALL', lo, hi, 41, 17, `Z≥+1.5 / ${reg || 'unknown'}`,
         `Moderate call surge — ${baselineLbl}. Backtested 41% 3d-up, +18pp edge.`);
     }
     // PUT z ≤ -0.5 — strongest PUT cell
     if (z <= -0.5 && z > -1.5) {
-      // Earnings regime amplifies expected drop magnitude
       const [lo, hi] = reg === 'EARN_WK' ? [-25, -10] :
                        reg === 'EARN_MTH' ? [-12, -5] : [-5, -1];
       return mk('PUT', lo, hi, 80, 10, `-1.5<Z≤-0.5 / ${reg || 'unknown'}`,
         `Unusual late-hour put-flow — ${baselineLbl}. Backtested 80% 3d-down, +13pp edge.`);
     }
     if (z <= -1.5) {
-      // Past -1.5 the signal weakens (mean-reversion / over-extension)
-      // Only fire if there's an earnings catalyst to anchor it
       if (reg === 'EARN_WK' || reg === 'EARN_MTH') {
         const [lo, hi] = reg === 'EARN_WK' ? [-30, -15] : [-12, -5];
         return mk('PUT', lo, hi, 70, 9, `Z≤-1.5 + earnings`,
           `Heavy late-hour put-flow with earnings catalyst — ${baselineLbl}. Magnitude expected larger but historical hit-rate degrades past -1.5σ.`);
       }
-      // No regime → no prediction (the data showed this inverts)
       return null;
     }
-    // Inside ±0.5σ — typical, no signal
     return null;
   }
 
@@ -194,40 +188,60 @@ function actionFor(r: RowState): { action: ActionLevel; bg: string; fg: string; 
   const inst = (r.positioning_score || 0) >= 60;
   const dayPct = r.day_pct || 0;
 
-  // 0. EOD SURGE — REGIME-AWARE (the sweet zone differs by earnings context).
-  // Backtested ranges (2026-04-22→29, n=409):
-  //   EARN_WK  PUT  −$0.5 to −$2M    75-100% 3d-down win
-  //   EARN_MTH PUT  −$0.5 to −$2M    100% (n=3-7), +34pp edge
-  //   EARN_MTH CALL +$0.5 to +$3M    50-66%, +33-40pp edge
-  //   NO_EARN  CALL +$1   to +$4M    50-66%, +20-36pp edge
-  //   NO_EARN  PUT  ANY               INVERTED — do NOT promote to PUT
+  // 0a. Z-SCORE PROMOTION (strongest measured edge: +44pp at z≥+2)
+  // BUT: respect earnings regime — EARN_WK CALL has no edge.
+  if (r.z_score != null && r.baseline?.quality && !r.has_flip) {
+    const z = r.z_score;
+    const bq = r.baseline.quality;
+    const reg = r.earnings_regime;
+    if (bq === 'STRONG' || bq === 'USABLE') {
+      // CALL promotions blocked in EARN_WK (regime sweep showed no edge)
+      if (z >= 2.0 && reg !== 'EARN_WK') {
+        return { action: 'BUY',
+          bg: 'rgba(63,140,71,0.32)', fg: 'var(--bull)',
+          why: `Unusual call surge — z=+${z.toFixed(2)}σ vs baseline. Backtest: 67% 3d-up at z≥+2 cell.` };
+      }
+      if (z >= 1.5 && reg !== 'EARN_WK') {
+        return { action: 'BUY',
+          bg: 'rgba(63,140,71,0.28)', fg: 'var(--bull)',
+          why: `Moderate call surge — z=+${z.toFixed(2)}σ vs baseline. Backtest: 41% 3d-up, +18pp edge.` };
+      }
+      // PUT promotion: meaningful only with earnings catalyst (EARN_WK/EARN_MTH)
+      if (z <= -0.5 && z > -1.5 && (reg === 'EARN_WK' || reg === 'EARN_MTH')) {
+        return { action: 'PUT',
+          bg: 'rgba(176,53,40,0.30)', fg: '#fff',
+          why: `Unusual put-flow — z=${z.toFixed(2)}σ with earnings ${r.days_to_earnings}d away. Backtest: 80% 3d-down at this cell.` };
+      }
+      if (z <= -1.5 && (reg === 'EARN_WK' || reg === 'EARN_MTH')) {
+        return { action: 'PUT',
+          bg: 'rgba(176,53,40,0.30)', fg: '#fff',
+          why: `Heavy put-flow — z=${z.toFixed(2)}σ with earnings catalyst. Larger expected drop, slightly degraded hit rate.` };
+      }
+    }
+  }
+
+  // 0b. EOD SURGE absolute-$ fallback — only fires when z-score path didn't.
+  // Same regime constraints. EARN_WK CALL stays blocked.
   if (r.last_hr_call_m != null && !r.has_flip) {
     const lhc = r.last_hr_call_m;
     const reg = r.earnings_regime;
-    // PUT promotion: only when earnings ahead within 30d
     if (lhc <= -0.5 && lhc >= -2.0 && (reg === 'EARN_WK' || reg === 'EARN_MTH')) {
-      return {
-        action: 'PUT',
+      return { action: 'PUT',
         bg: 'rgba(176,53,40,0.30)', fg: '#fff',
-        why: `Late-hour put-flow $${lhc.toFixed(1)}M with earnings ${r.days_to_earnings ?? '?'}d away — ${reg === 'EARN_WK' ? '75-100%' : '100%'} backtested 3d-down hit rate.`,
-      };
+        why: `Late-hour put-flow $${lhc.toFixed(1)}M with earnings ${r.days_to_earnings ?? '?'}d away — ${reg === 'EARN_WK' ? '75-100%' : '100%'} backtested hit rate.` };
     }
-    // CALL promotion: EARN_MTH gets lower threshold; NO_EARN needs +$1M+
     if (lhc >= 0.5 && lhc <= 3.0 && reg === 'EARN_MTH') {
-      return {
-        action: 'BUY',
+      return { action: 'BUY',
         bg: 'rgba(63,140,71,0.32)', fg: 'var(--bull)',
-        why: `Late-hour call $${lhc.toFixed(1)}M with earnings ${r.days_to_earnings ?? '?'}d away — backtested 50-66% 3d-up hit rate, +33-40pp edge.`,
-      };
+        why: `Late-hour call $${lhc.toFixed(1)}M with earnings ${r.days_to_earnings ?? '?'}d away — 50-66% backtested up rate.` };
     }
     if (lhc >= 1.0 && lhc <= 4.0 && reg === 'NO_EARN') {
-      return {
-        action: 'BUY',
+      return { action: 'BUY',
         bg: 'rgba(63,140,71,0.32)', fg: 'var(--bull)',
-        why: `Late-hour organic call surge $${lhc.toFixed(1)}M (no near-term earnings) — backtested 50-66% 3d-up, +20-36pp edge.`,
-      };
+        why: `Late-hour organic call surge $${lhc.toFixed(1)}M (no near-term earnings) — 50-66% backtested up rate.` };
     }
-    // NO_EARN PUT explicitly NOT promoted — backtest showed inverted edge.
+    // EARN_WK CALL explicitly NOT promoted (no edge).
+    // NO_EARN PUT explicitly NOT promoted (inverted).
   }
 
   // 1. FLIP overrides everything — institutions undecided
@@ -564,22 +578,37 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
     };
   }, [rows, patrol?.tickers]);
 
+  // Action-tier rank: BUY = top, PUT = next (also actionable), then WAIT etc.
+  // HOLD/SKIP at bottom. Within same tier, sort by absolute composite quality.
+  const ACTION_RANK: Record<string, number> = {
+    BUY: 100, PUT: 90, WAIT: 70, PUT_WAIT: 65, FORMING: 50, HOLD: 10, SKIP: 5,
+  };
+
   const filtered = useMemo(() => {
-    let out = rows;
+    // Compute action label per row once for filtering + sorting
+    const withAction = rows.map(r => ({ r, action: actionFor(r).action }));
+    let out = withAction;
+
     if (filter === 'ACTIVE') {
-      out = rows.filter(r => {
-        const v = r.patrol_verdict;
-        return v === 'ACC' || v === 'STRONG_ACC' || v === 'DIST' || v === 'STRONG_DIST'
-            || ['BUY','WATCH'].includes(r.cv_verdict || '')
-            || r.is_buy || r.is_put_buy;
-      });
+      // Use ACTION LABEL (not raw signals) — show only actionable rows
+      out = withAction.filter(({ action }) =>
+        action === 'BUY' || action === 'PUT' || action === 'WAIT' ||
+        action === 'PUT_WAIT' || action === 'FORMING'
+      );
     } else if (filter === 'ACC') {
-      out = rows.filter(r => r.patrol_verdict === 'ACC' || r.patrol_verdict === 'STRONG_ACC');
+      out = withAction.filter(({ r }) => r.patrol_verdict === 'ACC' || r.patrol_verdict === 'STRONG_ACC');
     } else if (filter === 'DIST') {
-      out = rows.filter(r => r.patrol_verdict === 'DIST' || r.patrol_verdict === 'STRONG_DIST');
+      out = withAction.filter(({ r }) => r.patrol_verdict === 'DIST' || r.patrol_verdict === 'STRONG_DIST');
     }
-    // Sort by composite priority — bullish at top, bearish at bottom
-    return [...out].sort((a, b) => priorityScore(b) - priorityScore(a));
+
+    // Sort: action tier first (BUY at top, PUT next, WAIT, FORMING, then HOLD/SKIP)
+    // Within tier: by absolute composite priority (strongest signal first)
+    return [...out].sort((a, b) => {
+      const ar = ACTION_RANK[a.action] ?? 0;
+      const br = ACTION_RANK[b.action] ?? 0;
+      if (ar !== br) return br - ar;
+      return Math.abs(priorityScore(b.r)) - Math.abs(priorityScore(a.r));
+    }).map(x => x.r);
   }, [rows, filter]);
 
   // ACC/DIST renamed to CALL/PUT in the UI per user — clearer trade direction
@@ -895,6 +924,18 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
                     <div className={`change ${dpClass}`}>{dayPct >= 0 ? '+' : ''}{dayPct.toFixed(2)}%</div>
                   )}
                   {r.live_price != null && <div className="price">${r.live_price.toFixed(2)}</div>}
+                  {/* TRADE NOW — only on actionable cards (BUY or PUT) */}
+                  {(act.action === 'BUY' || act.action === 'PUT') && (
+                    <a
+                      className={`trade-btn trade-btn--${act.action}`}
+                      href={`https://www.tradingview.com/chart/?symbol=NASDAQ%3A${r.ticker}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={`Open ${r.ticker} on TradingView to ${act.action === 'BUY' ? 'BUY' : 'short'}`}
+                    >
+                      {act.action === 'BUY' ? '↗ TRADE NOW' : '↘ SHORT NOW'}
+                    </a>
+                  )}
                 </div>
               </div>
 

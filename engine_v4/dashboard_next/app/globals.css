@@ -471,7 +471,7 @@ main { padding: 4px 14px 32px; max-width: 720px; margin: 0 auto; }
 }
 
 /* Right-aligned price block — bigger, more dramatic */
-.bucket-card__price { text-align: right; line-height: 1.05; }
+.bucket-card__price { text-align: right; line-height: 1.05; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
 .bucket-card__price .change {
   font-family: 'Poppins', Arial, sans-serif;
   font-size: 22px; font-weight: 700; letter-spacing: -0.02em;
@@ -482,9 +482,38 @@ main { padding: 4px 14px 32px; max-width: 720px; margin: 0 auto; }
 .bucket-card__price .price {
   font-family: 'Poppins', Arial, sans-serif;
   font-size: 14px; font-weight: 500; color: var(--dim);
-  font-variant-numeric: tabular-nums; margin-top: 5px;
+  font-variant-numeric: tabular-nums; margin-top: 3px;
   letter-spacing: -0.01em;
 }
+
+/* TRADE NOW / SHORT NOW button */
+.trade-btn {
+  display: inline-block;
+  margin-top: 10px;
+  font-family: 'Poppins', Arial, sans-serif;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+  padding: 8px 14px; border-radius: 8px;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform .18s ease, box-shadow .25s ease, filter .18s ease;
+  text-transform: uppercase;
+  border: none; outline: none;
+}
+.trade-btn:hover { transform: translateY(-2px); filter: brightness(1.08); }
+.trade-btn:active { transform: translateY(0); }
+.trade-btn--BUY {
+  color: white;
+  background: linear-gradient(135deg, var(--bull) 0%, #4a8a6a 100%);
+  box-shadow: 0 2px 8px rgba(61,124,94,0.3), 0 1px 2px rgba(61,124,94,0.2);
+}
+.trade-btn--BUY:hover { box-shadow: 0 6px 16px rgba(61,124,94,0.42); }
+.trade-btn--PUT {
+  color: white;
+  background: linear-gradient(135deg, var(--bear) 0%, #c44a3d 100%);
+  box-shadow: 0 2px 8px rgba(176,53,40,0.3), 0 1px 2px rgba(176,53,40,0.2);
+}
+.trade-btn--PUT:hover { box-shadow: 0 6px 16px rgba(176,53,40,0.42); }
 
 /* Chips strip below hero */
 .bucket-card__chips {
