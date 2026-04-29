@@ -11,7 +11,8 @@
     "mega": 23,
     "mid": 32,
     "small": 16,
-    "unscannable": 85
+    "unscannable": 85,
+    "indices": 13
   },
   "buckets": {
     "mega": [
@@ -801,6 +802,108 @@
         "mcap_b": null,
         "reason": "not in snapshot universe"
       }
+    ],
+    "indices": [
+      {
+        "ticker": "SPY",
+        "mcap_b": 0.0,
+        "sector": ""
+      },
+      {
+        "ticker": "QQQ",
+        "mcap_b": 429.2,
+        "sector": ""
+      },
+      {
+        "ticker": "IWM",
+        "mcap_b": 75.3,
+        "sector": ""
+      },
+      {
+        "ticker": "XLF",
+        "mcap_b": 0.0,
+        "sector": ""
+      },
+      {
+        "ticker": "XLU",
+        "mcap_b": 0.0,
+        "sector": ""
+      },
+      {
+        "ticker": "SMH",
+        "mcap_b": 56.5,
+        "sector": ""
+      },
+      {
+        "ticker": "TQQQ",
+        "mcap_b": 0.0,
+        "sector": ""
+      },
+      {
+        "ticker": "TLT",
+        "mcap_b": 42.6,
+        "sector": ""
+      },
+      {
+        "ticker": "GLD",
+        "mcap_b": 0.0,
+        "sector": ""
+      },
+      {
+        "ticker": "SLV",
+        "mcap_b": 35.6,
+        "sector": ""
+      },
+      {
+        "ticker": "GDX",
+        "mcap_b": 0.0,
+        "sector": ""
+      },
+      {
+        "ticker": "KWEB",
+        "mcap_b": 4.2,
+        "sector": ""
+      },
+      {
+        "ticker": "EWZ",
+        "mcap_b": 11.6,
+        "sector": ""
+      }
     ]
-  }
+  },
+  "indices_missing": [
+    "DIA",
+    "XLE",
+    "XLK",
+    "XLV",
+    "XLY",
+    "XLI",
+    "XLP",
+    "XLB",
+    "XLRE",
+    "SOXX",
+    "XBI",
+    "SOXS",
+    "SOXL",
+    "SQQQ",
+    "TSLL",
+    "TZA",
+    "SPXL",
+    "SPXS",
+    "IEF",
+    "SHY",
+    "UUP",
+    "IBIT",
+    "GBTC",
+    "BITO",
+    "EWJ",
+    "FXI",
+    "COPX",
+    "URA",
+    "UUUU",
+    "LIT",
+    "VIX",
+    "UVXY",
+    "VXX"
+  ]
 }

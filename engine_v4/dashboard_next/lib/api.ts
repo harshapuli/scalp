@@ -134,11 +134,12 @@ export interface Picks77Resp {
   generated_utc?: string;
   source?: string;
   thresholds?: { mega_min: number; mid_min: number; small_min: number; unit: string };
-  counts: { mega: number; mid: number; small: number; unscannable: number };
+  counts: { mega: number; mid: number; small: number; unscannable: number; indices?: number };
   buckets: {
     mega: BucketTicker[];
     mid: BucketTicker[];
     small: BucketTicker[];
+    indices?: BucketTicker[];
     unscannable: { ticker: string; mcap_b: null; reason: string }[];
   };
 }

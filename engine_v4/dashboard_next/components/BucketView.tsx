@@ -8,12 +8,13 @@ import {
 import { fmtAge } from '@/lib/format';
 import RefreshStatus from '@/components/RefreshStatus';
 
-type BucketName = 'mega' | 'mid' | 'small';
+type BucketName = 'mega' | 'mid' | 'small' | 'indices';
 
 const BUCKET_LABELS: Record<BucketName, { emoji: string; label: string; sub: string }> = {
-  mega:  { emoji: '🐳', label: 'Mega',  sub: '≥$200B market cap' },
-  mid:   { emoji: '🐬', label: 'Mid',   sub: '$20B–$200B' },
-  small: { emoji: '🐟', label: 'Small', sub: 'under $20B' },
+  mega:    { emoji: '🐳', label: 'Mega',    sub: '≥$200B market cap' },
+  mid:     { emoji: '🐬', label: 'Mid',     sub: '$20B–$200B' },
+  small:   { emoji: '🐟', label: 'Small',   sub: 'under $20B' },
+  indices: { emoji: '📊', label: 'Indices', sub: 'broad market + sector ETFs' },
 };
 
 type Filter = 'ACTIVE' | 'ACC' | 'DIST' | 'ALL';
@@ -42,6 +43,123 @@ interface RowState {
   staging_put_score?: number;
   is_buy?: boolean;
   is_put_buy?: boolean;
+}
+
+// Single primary action per ticker — what to do, at a glance.
+// Implements the trading playbook (patrol + conviction + positioning + flip).
+// Returns the chip text, color, and a tooltip explaining why.
+type ActionLevel = 'BUY' | 'WAIT' | 'FORMING' | 'HOLD' | 'SKIP' | 'PUT' | 'PUT_WAIT';
+function actionFor(r: RowState): { action: ActionLevel; bg: string; fg: string; why: string } {
+  const v = r.patrol_verdict;
+  const cv = r.cv_verdict;
+  const u = r.cv_urgency;
+  const inst = (r.positioning_score || 0) >= 60;
+  const dayPct = r.day_pct || 0;
+
+  // 1. FLIP overrides everything — institutions undecided
+  if (r.has_flip) return {
+    action: 'SKIP',
+    bg: 'rgba(120,120,120,0.18)', fg: 'var(--dim)',
+    why: 'Patrol flipped direction today — mixed signal, no edge',
+  };
+
+  // 2. Strong distribution → PUT
+  if (v === 'STRONG_DIST') return {
+    action: 'PUT',
+    bg: 'rgba(176,53,40,0.30)', fg: '#fff',
+    why: 'Multi-day institutional distribution — best PUT setups',
+  };
+  if (v === 'DIST' && inst) return {
+    action: 'PUT',
+    bg: 'rgba(176,53,40,0.25)', fg: 'var(--bear)',
+    why: 'Distribution + institutional positioning — short setup',
+  };
+  if (v === 'DIST' && r.is_put_buy) return {
+    action: 'PUT',
+    bg: 'rgba(176,53,40,0.20)', fg: 'var(--bear)',
+    why: 'Patrol DIST + V8 staging confirms PUT setup',
+  };
+  if (v === 'DIST') return {
+    action: 'SKIP',
+    bg: 'rgba(120,120,120,0.18)', fg: 'var(--dim)',
+    why: 'Distribution but no institutional confirmation — just weakness',
+  };
+
+  // 3. Strong accumulation paths
+  if (v === 'STRONG_ACC') {
+    if (u === 'EXHAUSTED' || u === 'TOO_LATE' || dayPct >= 8) return {
+      action: 'WAIT',
+      bg: 'rgba(217,119,87,0.25)', fg: 'var(--accent)',
+      why: 'Setup real but entry chasing — wait for pullback to add',
+    };
+    return {
+      action: 'BUY',
+      bg: 'rgba(63,140,71,0.32)', fg: 'var(--bull)',
+      why: 'STRONG institutional acc + actionable entry — top setup',
+    };
+  }
+
+  // 4. Single-day ACC paths
+  if (v === 'ACC') {
+    if (cv === 'BUY' && (u === 'PULLBACK' || u === 'EXTENSION')) return {
+      action: 'BUY',
+      bg: 'rgba(63,140,71,0.32)', fg: 'var(--bull)',
+      why: 'ACC + buy-the-dip conviction — best entry profile',
+    };
+    if (cv === 'BUY' && (u === 'HIT' || u === 'ENTRY' || u === 'MARKET') && dayPct < 5) return {
+      action: 'BUY',
+      bg: 'rgba(63,140,71,0.28)', fg: 'var(--bull)',
+      why: 'ACC + conviction BUY in entry zone, not extended',
+    };
+    if (cv === 'BUY' && (u === 'EXHAUSTED' || u === 'TOO_LATE')) return {
+      action: 'WAIT',
+      bg: 'rgba(217,119,87,0.20)', fg: 'var(--accent)',
+      why: 'ACC firing but conviction says exhausted — wait for pullback',
+    };
+    if (dayPct >= 7) return {
+      action: 'WAIT',
+      bg: 'rgba(217,119,87,0.18)', fg: 'var(--accent)',
+      why: 'ACC firing but already +7% today — chase risk, wait for pullback',
+    };
+    if (inst || cv === 'WATCH') return {
+      action: 'BUY',
+      bg: 'rgba(63,140,71,0.22)', fg: 'var(--bull)',
+      why: 'ACC + (institutional positioning OR WATCH conviction) — actionable',
+    };
+    return {
+      action: 'FORMING',
+      bg: 'rgba(106,155,204,0.18)', fg: '#6a9bcc',
+      why: 'ACC firing but no positioning/conviction confirmation yet',
+    };
+  }
+
+  // 5. Neutral patrol — but other signals say something
+  if (r.is_stealth) return {
+    action: 'FORMING',
+    bg: 'rgba(106,155,204,0.18)', fg: '#6a9bcc',
+    why: 'Multi-day stealth accumulation — wait for patrol ACC to confirm',
+  };
+  if (r.is_buy) return {
+    action: 'FORMING',
+    bg: 'rgba(106,155,204,0.14)', fg: '#6a9bcc',
+    why: 'V8 staging score crossed — wait for patrol ACC to confirm',
+  };
+  if (cv === 'BUY' && (u === 'PULLBACK' || u === 'HIT')) return {
+    action: 'FORMING',
+    bg: 'rgba(106,155,204,0.14)', fg: '#6a9bcc',
+    why: 'Conviction BUY but patrol neutral — borderline, wait for ACC fire',
+  };
+  if (r.is_stealth_dist || r.is_put_buy) return {
+    action: 'PUT_WAIT',
+    bg: 'rgba(176,53,40,0.10)', fg: 'var(--bear)',
+    why: 'Distribution signal but patrol neutral — wait for DIST fire',
+  };
+
+  return {
+    action: 'HOLD',
+    bg: 'rgba(176,176,176,0.10)', fg: 'var(--dim)',
+    why: 'Neutral — no actionable signal right now',
+  };
 }
 
 // Composite priority for sorting — higher = more actionable LONG, lower = SHORT
@@ -186,12 +304,13 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
     return [...out].sort((a, b) => priorityScore(b) - priorityScore(a));
   }, [rows, filter]);
 
+  // ACC/DIST renamed to CALL/PUT in the UI per user — clearer trade direction
   const verdictTag = (v?: string) => {
-    if (v === 'STRONG_ACC') return { bg: 'rgba(63,140,71,0.20)', fg: 'var(--bull)', text: 'STRONG ACC' };
-    if (v === 'ACC') return { bg: 'rgba(63,140,71,0.10)', fg: 'var(--bull)', text: 'ACC' };
-    if (v === 'STRONG_DIST') return { bg: 'rgba(176,53,40,0.20)', fg: 'var(--bear)', text: 'STRONG DIST' };
-    if (v === 'DIST') return { bg: 'rgba(176,53,40,0.10)', fg: 'var(--bear)', text: 'DIST' };
-    return { bg: 'rgba(176,176,176,0.08)', fg: 'var(--mid)', text: 'NEUTRAL' };
+    if (v === 'STRONG_ACC') return { bg: 'var(--bull-soft)', fg: 'var(--bull)', text: 'STRONG CALL' };
+    if (v === 'ACC') return { bg: 'var(--bull-soft)', fg: 'var(--bull)', text: 'CALL' };
+    if (v === 'STRONG_DIST') return { bg: 'var(--bear-soft)', fg: 'var(--bear)', text: 'STRONG PUT' };
+    if (v === 'DIST') return { bg: 'var(--bear-soft)', fg: 'var(--bear)', text: 'PUT' };
+    return { bg: 'var(--hair)', fg: 'var(--mid)', text: 'NEUTRAL' };
   };
 
   return (
@@ -216,12 +335,12 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, color: 'var(--dim)', fontSize: 11 }}>
           <div>
             <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--bull)' }}>{counts.acc}</div>
-            <div>ACC firing</div>
+            <div>CALL firing</div>
             {counts.n_strong_acc > 0 && <div style={{ fontSize: 10, color: 'var(--bull)', fontWeight: 600 }}>incl. {counts.n_strong_acc} STRONG</div>}
           </div>
           <div>
             <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--bear)' }}>{counts.dist}</div>
-            <div>DIST firing</div>
+            <div>PUT firing</div>
             {counts.n_strong_dist > 0 && <div style={{ fontSize: 10, color: 'var(--bear)', fontWeight: 600 }}>incl. {counts.n_strong_dist} STRONG</div>}
           </div>
           <div>
@@ -236,7 +355,7 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
           <div>
             <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--ink)' }}>{counts.total_acc_fires}/{counts.total_dist_fires}</div>
             <div>fires today</div>
-            <div style={{ fontSize: 10 }}>acc / dist</div>
+            <div style={{ fontSize: 10 }}>call / put</div>
           </div>
         </div>
       </div>
@@ -247,10 +366,10 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
           ⚡ Active <span className="count">{counts.active}</span>
         </span>
         <span className={`chip ${filter === 'ACC' ? 'active' : ''}`} onClick={() => setFilter('ACC')}>
-          🟢 ACC <span className="count">{counts.acc}</span>
+          🟢 CALL <span className="count">{counts.acc}</span>
         </span>
         <span className={`chip ${filter === 'DIST' ? 'active' : ''}`} onClick={() => setFilter('DIST')}>
-          🔴 DIST <span className="count">{counts.dist}</span>
+          🔴 PUT <span className="count">{counts.dist}</span>
         </span>
         <span className={`chip ${filter === 'ALL' ? 'active' : ''}`} onClick={() => setFilter('ALL')}>
           All <span className="count">{counts.all}</span>
@@ -261,8 +380,8 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
       {picks && filtered.length === 0 && (
         <div className="empty">
           {filter === 'ACTIVE' ? `No setups firing in ${meta.label} right now.` :
-           filter === 'ACC' ? `No ACC verdicts in ${meta.label}.` :
-           filter === 'DIST' ? `No DIST verdicts in ${meta.label}.` :
+           filter === 'ACC' ? `No CALL verdicts in ${meta.label}.` :
+           filter === 'DIST' ? `No PUT verdicts in ${meta.label}.` :
            `${meta.label} bucket is empty.`}
         </div>
       )}
@@ -279,11 +398,18 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
           type Lbl = { text: string; bg: string; fg: string; border?: string; title?: string };
           const labels: Lbl[] = [];
 
-          // Patrol verdict label (always present)
+          // Patrol verdict label — text only, score moves to tooltip
+          // (e.g. "CALL 66" was confusing; the score is auxiliary detail)
+          const scoreContext = r.patrol_score == null ? '' :
+            r.patrol_score >= 76 ? ` (${r.patrol_score}/100 — heavy buying)` :
+            r.patrol_score >= 60 ? ` (${r.patrol_score}/100 — moderate buying)` :
+            r.patrol_score >= 40 ? ` (${r.patrol_score}/100 — balanced)` :
+            r.patrol_score >= 26 ? ` (${r.patrol_score}/100 — moderate selling)` :
+                                   ` (${r.patrol_score}/100 — heavy selling)`;
           labels.push({
-            text: `${tag.text}${r.patrol_score ? ` ${r.patrol_score}` : ''}`,
+            text: tag.text,
             bg: tag.bg, fg: tag.fg,
-            title: 'Patrol verdict (today)',
+            title: `Patrol verdict today${scoreContext}. Scale 0-100, neutral=50, ≥60 institutional buying, ≤39 distribution.`,
           });
           // Conviction action
           if (r.cv_verdict === 'BUY') {
@@ -338,8 +464,27 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
               title: 'Patrol flipped direction today (ACC↔DIST) — mixed signal' });
           }
 
+          // Primary action — what to do, at a glance
+          const act = actionFor(r);
+          const actionEmoji: Record<typeof act.action, string> = {
+            BUY: '🚀', WAIT: '🟡', FORMING: '📊', HOLD: '⏸',
+            SKIP: '⛔', PUT: '🔴', PUT_WAIT: '🔻',
+          };
+          const actionDisplay = act.action === 'PUT_WAIT' ? 'PUT WAIT' : act.action;
+
           return (
             <article key={r.ticker} className="card" style={{ padding: '10px 14px', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+              {/* PRIMARY ACTION — the one thing you look at to decide */}
+              <div style={{ flex: '0 0 auto' }}>
+                <span title={act.why} style={{
+                  background: act.bg, color: act.fg,
+                  padding: '6px 12px', borderRadius: 6,
+                  fontSize: 13, fontWeight: 700,
+                  fontFamily: 'Poppins, Arial, sans-serif',
+                  whiteSpace: 'nowrap', minWidth: 92, display: 'inline-block',
+                  textAlign: 'center', letterSpacing: '0.02em',
+                }}>{actionEmoji[act.action]} {actionDisplay}</span>
+              </div>
               <div style={{ flex: '0 0 auto', minWidth: 70 }}>
                 <span className="ticker" style={{ fontSize: 18, fontWeight: 700 }}>{r.ticker}</span>
               </div>

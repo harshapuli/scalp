@@ -9,9 +9,10 @@ import { usePathname } from 'next/navigation';
 // removed at user request — too noisy for daily decision-making.
 // Pages still exist at /breakout, /prebreakout etc. — direct URL only.
 const NAV = [
-  { href: '/mega',  label: '🐳 Mega',  sub: 'large-cap watchlist' },
-  { href: '/mid',   label: '🐬 Mid',   sub: 'mid-cap watchlist' },
-  { href: '/small', label: '🐟 Small', sub: 'small-cap watchlist' },
+  { href: '/mega',    label: '🐳 Mega',    sub: 'large-cap watchlist' },
+  { href: '/mid',     label: '🐬 Mid',     sub: 'mid-cap watchlist' },
+  { href: '/small',   label: '🐟 Small',   sub: 'small-cap watchlist' },
+  { href: '/indices', label: '📊 Indices', sub: 'broad market + sector ETFs' },
 ];
 
 export default function TopNav() {
