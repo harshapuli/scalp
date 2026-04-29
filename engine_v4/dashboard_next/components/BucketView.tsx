@@ -496,8 +496,17 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
                     fontFamily: 'Poppins, Arial, sans-serif', whiteSpace: 'nowrap',
                   }}>{l.text}</span>
                 ))}
-                <span style={{ fontSize: 11, color: 'var(--dim)', marginLeft: 4 }}>
-                  fires <span style={{ color: 'var(--bull)' }}>{r.acc_n}</span>/<span style={{ color: 'var(--bear)' }}>{r.dist_n}</span>
+                <span title={`Today: ${r.acc_n} CALL fires, ${r.dist_n} PUT fires. Higher counts = more institutional confirmations.`}
+                      style={{ fontSize: 11, color: 'var(--dim)', marginLeft: 4 }}>
+                  {(r.acc_n > 0 || r.dist_n > 0) ? (
+                    <>
+                      <span style={{ color: 'var(--bull)', fontWeight: 600 }}>{r.acc_n}↑ call</span>
+                      <span style={{ margin: '0 4px', color: 'var(--mid)' }}>·</span>
+                      <span style={{ color: 'var(--bear)', fontWeight: 600 }}>{r.dist_n}↓ put</span>
+                    </>
+                  ) : (
+                    <span style={{ color: 'var(--mid)' }}>no fires today</span>
+                  )}
                 </span>
               </div>
               <div style={{ flex: '0 0 auto', textAlign: 'right' }}>
