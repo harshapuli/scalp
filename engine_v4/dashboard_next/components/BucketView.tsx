@@ -866,6 +866,12 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
                 <div className="bucket-card__id">
                   <div className="symbol">{r.ticker}</div>
                   {sectorMcap && <div className="meta">{sectorMcap}</div>}
+                  {r.patrol_score != null && (
+                    <div className="gauge"
+                         title={`Patrol score ${r.patrol_score}/100. ≥60 = institutional buying, ≤39 = distribution. 50 = neutral.`}>
+                      <div className="gauge__needle" style={{ left: `${Math.max(0, Math.min(100, r.patrol_score))}%` }} />
+                    </div>
+                  )}
                 </div>
 
                 <div title={act.why} className={`action-pill action-pill--${act.action}`}>
