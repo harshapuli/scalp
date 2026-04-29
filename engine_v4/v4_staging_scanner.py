@@ -363,6 +363,41 @@ BUY_THRESHOLD     = V8_BUY_THRESHOLD if SCORE_FN_VERSION == 'v8' else V7_BUY_THR
 PUT_BUY_THRESHOLD = V8_BUY_THRESHOLD if SCORE_FN_VERSION == 'v8' else V7_BUY_THRESHOLD
 
 
+# ─────────────────────────────────────────────────────────────────────────
+# DIRECTIONAL GATE (v8+)
+#
+# Why: structural signals (beta band, Tech sector, mcap, UW) are direction-
+# agnostic and credit BOTH the call-side and put-side scorers equally.
+# That means a high-beta tech megacap collects ~+175 baseline points on
+# either side just for being a high-beta tech megacap. With v8's narrower
+# threshold (200), a single small directional signal can push BOTH sides
+# above threshold — INTC dual-fired today with score=224 / put_score=212
+# despite today_pct=-3.35% (clearly bearish).
+#
+# Fix: hard-gate by price direction. The ticker has to actually be moving
+# in the side's direction. Bands chosen so neutral-day picks (|today_pct|
+# < 1%) can still score either side and let other signals decide.
+# ─────────────────────────────────────────────────────────────────────────
+DIRECTIONAL_GATE_PCT = 1.0  # |today_pct| ≤ this → both sides allowed; outside → only the agreeing side
+
+def _apply_directional_gate(f, call_score, put_score):
+    """Zero out the side disagreeing with today's price direction.
+
+    Returns (call_score, put_score) — possibly zeroed.
+    Conservative: only forces the issue when today_pct has CLEAR direction.
+    """
+    if not f: return call_score, put_score
+    today_pct = f.get('today_pct') or 0
+    if today_pct >= DIRECTIONAL_GATE_PCT:
+        # clearly up today — PUT side has no business firing
+        put_score = 0
+    elif today_pct <= -DIRECTIONAL_GATE_PCT:
+        # clearly down today — CALL side has no business firing
+        call_score = 0
+    # else: in -1.0 < today_pct < +1.0 → leave both, let other signals decide
+    return call_score, put_score
+
+
 def staging_score_v7_put(f, uw_signals=None):
     """V7 PUT — mirror of bullish V7 for break-down detection.
     Sprint 3.9. Identifies institutional distribution + downside setup.
@@ -658,12 +693,20 @@ def main():
         put_score    = _SCORE_FN_PUT(f, uw_signals=uw)
         v7_score     = staging_score_v7(f, uw_signals=uw)
         v7_put_score = staging_score_v7_put(f, uw_signals=uw)
+        # Directional gate: stocks clearly down can't be CALL setups, and vice
+        # versa. Without this, structural-bonus dual-fire is rampant (e.g.
+        # INTC -3.35% today scoring 224 CALL + 212 PUT — clearly bearish, but
+        # both crossed threshold from beta+sector+mcap+UW alone).
+        score_pre_gate, put_score_pre_gate = score, put_score
+        score, put_score = _apply_directional_gate(f, score, put_score)
         if score == 0 and put_score == 0: continue  # filtered by hard gates on both sides
         pattern, why = classify_pattern({**f, 'score': score})
         put_pattern, put_why = classify_pattern_put({**f, 'score': put_score}) if put_score > 0 else (None, None)
         results.append({**f,
                         'score': score,
                         'put_score': put_score,
+                        'score_pre_gate': score_pre_gate,
+                        'put_score_pre_gate': put_score_pre_gate,
                         'v7_score': v7_score,
                         'v7_put_score': v7_put_score,
                         'score_version': SCORE_FN_VERSION,
