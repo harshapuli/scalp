@@ -509,21 +509,60 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
     let acc = 0, dist = 0, neutral = 0, active = 0;
     let n_inst = 0, n_strong_acc = 0, n_strong_dist = 0;
     let total_acc_fires = 0, total_dist_fires = 0;
+    let total_dp_today_m = 0;
+    let pm_blocks = 0;
+    let total_pm_dp_m = 0;
+    const top_call: { t: string; s: number }[] = [];
+    const top_put:  { t: string; s: number }[] = [];
+    const top_eod_call: { t: string; m: number }[] = [];
+    const top_eod_put:  { t: string; m: number }[] = [];
+    // Patrol state has factors per ticker — pull from cache via patrol query
+    const ptickers = patrol?.tickers || {};
     for (const r of rows) {
       const v = r.patrol_verdict || 'NEUTRAL';
-      if (v === 'ACC' || v === 'STRONG_ACC') acc++;
-      else if (v === 'DIST' || v === 'STRONG_DIST') dist++;
-      else neutral++;
+      const score = r.patrol_score ?? 50;
+      if (v === 'ACC' || v === 'STRONG_ACC') {
+        acc++;
+        top_call.push({ t: r.ticker, s: score });
+      } else if (v === 'DIST' || v === 'STRONG_DIST') {
+        dist++;
+        top_put.push({ t: r.ticker, s: score });
+      } else neutral++;
       if (v === 'STRONG_ACC') n_strong_acc++;
       if (v === 'STRONG_DIST') n_strong_dist++;
       if ((r.positioning_score || 0) >= 60) n_inst++;
       total_acc_fires += r.acc_n;
       total_dist_fires += r.dist_n;
       if (v !== 'NEUTRAL' || ['BUY','WATCH'].includes(r.cv_verdict || '')) active++;
+
+      // DP + PM block totals (from patrol factors)
+      const f: any = (ptickers[r.ticker] as any)?.factors || {};
+      total_dp_today_m += (f['dark_pool_$'] || 0) / 1e6;
+      total_pm_dp_m   += (f['pm_dp_total_$'] || 0) / 1e6;
+      pm_blocks       += (f['pm_dp_blocks'] || 0);
+
+      // Top EOD CALL / PUT surges (sorted by absolute $)
+      if (r.last_hr_call_m != null && r.last_hr_call_m >= 0.5) {
+        top_eod_call.push({ t: r.ticker, m: r.last_hr_call_m });
+      }
+      if (r.last_hr_call_m != null && r.last_hr_call_m <= -0.5) {
+        top_eod_put.push({ t: r.ticker, m: r.last_hr_call_m });
+      }
     }
-    return { all: rows.length, acc, dist, neutral, active,
-             n_inst, n_strong_acc, n_strong_dist, total_acc_fires, total_dist_fires };
-  }, [rows]);
+    top_call.sort((a, b) => b.s - a.s);
+    top_put.sort((a, b) => a.s - b.s);
+    top_eod_call.sort((a, b) => b.m - a.m);
+    top_eod_put.sort((a, b) => a.m - b.m);
+    return {
+      all: rows.length, acc, dist, neutral, active,
+      n_inst, n_strong_acc, n_strong_dist, total_acc_fires, total_dist_fires,
+      total_dp_today_m, total_pm_dp_m, pm_blocks,
+      top_call: top_call.slice(0, 5),
+      top_put: top_put.slice(0, 5),
+      top_eod_call: top_eod_call.slice(0, 5),
+      top_eod_put: top_eod_put.slice(0, 5),
+    };
+  }, [rows, patrol?.tickers]);
 
   const filtered = useMemo(() => {
     let out = rows;
@@ -564,39 +603,97 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
         </div>
       </header>
 
-      {/* Bucket summary */}
+      {/* Bucket summary — counts + dollar flow + top names */}
       <div style={{
         margin: '12px auto 8px', padding: '12px 14px',
-        maxWidth: 720, borderRadius: 10,
+        maxWidth: 880, borderRadius: 10,
         background: 'var(--panel)', border: '1px solid var(--hair)',
         fontFamily: 'Poppins, Arial, sans-serif', fontSize: 12,
       }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, color: 'var(--dim)', fontSize: 11 }}>
+        {/* Row 1: directional counts + institutional + active */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, color: 'var(--dim)', fontSize: 11, marginBottom: 10 }}>
           <div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--bull)' }}>{counts.acc}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--bull)', fontVariantNumeric: 'tabular-nums' }}>{counts.acc}</div>
             <div>CALL firing</div>
             {counts.n_strong_acc > 0 && <div style={{ fontSize: 10, color: 'var(--bull)', fontWeight: 600 }}>incl. {counts.n_strong_acc} STRONG</div>}
           </div>
           <div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--bear)' }}>{counts.dist}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--bear)', fontVariantNumeric: 'tabular-nums' }}>{counts.dist}</div>
             <div>PUT firing</div>
             {counts.n_strong_dist > 0 && <div style={{ fontSize: 10, color: 'var(--bear)', fontWeight: 600 }}>incl. {counts.n_strong_dist} STRONG</div>}
           </div>
           <div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--mid)' }}>{counts.neutral}</div>
-            <div>neutral</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent)' }}>{counts.n_inst}</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent)', fontVariantNumeric: 'tabular-nums' }}>{counts.n_inst}</div>
             <div>institutional</div>
             <div style={{ fontSize: 10 }}>positioning ≥60</div>
           </div>
           <div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--ink)' }}>{counts.total_acc_fires}/{counts.total_dist_fires}</div>
-            <div>fires today</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--mid)', fontVariantNumeric: 'tabular-nums' }}>{counts.neutral}</div>
+            <div>neutral</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>{counts.total_acc_fires}/{counts.total_dist_fires}</div>
+            <div>alerts today</div>
             <div style={{ fontSize: 10 }}>call / put</div>
           </div>
         </div>
+
+        {/* Row 2: dollar flow */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, color: 'var(--dim)', fontSize: 11,
+                       marginBottom: 10, paddingTop: 10, borderTop: '1px dashed var(--hair)' }}>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>
+              ${counts.total_dp_today_m.toFixed(0)}M
+            </div>
+            <div>dark pool today</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>
+              ${counts.total_pm_dp_m.toFixed(0)}M
+            </div>
+            <div>premarket DP · {counts.pm_blocks} blocks</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>
+              {counts.top_eod_call.length}↑ / {counts.top_eod_put.length}↓
+            </div>
+            <div>EOD surges (last 30 min)</div>
+          </div>
+        </div>
+
+        {/* Row 3: top movers */}
+        {(counts.top_call.length > 0 || counts.top_put.length > 0) && (
+          <div style={{ paddingTop: 10, borderTop: '1px dashed var(--hair)', display: 'flex', gap: 16, fontSize: 11, color: 'var(--dim)', flexWrap: 'wrap' }}>
+            {counts.top_call.length > 0 && (
+              <div>
+                <strong style={{ color: 'var(--bull)' }}>Top CALL:</strong>{' '}
+                {counts.top_call.map(x => `${x.t}(${x.s})`).join(' · ')}
+              </div>
+            )}
+            {counts.top_put.length > 0 && (
+              <div>
+                <strong style={{ color: 'var(--bear)' }}>Top PUT:</strong>{' '}
+                {counts.top_put.map(x => `${x.t}(${x.s})`).join(' · ')}
+              </div>
+            )}
+          </div>
+        )}
+        {(counts.top_eod_call.length > 0 || counts.top_eod_put.length > 0) && (
+          <div style={{ marginTop: 6, display: 'flex', gap: 16, fontSize: 11, color: 'var(--dim)', flexWrap: 'wrap' }}>
+            {counts.top_eod_call.length > 0 && (
+              <div>
+                <strong style={{ color: 'var(--bull)' }}>EOD CALL surge:</strong>{' '}
+                {counts.top_eod_call.map(x => `${x.t}(+$${x.m.toFixed(1)}M)`).join(' · ')}
+              </div>
+            )}
+            {counts.top_eod_put.length > 0 && (
+              <div>
+                <strong style={{ color: 'var(--bear)' }}>EOD PUT surge:</strong>{' '}
+                {counts.top_eod_put.map(x => `${x.t}(-$${Math.abs(x.m).toFixed(1)}M)`).join(' · ')}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="filter-row">
