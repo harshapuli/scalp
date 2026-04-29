@@ -129,6 +129,8 @@ export interface BucketTicker {
   ticker: string;
   mcap_b: number | null;
   sector?: string;
+  next_earnings_date?: string;  // 'YYYY-MM-DD' from snapshot info.data
+  announce_time?: string;       // 'premarket' | 'postmarket' | 'unknown'
 }
 export interface Picks77Resp {
   generated_utc?: string;

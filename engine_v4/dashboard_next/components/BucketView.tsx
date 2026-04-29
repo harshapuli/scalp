@@ -45,10 +45,29 @@ interface RowState {
   is_put_buy?: boolean;
   // late-hour flow surge ("someone always knows" signal)
   // Source: patrol factors.last_hr_call_$ — net call premium in final hour.
-  // Backtested 2026-04-22→29 (n=1024 ticker-days):
-  //   ≥$5M  → 45.5% win rate (3d+0.5%)  vs 14.8% baseline (+30.7 pp)
-  //   ≤−$5M → 10.3% gap-up rate next day vs 27.4% baseline (-17.1 pp)
+  // Regime-aware backtest (2026-04-22→29, n=409 ticker-days):
+  //   EARN_WK  PUT  -$0.5 to -$2M  → 75-100% next-3d down (n=3-4)
+  //   EARN_MTH CALL +$0.5 to +$3M  → 50-66% up (+33-40pp edge)
+  //   EARN_MTH PUT  -$0.5 to -$2M  → 100% down (n=2-7)
+  //   NO_EARN  CALL +$1 to +$4M    → 50-66% up (+20-36pp edge)
+  //   NO_EARN  PUT  any threshold  → INVERTED, predicts bounce
   last_hr_call_m?: number;
+  earnings_regime?: 'EARN_WK' | 'EARN_MTH' | 'NO_EARN';  // null if no earnings data
+  days_to_earnings?: number;
+}
+
+// Map a ticker's next earnings date to one of three regimes.
+// Returns null if the ticker has no earnings date (e.g. ETFs).
+function regimeFromEarningsDate(earningsDate?: string): { regime: RowState['earnings_regime']; days?: number } {
+  if (!earningsDate) return { regime: undefined, days: undefined };
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const e = new Date(earningsDate);
+  e.setHours(0, 0, 0, 0);
+  const days = Math.abs(Math.round((e.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
+  if (days <= 7)  return { regime: 'EARN_WK',  days };
+  if (days <= 30) return { regime: 'EARN_MTH', days };
+  return { regime: 'NO_EARN', days };
 }
 
 // Single primary action per ticker — what to do, at a glance.
@@ -62,21 +81,40 @@ function actionFor(r: RowState): { action: ActionLevel; bg: string; fg: string; 
   const inst = (r.positioning_score || 0) >= 60;
   const dayPct = r.day_pct || 0;
 
-  // 0. EOD SURGE — strongest single-signal edge in our backtest (+30.7pp).
-  // Promote any ticker with last-hour call surge ≥$5M to BUY (or PUT for sell-side).
-  if (r.last_hr_call_m != null && r.last_hr_call_m >= 5 && !r.has_flip) {
-    return {
-      action: 'BUY',
-      bg: 'rgba(63,140,71,0.32)', fg: 'var(--bull)',
-      why: 'Late-hour call surge ≥$5M — backtested 45.5% win rate (+30.7pp). Scalp setup.',
-    };
-  }
-  if (r.last_hr_call_m != null && r.last_hr_call_m <= -5 && !r.has_flip) {
-    return {
-      action: 'PUT',
-      bg: 'rgba(176,53,40,0.30)', fg: '#fff',
-      why: 'Late-hour call premium ≤−$5M (calls being sold) — backtested 10.3% gap-up rate (−17.1pp). PUT setup.',
-    };
+  // 0. EOD SURGE — REGIME-AWARE (the sweet zone differs by earnings context).
+  // Backtested ranges (2026-04-22→29, n=409):
+  //   EARN_WK  PUT  −$0.5 to −$2M    75-100% 3d-down win
+  //   EARN_MTH PUT  −$0.5 to −$2M    100% (n=3-7), +34pp edge
+  //   EARN_MTH CALL +$0.5 to +$3M    50-66%, +33-40pp edge
+  //   NO_EARN  CALL +$1   to +$4M    50-66%, +20-36pp edge
+  //   NO_EARN  PUT  ANY               INVERTED — do NOT promote to PUT
+  if (r.last_hr_call_m != null && !r.has_flip) {
+    const lhc = r.last_hr_call_m;
+    const reg = r.earnings_regime;
+    // PUT promotion: only when earnings ahead within 30d
+    if (lhc <= -0.5 && lhc >= -2.0 && (reg === 'EARN_WK' || reg === 'EARN_MTH')) {
+      return {
+        action: 'PUT',
+        bg: 'rgba(176,53,40,0.30)', fg: '#fff',
+        why: `Late-hour put-flow $${lhc.toFixed(1)}M with earnings ${r.days_to_earnings ?? '?'}d away — ${reg === 'EARN_WK' ? '75-100%' : '100%'} backtested 3d-down hit rate.`,
+      };
+    }
+    // CALL promotion: EARN_MTH gets lower threshold; NO_EARN needs +$1M+
+    if (lhc >= 0.5 && lhc <= 3.0 && reg === 'EARN_MTH') {
+      return {
+        action: 'BUY',
+        bg: 'rgba(63,140,71,0.32)', fg: 'var(--bull)',
+        why: `Late-hour call $${lhc.toFixed(1)}M with earnings ${r.days_to_earnings ?? '?'}d away — backtested 50-66% 3d-up hit rate, +33-40pp edge.`,
+      };
+    }
+    if (lhc >= 1.0 && lhc <= 4.0 && reg === 'NO_EARN') {
+      return {
+        action: 'BUY',
+        bg: 'rgba(63,140,71,0.32)', fg: 'var(--bull)',
+        why: `Late-hour organic call surge $${lhc.toFixed(1)}M (no near-term earnings) — backtested 50-66% 3d-up, +20-36pp edge.`,
+      };
+    }
+    // NO_EARN PUT explicitly NOT promoted — backtest showed inverted edge.
   }
 
   // 1. FLIP overrides everything — institutions undecided
@@ -276,6 +314,7 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
       const factors = (p as any).factors || {};
       const last_hr_raw = factors['last_hr_call_$'];
       const last_hr_call_m = (typeof last_hr_raw === 'number') ? last_hr_raw / 1e6 : undefined;
+      const { regime, days } = regimeFromEarningsDate((t as any).next_earnings_date);
       return {
         ticker: t.ticker,
         mcap_b: t.mcap_b ?? null,
@@ -296,6 +335,8 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
         is_buy: sr.is_buy,
         is_put_buy: sr.is_put_buy,
         last_hr_call_m,
+        earnings_regime: regime,
+        days_to_earnings: days,
       };
     });
   }, [picks, patrol, cvByT, stByT, bucket]);
@@ -497,31 +538,48 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
             labels.push({ text: '⚠ FLIP', bg: 'rgba(176,53,40,0.10)', fg: 'var(--bear)',
               title: 'Patrol flipped direction today (ACC↔DIST) — mixed signal' });
           }
-          // Late-hour flow surge (backtested +30.7pp edge for ≥$5M tier)
+          // Late-hour flow surge — REGIME-AWARE.
+          // Show chip only in regimes where the signal has a measured edge.
+          // NO_EARN PUT explicitly hidden (backtest showed inverted signal).
           if (r.last_hr_call_m != null) {
-            if (r.last_hr_call_m >= 5) {
+            const lhc = r.last_hr_call_m;
+            const reg = r.earnings_regime;
+            const earnDays = r.days_to_earnings;
+            const earnSuffix = earnDays != null ? ` · earn ${earnDays}d` : '';
+
+            // CALL chip: EARN_MTH gets the lower-threshold tier; NO_EARN needs +$1M
+            if (reg === 'EARN_MTH' && lhc >= 0.5 && lhc <= 3.0) {
               labels.push({
-                text: `🎯 EOD CALL +$${r.last_hr_call_m.toFixed(0)}M`,
+                text: `🎯 EOD CALL +$${lhc.toFixed(1)}M${earnSuffix}`,
                 bg: 'var(--bull-soft)', fg: 'var(--bull)',
-                title: `Last hour net call premium +$${r.last_hr_call_m.toFixed(1)}M. Backtested 45.5% win rate (+30.7pp vs 14.8% baseline) for ≥$5M surges in last 30 min.`,
+                title: `Late-hour call +$${lhc.toFixed(1)}M with earnings ${earnDays}d away (EARN_MTH sweet zone). Backtested 50-66% 3d-up, +33-40pp edge.`,
               });
-            } else if (r.last_hr_call_m >= 1) {
+            } else if (reg === 'NO_EARN' && lhc >= 1.0 && lhc <= 4.0) {
               labels.push({
-                text: `📞 EOD CALL +$${r.last_hr_call_m.toFixed(1)}M`,
+                text: `🎯 EOD CALL +$${lhc.toFixed(1)}M · organic`,
                 bg: 'var(--bull-soft)', fg: 'var(--bull)',
-                title: `Last hour net call premium +$${r.last_hr_call_m.toFixed(1)}M. STRONG ($1-5M) tier — 47.6% next-day gap-up rate.`,
+                title: `Late-hour organic call +$${lhc.toFixed(1)}M (no near-term earnings). Backtested 50-66% 3d-up, +20-36pp edge.`,
               });
-            } else if (r.last_hr_call_m <= -5) {
+            } else if (reg === 'NO_EARN' && lhc > 4.0) {
               labels.push({
-                text: `🎯 EOD PUT -$${Math.abs(r.last_hr_call_m).toFixed(0)}M`,
-                bg: 'var(--bear-soft)', fg: 'var(--bear)',
-                title: `Last hour net call premium -$${Math.abs(r.last_hr_call_m).toFixed(1)}M (calls being SOLD). Backtested only 10.3% gap-up rate next day (-17.1pp).`,
+                text: `📞 EOD CALL +$${lhc.toFixed(0)}M · large`,
+                bg: 'var(--hair)', fg: 'var(--dim)',
+                title: `Late-hour call +$${lhc.toFixed(1)}M — above the +$4M sweet zone, signal weakens (small sample at higher amounts).`,
               });
-            } else if (r.last_hr_call_m <= -1) {
+            }
+            // PUT chip: only meaningful in EARN_WK / EARN_MTH regimes
+            else if ((reg === 'EARN_WK' || reg === 'EARN_MTH') && lhc <= -0.5 && lhc >= -2.0) {
+              const winRate = reg === 'EARN_WK' ? '75-100%' : '100%';
               labels.push({
-                text: `📞 EOD PUT -$${Math.abs(r.last_hr_call_m).toFixed(1)}M`,
+                text: `🎯 EOD PUT -$${Math.abs(lhc).toFixed(1)}M${earnSuffix}`,
                 bg: 'var(--bear-soft)', fg: 'var(--bear)',
-                title: `Last hour net call premium -$${Math.abs(r.last_hr_call_m).toFixed(1)}M — institutions selling calls late.`,
+                title: `Late-hour put-flow -$${Math.abs(lhc).toFixed(1)}M with earnings ${earnDays}d away (${reg}). Backtested ${winRate} 3d-down hit rate. Smart money de-risking before binary.`,
+              });
+            } else if (reg === 'NO_EARN' && lhc <= -0.5) {
+              labels.push({
+                text: `⚠ EOD PUT -$${Math.abs(lhc).toFixed(1)}M · contrarian`,
+                bg: 'var(--hair)', fg: 'var(--dim)',
+                title: `Late-hour put-flow -$${Math.abs(lhc).toFixed(1)}M but NO earnings ahead — backtest showed signal INVERTS in this regime (predicts bounce, not drop). Don't trade this side.`,
               });
             }
           }

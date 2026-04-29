@@ -19,37 +19,51 @@
       {
         "ticker": "NVDA",
         "mcap_b": 5180.0,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-05-20",
+        "announce_time": "postmarket"
       },
       {
         "ticker": "MSFT",
         "mcap_b": 3187.5,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-04-29",
+        "announce_time": "postmarket"
       },
       {
         "ticker": "AMZN",
         "mcap_b": 2787.9,
-        "sector": "Consumer Cyclical"
+        "sector": "Consumer Cyclical",
+        "next_earnings_date": "2026-04-29",
+        "announce_time": "postmarket"
       },
       {
         "ticker": "TSM",
         "mcap_b": 2100.0,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-07-16",
+        "announce_time": "unknown"
       },
       {
         "ticker": "AVGO",
         "mcap_b": 1893.1,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-06-04",
+        "announce_time": "unknown"
       },
       {
         "ticker": "GOOG",
         "mcap_b": 1879.4,
-        "sector": "Communication Services"
+        "sector": "Communication Services",
+        "next_earnings_date": "2026-04-29",
+        "announce_time": "postmarket"
       },
       {
         "ticker": "META",
         "mcap_b": 1468.3,
-        "sector": "Communication Services"
+        "sector": "Communication Services",
+        "next_earnings_date": "2026-04-29",
+        "announce_time": "postmarket"
       },
       {
         "ticker": "TSLA",
@@ -59,27 +73,37 @@
       {
         "ticker": "LLY",
         "mcap_b": 824.5,
-        "sector": "Healthcare"
+        "sector": "Healthcare",
+        "next_earnings_date": "2026-04-30",
+        "announce_time": "premarket"
       },
       {
         "ticker": "MU",
         "mcap_b": 568.7,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-06-24",
+        "announce_time": "unknown"
       },
       {
         "ticker": "ASML",
         "mcap_b": 533.6,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-07-15",
+        "announce_time": "unknown"
       },
       {
         "ticker": "AMD",
         "mcap_b": 527.0,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-05-05",
+        "announce_time": "postmarket"
       },
       {
         "ticker": "ORCL",
         "mcap_b": 477.3,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-06-10",
+        "announce_time": "unknown"
       },
       {
         "ticker": "QQQ",
@@ -89,32 +113,44 @@
       {
         "ticker": "INTC",
         "mcap_b": 424.8,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-07-23",
+        "announce_time": "unknown"
       },
       {
         "ticker": "NFLX",
         "mcap_b": 388.7,
-        "sector": "Communication Services"
+        "sector": "Communication Services",
+        "next_earnings_date": "2026-07-16",
+        "announce_time": "unknown"
       },
       {
         "ticker": "UNH",
         "mcap_b": 332.9,
-        "sector": "Healthcare"
+        "sector": "Healthcare",
+        "next_earnings_date": "2026-08-04",
+        "announce_time": "unknown"
       },
       {
         "ticker": "PLTR",
         "mcap_b": 323.5,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-05-04",
+        "announce_time": "postmarket"
       },
       {
         "ticker": "AMAT",
         "mcap_b": 302.5,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-05-14",
+        "announce_time": "postmarket"
       },
       {
         "ticker": "BABA",
         "mcap_b": 302.2,
-        "sector": "Consumer Cyclical"
+        "sector": "Consumer Cyclical",
+        "next_earnings_date": "2026-05-21",
+        "announce_time": "unknown"
       },
       {
         "ticker": "GEV",
@@ -136,32 +172,44 @@
       {
         "ticker": "ADI",
         "mcap_b": 187.1,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-05-20",
+        "announce_time": "premarket"
       },
       {
         "ticker": "DIS",
         "mcap_b": 179.8,
-        "sector": "Communication Services"
+        "sector": "Communication Services",
+        "next_earnings_date": "2026-05-06",
+        "announce_time": "premarket"
       },
       {
         "ticker": "QCOM",
         "mcap_b": 160.1,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-04-29",
+        "announce_time": "postmarket"
       },
       {
         "ticker": "UBER",
         "mcap_b": 152.5,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-05-06",
+        "announce_time": "premarket"
       },
       {
         "ticker": "DE",
         "mcap_b": 152.3,
-        "sector": "Industrials"
+        "sector": "Industrials",
+        "next_earnings_date": "2026-05-21",
+        "announce_time": "premarket"
       },
       {
         "ticker": "SNDK",
         "mcap_b": 147.9,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-04-30",
+        "announce_time": "postmarket"
       },
       {
         "ticker": "PANW",
@@ -171,22 +219,30 @@
       {
         "ticker": "APP",
         "mcap_b": 137.9,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-05-06",
+        "announce_time": "postmarket"
       },
       {
         "ticker": "MRVL",
         "mcap_b": 134.0,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-06-04",
+        "announce_time": "unknown"
       },
       {
         "ticker": "CRWD",
         "mcap_b": 115.4,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-06-02",
+        "announce_time": "unknown"
       },
       {
         "ticker": "ADBE",
         "mcap_b": 98.3,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-06-11",
+        "announce_time": "unknown"
       },
       {
         "ticker": "NOW",
@@ -196,47 +252,65 @@
       {
         "ticker": "NET",
         "mcap_b": 66.2,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-05-07",
+        "announce_time": "postmarket"
       },
       {
         "ticker": "DELL",
         "mcap_b": 65.6,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-05-28",
+        "announce_time": "postmarket"
       },
       {
         "ticker": "HOOD",
         "mcap_b": 64.9,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-07-29",
+        "announce_time": "unknown"
       },
       {
         "ticker": "CVNA",
         "mcap_b": 58.0,
-        "sector": "Consumer Cyclical"
+        "sector": "Consumer Cyclical",
+        "next_earnings_date": "2026-04-29",
+        "announce_time": "postmarket"
       },
       {
         "ticker": "NKE",
         "mcap_b": 54.0,
-        "sector": "Consumer Cyclical"
+        "sector": "Consumer Cyclical",
+        "next_earnings_date": "2026-06-25",
+        "announce_time": "unknown"
       },
       {
         "ticker": "MSTR",
         "mcap_b": 52.1,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-05-05",
+        "announce_time": "postmarket"
       },
       {
         "ticker": "SNOW",
         "mcap_b": 49.3,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-05-20",
+        "announce_time": "unknown"
       },
       {
         "ticker": "RKLB",
         "mcap_b": 44.6,
-        "sector": "Industrials"
+        "sector": "Industrials",
+        "next_earnings_date": "2026-05-07",
+        "announce_time": "postmarket"
       },
       {
         "ticker": "NVO",
         "mcap_b": 44.3,
-        "sector": "Healthcare"
+        "sector": "Healthcare",
+        "next_earnings_date": "2026-05-06",
+        "announce_time": "premarket"
       },
       {
         "ticker": "CRWV",
@@ -246,12 +320,16 @@
       {
         "ticker": "COIN",
         "mcap_b": 43.3,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-05-07",
+        "announce_time": "postmarket"
       },
       {
         "ticker": "DDOG",
         "mcap_b": 43.2,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-05-07",
+        "announce_time": "premarket"
       },
       {
         "ticker": "SLV",
@@ -261,17 +339,23 @@
       {
         "ticker": "ALAB",
         "mcap_b": 31.2,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-05-05",
+        "announce_time": "postmarket"
       },
       {
         "ticker": "CRDO",
         "mcap_b": 30.6,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-06-01",
+        "announce_time": "unknown"
       },
       {
         "ticker": "NBIS",
         "mcap_b": 27.1,
-        "sector": "Communication Services"
+        "sector": "Communication Services",
+        "next_earnings_date": "2026-05-18",
+        "announce_time": "unknown"
       },
       {
         "ticker": "SOFI",
@@ -286,7 +370,9 @@
       {
         "ticker": "MDB",
         "mcap_b": 20.8,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-06-03",
+        "announce_time": "unknown"
       },
       {
         "ticker": "GLD",
@@ -298,52 +384,72 @@
       {
         "ticker": "RIVN",
         "mcap_b": 20.0,
-        "sector": "Consumer Cyclical"
+        "sector": "Consumer Cyclical",
+        "next_earnings_date": "2026-04-30",
+        "announce_time": "postmarket"
       },
       {
         "ticker": "SATS",
         "mcap_b": 19.5,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-05-08",
+        "announce_time": "unknown"
       },
       {
         "ticker": "SMCI",
         "mcap_b": 16.3,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-05-05",
+        "announce_time": "postmarket"
       },
       {
         "ticker": "LULU",
         "mcap_b": 15.7,
-        "sector": "Consumer Cyclical"
+        "sector": "Consumer Cyclical",
+        "next_earnings_date": "2026-06-04",
+        "announce_time": "unknown"
       },
       {
         "ticker": "IREN",
         "mcap_b": 14.8,
-        "sector": "Financial Services"
+        "sector": "Financial Services",
+        "next_earnings_date": "2026-05-07",
+        "announce_time": "postmarket"
       },
       {
         "ticker": "OKLO",
         "mcap_b": 12.0,
-        "sector": "Utilities"
+        "sector": "Utilities",
+        "next_earnings_date": "2026-05-12",
+        "announce_time": "postmarket"
       },
       {
         "ticker": "WULF",
         "mcap_b": 8.8,
-        "sector": "Financial Services"
+        "sector": "Financial Services",
+        "next_earnings_date": "2026-05-08",
+        "announce_time": "unknown"
       },
       {
         "ticker": "CAR",
         "mcap_b": 6.4,
-        "sector": "Industrials"
+        "sector": "Industrials",
+        "next_earnings_date": "2026-04-29",
+        "announce_time": "premarket"
       },
       {
         "ticker": "RIOT",
         "mcap_b": 6.3,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-04-30",
+        "announce_time": "postmarket"
       },
       {
         "ticker": "RGTI",
         "mcap_b": 5.4,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-05-11",
+        "announce_time": "postmarket"
       },
       {
         "ticker": "ONDS",
@@ -353,17 +459,23 @@
       {
         "ticker": "ENPH",
         "mcap_b": 4.5,
-        "sector": "Technology"
+        "sector": "Technology",
+        "next_earnings_date": "2026-07-28",
+        "announce_time": "unknown"
       },
       {
         "ticker": "MARA",
         "mcap_b": 4.2,
-        "sector": "Financial Services"
+        "sector": "Financial Services",
+        "next_earnings_date": "2026-05-14",
+        "announce_time": "unknown"
       },
       {
         "ticker": "SMR",
         "mcap_b": 3.8,
-        "sector": "Industrials"
+        "sector": "Industrials",
+        "next_earnings_date": "2026-05-07",
+        "announce_time": "postmarket"
       },
       {
         "ticker": "BULL",
@@ -905,5 +1017,7 @@
     "VIX",
     "UVXY",
     "VXX"
-  ]
+  ],
+  "earnings_source": "v4_snapshot_2026-04-29.json info.data.next_earnings_date",
+  "earnings_updated_utc": "2026-04-29T21:44:14"
 }
