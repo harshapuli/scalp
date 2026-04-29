@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import {
   fetchPicks77, fetchPatrol, fetchConviction, fetchStaging, fetchEodBaselines,
+  fetchTodayBreakouts, fetchContinuation,
   type Picks77Resp, type PatrolResp, type ConvictionResp, type EodBaselinesResp, type EodBaseline,
 } from '@/lib/api';
 import { fmtAge } from '@/lib/format';
@@ -57,6 +58,11 @@ interface RowState {
   // Per-ticker baseline (for z-score normalization)
   baseline?: EodBaseline;
   z_score?: number;  // (last_hr_call_m - baseline.median_m) / baseline.std_floor_m
+  // Cross-engine signals (replaces the secondary nav)
+  triggered_today?: boolean;       // ticker fired in v4_today_breakout_scanner today
+  triggered_strong?: boolean;      // STRONG-tier breakout
+  continuation_chain_days?: number; // multi-day chain length (0 if not in chain)
+  continuation_strong?: boolean;
 }
 
 // Map a ticker's next earnings date to one of three regimes.
@@ -362,6 +368,11 @@ function priorityScore(r: RowState): number {
     else if (r.last_hr_call_m <= -5) s -= 35;
     else if (r.last_hr_call_m <= -1) s -= 12;
   }
+  // Cross-engine signals
+  if (r.triggered_today) s += r.triggered_strong ? 25 : 15;
+  if (r.continuation_chain_days && r.continuation_chain_days >= 1) {
+    s += Math.min(r.continuation_chain_days * 5, 25);  // longer chain = more weight, capped
+  }
   return s;
 }
 
@@ -394,6 +405,16 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
     queryFn: fetchEodBaselines,
     refetchInterval: 30 * 60 * 1000,  // 30 min — baselines update daily
   });
+  const { data: breakouts } = useQuery<any>({
+    queryKey: ['today_breakouts'],
+    queryFn: fetchTodayBreakouts,
+    refetchInterval: 60_000,
+  });
+  const { data: continuation } = useQuery<any>({
+    queryKey: ['continuation'],
+    queryFn: fetchContinuation,
+    refetchInterval: 60_000,
+  });
 
   const cvByT = useMemo(() => {
     const m: Record<string, any> = {};
@@ -405,6 +426,16 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
     for (const r of (staging?.all_scored || [])) m[r.ticker] = r;
     return m;
   }, [staging]);
+  const breakoutByT = useMemo(() => {
+    const m: Record<string, any> = {};
+    for (const r of (breakouts?.buys || [])) m[r.ticker] = r;
+    return m;
+  }, [breakouts]);
+  const contByT = useMemo(() => {
+    const m: Record<string, any> = {};
+    for (const r of (continuation?.buys || [])) m[r.ticker] = r;
+    return m;
+  }, [continuation]);
 
   const rows = useMemo<RowState[]>(() => {
     const tickers = (picks?.buckets?.[bucket] as any[]) || [];
@@ -433,6 +464,13 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
       if (last_hr_call_m != null && baseline && baseline.std_floor_m > 0) {
         z_score = (last_hr_call_m - baseline.median_m) / baseline.std_floor_m;
       }
+      // Cross-engine signals
+      const br = breakoutByT[t.ticker];
+      const co = contByT[t.ticker];
+      const triggered_today = !!br;
+      const triggered_strong = !!(br?.strong);
+      const continuation_chain_days = co ? (co.days_in_chain || 0) : 0;
+      const continuation_strong = !!(co?.strong);
       return {
         ticker: t.ticker,
         mcap_b: t.mcap_b ?? null,
@@ -457,9 +495,13 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
         days_to_earnings: days,
         baseline,
         z_score,
+        triggered_today,
+        triggered_strong,
+        continuation_chain_days,
+        continuation_strong,
       };
     });
-  }, [picks, patrol, cvByT, stByT, baselines, bucket]);
+  }, [picks, patrol, cvByT, stByT, baselines, breakoutByT, contByT, bucket]);
 
   const counts = useMemo(() => {
     let acc = 0, dist = 0, neutral = 0, active = 0;
@@ -652,6 +694,22 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
           if (r.is_stealth_dist) {
             labels.push({ text: '☠ STEALTH-DIST', bg: 'rgba(176,53,40,0.10)', fg: 'var(--bear)',
               title: 'Multi-day institutional distribution' });
+          }
+          // Breakout fired today (replaces /breakout page chip)
+          if (r.triggered_today) {
+            labels.push({
+              text: r.triggered_strong ? '🚀 STRONG BREAK' : '🚀 BREAK',
+              bg: 'var(--bull-soft)', fg: 'var(--bull)',
+              title: 'v4_today_breakout_scanner fired today — ticker broke above N-day high or vol threshold.',
+            });
+          }
+          // Multi-day continuation chain (replaces /continuation page chip)
+          if (r.continuation_chain_days && r.continuation_chain_days >= 1) {
+            labels.push({
+              text: `🏃 CONT × ${r.continuation_chain_days}d`,
+              bg: 'rgba(120,140,93,0.15)', fg: 'var(--green, #788c5d)',
+              title: `In a ${r.continuation_chain_days}-day breakout continuation chain (D1 broke, holding above origin).`,
+            });
           }
           // Flip warning
           if (r.has_flip) {

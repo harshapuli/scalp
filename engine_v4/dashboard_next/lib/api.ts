@@ -107,6 +107,9 @@ export const revalidateStaging = () => postJSON<any>('/api/v4/staging_revalidate
 // ─── Lifecycle / Breakout ───────────────────────────────────────────
 export const fetchLifecycle = () => getJSON<any>('/api/v4/lifecycle');
 export const refreshLifecycle = () => postJSON<any>('/api/v4/lifecycle_refresh');
+// Today's breakouts — tickers that broke out above N-day high or vol threshold today.
+// Source: v4_today_breakouts.json (output of v4_today_breakout_scanner.py)
+export const fetchTodayBreakouts = () => getJSON<any>('/api/v4/today_breakouts');
 
 // ─── Today ──────────────────────────────────────────────────────────
 export const fetchToday = () => getJSON<any>('/api/v4/today');

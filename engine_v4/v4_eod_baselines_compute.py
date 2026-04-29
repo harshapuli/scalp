@@ -44,8 +44,15 @@ def main():
         for r in (picks_data.get('buckets') or {}).get(k, []) or []:
             all_picks.add(r['ticker'])
 
-    # For each (ticker, snapshot), compute last_30m_net_call_$
-    flow = defaultdict(list)  # ticker → [(date, call_m)]
+    # For each (ticker, day), accumulate last_30m_net_call_$ from
+    # whichever source we have. Two sources are merged:
+    #   1. SNAPSHOTS (v4_snapshot_<date>.json) — available for ~6 recent days
+    #   2. HISTORICAL BACKFILL (data/eod_flow_history_60d.json) — UW REST
+    #      pull of historical net-prem-ticks, ~60 days
+    # Snapshot data takes precedence when both exist (frozen + same metric).
+    flow = defaultdict(dict)  # ticker → {date → call_m}
+
+    # Source 1: snapshots
     for p in snap_paths:
         d = date_from_snap(p)
         try:
@@ -65,12 +72,29 @@ def main():
                     try: wcall += float(t.get('net_call_premium', 0) or 0)
                     except: pass
             if ticks == 0: continue
-            flow[tkr].append((d, wcall / 1e6))
+            flow[tkr][d] = wcall / 1e6
+
+    # Source 2: historical backfill (only fill in dates not already from snapshots)
+    hist_path = os.path.join(HERE, 'data', 'eod_flow_history_60d.json')
+    if os.path.exists(hist_path):
+        try:
+            hist = json.load(open(hist_path)).get('history') or {}
+            n_added_hist = 0
+            for tkr, days_d in hist.items():
+                if all_picks and tkr not in all_picks: continue
+                for d_iso, e in (days_d or {}).items():
+                    cm = e.get('call_m')
+                    if cm is None or d_iso in flow[tkr]: continue
+                    flow[tkr][d_iso] = cm
+                    n_added_hist += 1
+            print(f'  + {n_added_hist} additional ticker-days from historical backfill', file=sys.stderr)
+        except Exception as e:
+            print(f'  ! historical backfill load error: {e}', file=sys.stderr)
 
     # Compute baseline + classify quality
     baselines = {}
-    for tkr, rows in flow.items():
-        vals = [v for _, v in rows]
+    for tkr, by_date in flow.items():
+        vals = list(by_date.values())
         if not vals: continue
         median = statistics.median(vals)
         try: std = statistics.stdev(vals)
