@@ -592,7 +592,7 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
   };
 
   return (
-    <main>
+    <main className="bucket-page">
       <header>
         <h1>{meta.emoji} {meta.label} bucket</h1>
         <div className="sub-head">{meta.sub} · {counts.all} tickers · patrol scoped to this bucket</div>
@@ -603,95 +603,64 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
         </div>
       </header>
 
-      {/* Bucket summary — counts + dollar flow + top names */}
-      <div style={{
-        margin: '12px auto 8px', padding: '12px 14px',
-        maxWidth: 880, borderRadius: 10,
-        background: 'var(--panel)', border: '1px solid var(--hair)',
-        fontFamily: 'Poppins, Arial, sans-serif', fontSize: 12,
-      }}>
-        {/* Row 1: directional counts + institutional + active */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, color: 'var(--dim)', fontSize: 11, marginBottom: 10 }}>
-          <div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--bull)', fontVariantNumeric: 'tabular-nums' }}>{counts.acc}</div>
-            <div>CALL firing</div>
+      {/* Bucket summary — Anthropic-tightened, three rows */}
+      <div className="bucket-summary">
+        <div className="bucket-summary__row cols-5">
+          <div className="bucket-summary__metric">
+            <strong style={{ color: 'var(--bull)' }}>{counts.acc}</strong>
+            CALL firing
             {counts.n_strong_acc > 0 && <div style={{ fontSize: 10, color: 'var(--bull)', fontWeight: 600 }}>incl. {counts.n_strong_acc} STRONG</div>}
           </div>
-          <div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--bear)', fontVariantNumeric: 'tabular-nums' }}>{counts.dist}</div>
-            <div>PUT firing</div>
+          <div className="bucket-summary__metric">
+            <strong style={{ color: 'var(--bear)' }}>{counts.dist}</strong>
+            PUT firing
             {counts.n_strong_dist > 0 && <div style={{ fontSize: 10, color: 'var(--bear)', fontWeight: 600 }}>incl. {counts.n_strong_dist} STRONG</div>}
           </div>
-          <div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent)', fontVariantNumeric: 'tabular-nums' }}>{counts.n_inst}</div>
-            <div>institutional</div>
+          <div className="bucket-summary__metric">
+            <strong style={{ color: 'var(--accent)' }}>{counts.n_inst}</strong>
+            institutional
             <div style={{ fontSize: 10 }}>positioning ≥60</div>
           </div>
-          <div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--mid)', fontVariantNumeric: 'tabular-nums' }}>{counts.neutral}</div>
-            <div>neutral</div>
+          <div className="bucket-summary__metric">
+            <strong style={{ color: 'var(--mid)' }}>{counts.neutral}</strong>
+            neutral
           </div>
-          <div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>{counts.total_acc_fires}/{counts.total_dist_fires}</div>
-            <div>alerts today</div>
+          <div className="bucket-summary__metric">
+            <strong style={{ color: 'var(--ink)' }}>{counts.total_acc_fires}/{counts.total_dist_fires}</strong>
+            alerts today
             <div style={{ fontSize: 10 }}>call / put</div>
           </div>
         </div>
-
-        {/* Row 2: dollar flow */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, color: 'var(--dim)', fontSize: 11,
-                       marginBottom: 10, paddingTop: 10, borderTop: '1px dashed var(--hair)' }}>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>
-              ${counts.total_dp_today_m.toFixed(0)}M
-            </div>
-            <div>dark pool today</div>
+        <div className="bucket-summary__row cols-3">
+          <div className="bucket-summary__metric">
+            <strong style={{ color: 'var(--ink)' }}>${counts.total_dp_today_m.toFixed(0)}M</strong>
+            dark pool today
           </div>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>
-              ${counts.total_pm_dp_m.toFixed(0)}M
-            </div>
-            <div>premarket DP · {counts.pm_blocks} blocks</div>
+          <div className="bucket-summary__metric">
+            <strong style={{ color: 'var(--ink)' }}>${counts.total_pm_dp_m.toFixed(0)}M</strong>
+            premarket DP · {counts.pm_blocks} blocks
           </div>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>
-              {counts.top_eod_call.length}↑ / {counts.top_eod_put.length}↓
-            </div>
-            <div>EOD surges (last 30 min)</div>
+          <div className="bucket-summary__metric">
+            <strong style={{ color: 'var(--ink)' }}>{counts.top_eod_call.length}↑ / {counts.top_eod_put.length}↓</strong>
+            EOD surges (last 30 min)
           </div>
         </div>
-
-        {/* Row 3: top movers */}
-        {(counts.top_call.length > 0 || counts.top_put.length > 0) && (
-          <div style={{ paddingTop: 10, borderTop: '1px dashed var(--hair)', display: 'flex', gap: 16, fontSize: 11, color: 'var(--dim)', flexWrap: 'wrap' }}>
-            {counts.top_call.length > 0 && (
-              <div>
-                <strong style={{ color: 'var(--bull)' }}>Top CALL:</strong>{' '}
-                {counts.top_call.map(x => `${x.t}(${x.s})`).join(' · ')}
-              </div>
-            )}
-            {counts.top_put.length > 0 && (
-              <div>
-                <strong style={{ color: 'var(--bear)' }}>Top PUT:</strong>{' '}
-                {counts.top_put.map(x => `${x.t}(${x.s})`).join(' · ')}
-              </div>
-            )}
-          </div>
-        )}
-        {(counts.top_eod_call.length > 0 || counts.top_eod_put.length > 0) && (
-          <div style={{ marginTop: 6, display: 'flex', gap: 16, fontSize: 11, color: 'var(--dim)', flexWrap: 'wrap' }}>
-            {counts.top_eod_call.length > 0 && (
-              <div>
-                <strong style={{ color: 'var(--bull)' }}>EOD CALL surge:</strong>{' '}
-                {counts.top_eod_call.map(x => `${x.t}(+$${x.m.toFixed(1)}M)`).join(' · ')}
-              </div>
-            )}
-            {counts.top_eod_put.length > 0 && (
-              <div>
-                <strong style={{ color: 'var(--bear)' }}>EOD PUT surge:</strong>{' '}
-                {counts.top_eod_put.map(x => `${x.t}(-$${Math.abs(x.m).toFixed(1)}M)`).join(' · ')}
-              </div>
-            )}
+        {(counts.top_call.length > 0 || counts.top_put.length > 0 || counts.top_eod_call.length > 0 || counts.top_eod_put.length > 0) && (
+          <div className="bucket-summary__row" style={{ display: 'block' }}>
+            <div className="bucket-summary__movers">
+              {counts.top_call.length > 0 && (
+                <div><strong style={{ color: 'var(--bull)' }}>Top CALL:</strong> {counts.top_call.map(x => `${x.t}(${x.s})`).join(' · ')}</div>
+              )}
+              {counts.top_put.length > 0 && (
+                <div><strong style={{ color: 'var(--bear)' }}>Top PUT:</strong> {counts.top_put.map(x => `${x.t}(${x.s})`).join(' · ')}</div>
+              )}
+              {counts.top_eod_call.length > 0 && (
+                <div><strong style={{ color: 'var(--bull)' }}>EOD CALL:</strong> {counts.top_eod_call.map(x => `${x.t} +$${x.m.toFixed(1)}M`).join(' · ')}</div>
+              )}
+              {counts.top_eod_put.length > 0 && (
+                <div><strong style={{ color: 'var(--bear)' }}>EOD PUT:</strong> {counts.top_eod_put.map(x => `${x.t} -$${Math.abs(x.m).toFixed(1)}M`).join(' · ')}</div>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -722,7 +691,7 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
         </div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: 960, margin: '0 auto' }}>
+      <div>
         {filtered.map((r) => {
           const tag = verdictTag(r.patrol_verdict);
           const positioning = r.positioning || 'THIN';
@@ -874,87 +843,77 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
           // PREDICTION (forward-looking 3d move estimate based on backtest cell)
           const pred = predictionFor(r);
 
+          // Map label bg/fg to brand classes (instead of inline rgba)
+          const bkChipClass = (l: { fg: string }) => {
+            if (l.fg.includes('bull') || l.fg === 'var(--bull)') return 'bk-chip bk-chip--bull';
+            if (l.fg.includes('bear') || l.fg === 'var(--bear)') return 'bk-chip bk-chip--bear';
+            if (l.fg.includes('accent') || l.fg === 'var(--accent)') return 'bk-chip bk-chip--accent';
+            if (l.fg.includes('green') || l.fg === '#788c5d') return 'bk-chip bk-chip--green';
+            if (l.fg === '#6a9bcc' || l.fg === 'var(--blue)') return 'bk-chip bk-chip--blue';
+            return 'bk-chip bk-chip--neutral';
+          };
+
+          const sectorMcap = [
+            r.sector,
+            r.mcap_b != null && r.mcap_b > 0
+              ? (r.mcap_b >= 1000 ? `$${(r.mcap_b/1000).toFixed(1)}T` : `$${r.mcap_b.toFixed(0)}B`)
+              : null
+          ].filter(Boolean).join(' · ');
+
           return (
-            <article key={r.ticker} className="card" style={{ padding: '10px 14px', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-              {/* PRIMARY ACTION — the one thing you look at to decide */}
-              <div style={{ flex: '0 0 auto' }}>
-                <span title={act.why} style={{
-                  background: act.bg, color: act.fg,
-                  padding: '6px 12px', borderRadius: 6,
-                  fontSize: 13, fontWeight: 700,
-                  fontFamily: 'Poppins, Arial, sans-serif',
-                  whiteSpace: 'nowrap', minWidth: 92, display: 'inline-block',
-                  textAlign: 'center', letterSpacing: '0.02em',
-                }}>{actionEmoji[act.action]} {actionDisplay}</span>
-              </div>
-              <div style={{ flex: '0 0 auto', minWidth: 70 }}>
-                <span className="ticker" style={{ fontSize: 18, fontWeight: 700 }}>{r.ticker}</span>
-              </div>
-              {/* PREDICTION — forward-looking move estimate */}
-              {pred && (
-                <div style={{ flex: '0 0 auto' }}>
-                  <span title={`${pred.basis}\n\nBacktested cell: ${pred.regime}, n=${pred.n}, ${pred.win_rate}% historical win rate. Predicted 3d range based on average winner magnitude.`} style={{
-                    background: pred.bias === 'CALL' ? 'var(--bull-soft)' : 'var(--bear-soft)',
-                    color: pred.bias === 'CALL' ? 'var(--bull)' : 'var(--bear)',
-                    padding: '5px 10px', borderRadius: 6,
-                    fontSize: 12, fontWeight: 700,
-                    fontFamily: 'Poppins, Arial, sans-serif',
-                    whiteSpace: 'nowrap',
-                    border: `1px dashed ${pred.bias === 'CALL' ? 'var(--bull)' : 'var(--bear)'}`,
-                  }}>
-                    {pred.bias === 'CALL' ? '📈' : '📉'} 3d: {pred.pct_low > 0 ? '+' : ''}{pred.pct_low}% to {pred.pct_high > 0 ? '+' : ''}{pred.pct_high}%
-                    <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 500, opacity: 0.7 }}>
-                      {pred.win_rate}% · n={pred.n}
-                    </span>
-                  </span>
+            <article key={r.ticker} className="bucket-card" data-action={act.action}>
+              <div className="bucket-card__hero">
+                <div className="bucket-card__id">
+                  <div className="symbol">{r.ticker}</div>
+                  {sectorMcap && <div className="meta">{sectorMcap}</div>}
                 </div>
-              )}
-              <div style={{ flex: '1 1 auto', display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
-                {labels.map((l, i) => (
-                  <span key={i} title={l.title || ''} style={{
-                    background: l.bg, color: l.fg, padding: '3px 8px',
-                    borderRadius: 4, fontSize: 11, fontWeight: 600,
-                    fontFamily: 'Poppins, Arial, sans-serif', whiteSpace: 'nowrap',
-                  }}>{l.text}</span>
-                ))}
-                <span title={`Patrol fired ${r.acc_n} CALL alert${r.acc_n === 1 ? '' : 's'} and ${r.dist_n} PUT alert${r.dist_n === 1 ? '' : 's'} today. More alerts = more institutional confirmations during the session.`}
-                      style={{ fontSize: 11, color: 'var(--dim)', marginLeft: 6 }}>
+
+                <div title={act.why} className={`action-pill action-pill--${act.action}`}>
+                  {actionEmoji[act.action]} {actionDisplay}
+                </div>
+
+                <div>
+                  {pred && (
+                    <span
+                      className={`prediction-strip prediction-strip--${pred.bias}`}
+                      title={`${pred.basis}\n\nBacktest: ${pred.regime} · n=${pred.n} · ${pred.win_rate}% historical hit rate.`}
+                    >
+                      {pred.bias === 'CALL' ? '📈' : '📉'} 3d: {pred.pct_low > 0 ? '+' : ''}{pred.pct_low}% → {pred.pct_high > 0 ? '+' : ''}{pred.pct_high}%
+                      <span className="prediction-strip__conf">{pred.win_rate}% · n={pred.n}</span>
+                    </span>
+                  )}
+                </div>
+
+                <div className="bucket-card__price">
+                  {dayPct != null && (
+                    <div className={`change ${dpClass}`}>{dayPct >= 0 ? '+' : ''}{dayPct.toFixed(2)}%</div>
+                  )}
+                  {r.live_price != null && <div className="price">${r.live_price.toFixed(2)}</div>}
+                </div>
+              </div>
+
+              <div className="bucket-card__chips">
+                {labels.map((l, i) => {
+                  // Skip the verdict chip itself if action label already conveys it loud enough?
+                  // Keep all for now — they're informational.
+                  let cls = bkChipClass(l);
+                  // Add strong-pulse on STRONG verdict
+                  if (l.text.startsWith('STRONG ')) cls += ' bk-chip--strong';
+                  return (
+                    <span key={i} className={cls} title={l.title || ''}>{l.text}</span>
+                  );
+                })}
+                <span className="bk-chip__meta"
+                      title={`Patrol fired ${r.acc_n} CALL alert${r.acc_n === 1 ? '' : 's'} and ${r.dist_n} PUT alert${r.dist_n === 1 ? '' : 's'} today.`}>
                   {(r.acc_n > 0 || r.dist_n > 0) ? (
                     <>
                       today:&nbsp;
-                      {r.acc_n > 0 && (
-                        <span style={{ color: 'var(--bull)', fontWeight: 600 }}>
-                          {r.acc_n}× call alert{r.acc_n === 1 ? '' : 's'}
-                        </span>
-                      )}
-                      {r.acc_n > 0 && r.dist_n > 0 && <span style={{ color: 'var(--mid)' }}>, </span>}
-                      {r.dist_n > 0 && (
-                        <span style={{ color: 'var(--bear)', fontWeight: 600 }}>
-                          {r.dist_n}× put alert{r.dist_n === 1 ? '' : 's'}
-                        </span>
-                      )}
+                      {r.acc_n > 0 && (<span style={{ color: 'var(--bull)', fontWeight: 600 }}>{r.acc_n}× call</span>)}
+                      {r.acc_n > 0 && r.dist_n > 0 && ', '}
+                      {r.dist_n > 0 && (<span style={{ color: 'var(--bear)', fontWeight: 600 }}>{r.dist_n}× put</span>)}
                     </>
-                  ) : (
-                    <span style={{ color: 'var(--mid)' }}>today: no alerts</span>
-                  )}
+                  ) : 'no alerts today'}
                 </span>
-              </div>
-              <div style={{ flex: '0 0 auto', textAlign: 'right' }}>
-                {dayPct != null && (
-                  <span className={dpClass} style={{ marginRight: 10, fontFamily: 'Poppins, Arial, sans-serif', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
-                    {dayPct >= 0 ? '+' : ''}{dayPct.toFixed(2)}%
-                  </span>
-                )}
-                {r.live_price != null && (
-                  <span style={{ marginRight: 10, fontFamily: 'Poppins, Arial, sans-serif', fontVariantNumeric: 'tabular-nums' }}>
-                    ${r.live_price.toFixed(2)}
-                  </span>
-                )}
-                {r.mcap_b != null && r.mcap_b > 0 && (
-                  <span style={{ fontSize: 11, color: 'var(--dim)' }}>
-                    ${r.mcap_b >= 1000 ? `${(r.mcap_b / 1000).toFixed(1)}T` : `${r.mcap_b.toFixed(0)}B`}
-                  </span>
-                )}
               </div>
             </article>
           );
