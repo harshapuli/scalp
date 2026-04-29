@@ -678,7 +678,9 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
             });
           }
           // V8 staging: PRE-BREAK (call) or DISTRO (put)
-          if (r.is_buy) {
+          // If the breakout already FIRED today, suppress PRE-BREAK
+          // (the setup is now stale — 🚀 BREAK chip carries the info).
+          if (r.is_buy && !r.triggered_today) {
             labels.push({ text: `📈 PRE-BREAK ${r.staging_score}`, bg: 'rgba(63,140,71,0.10)', fg: 'var(--bull)',
               title: 'V8 staging score crossed BUY threshold' });
           }
