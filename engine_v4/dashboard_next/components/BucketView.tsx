@@ -2,7 +2,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import {
-  fetchPicks77, fetchPatrol, fetchConviction,
+  fetchPicks77, fetchPatrol, fetchConviction, fetchStaging,
   type Picks77Resp, type PatrolResp, type ConvictionResp,
 } from '@/lib/api';
 import { fmtAge } from '@/lib/format';
@@ -35,6 +35,41 @@ interface RowState {
   cv_urgency?: string;
   live_price?: number;
   day_pct?: number;
+  is_stealth?: boolean;
+  is_stealth_dist?: boolean;
+  // staging (v8)
+  staging_score?: number;
+  staging_put_score?: number;
+  is_buy?: boolean;
+  is_put_buy?: boolean;
+}
+
+// Composite priority for sorting — higher = more actionable LONG, lower = SHORT
+function priorityScore(r: RowState): number {
+  let s = 0;
+  // Patrol verdict (biggest weight)
+  if (r.patrol_verdict === 'STRONG_ACC') s += 100;
+  else if (r.patrol_verdict === 'ACC') s += 60;
+  else if (r.patrol_verdict === 'DIST') s -= 60;
+  else if (r.patrol_verdict === 'STRONG_DIST') s -= 100;
+  // Conviction overlay
+  if (r.cv_verdict === 'BUY') s += 30;
+  else if (r.cv_verdict === 'WATCH') s += 15;
+  else if (r.cv_urgency === 'EXHAUSTED' || r.cv_urgency === 'TOO_LATE') s -= 10;
+  // Institutional positioning
+  if ((r.positioning_score || 0) >= 60) s += 25;
+  else if ((r.positioning_score || 0) >= 40) s += 10;
+  // V8 staging fires
+  if (r.is_buy) s += 20;
+  if (r.is_put_buy) s -= 20;
+  // Stealth tag (multi-day acc)
+  if (r.is_stealth) s += 15;
+  if (r.is_stealth_dist) s -= 15;
+  // Flip penalty (mixed signal)
+  if (r.has_flip) s -= 10;
+  // Net fire count tilt
+  s += (r.acc_n - r.dist_n) * 2;
+  return s;
 }
 
 export default function BucketView({ bucket }: { bucket: BucketName }) {
@@ -56,12 +91,22 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
     queryFn: fetchConviction,
     refetchInterval: 30_000,
   });
+  const { data: staging } = useQuery<any>({
+    queryKey: ['staging'],
+    queryFn: fetchStaging,
+    refetchInterval: 60_000,
+  });
 
   const cvByT = useMemo(() => {
     const m: Record<string, any> = {};
     for (const r of cv?.results || []) m[r.ticker] = r;
     return m;
   }, [cv]);
+  const stByT = useMemo(() => {
+    const m: Record<string, any> = {};
+    for (const r of (staging?.all_scored || [])) m[r.ticker] = r;
+    return m;
+  }, [staging]);
 
   const rows = useMemo<RowState[]>(() => {
     const tickers = (picks?.buckets?.[bucket] as any[]) || [];
@@ -79,6 +124,7 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
         prev = side;
       }
       const cvr = cvByT[t.ticker] || {};
+      const sr = stByT[t.ticker] || {};
       return {
         ticker: t.ticker,
         mcap_b: t.mcap_b ?? null,
@@ -92,9 +138,15 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
         cv_urgency: cvr.trade_idea?.entry_urgency || cvr.urgency,
         live_price: cvr.last_price,
         day_pct: cvr.day_pct,
+        is_stealth: cvr.is_stealth,
+        is_stealth_dist: cvr.is_stealth_dist,
+        staging_score: sr.score,
+        staging_put_score: sr.put_score,
+        is_buy: sr.is_buy,
+        is_put_buy: sr.is_put_buy,
       };
     });
-  }, [picks, patrol, cvByT, bucket]);
+  }, [picks, patrol, cvByT, stByT, bucket]);
 
   const counts = useMemo(() => {
     let acc = 0, dist = 0, neutral = 0, active = 0;
@@ -122,26 +174,16 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
       out = rows.filter(r => {
         const v = r.patrol_verdict;
         return v === 'ACC' || v === 'STRONG_ACC' || v === 'DIST' || v === 'STRONG_DIST'
-            || ['BUY','WATCH'].includes(r.cv_verdict || '');
+            || ['BUY','WATCH'].includes(r.cv_verdict || '')
+            || r.is_buy || r.is_put_buy;
       });
     } else if (filter === 'ACC') {
       out = rows.filter(r => r.patrol_verdict === 'ACC' || r.patrol_verdict === 'STRONG_ACC');
     } else if (filter === 'DIST') {
       out = rows.filter(r => r.patrol_verdict === 'DIST' || r.patrol_verdict === 'STRONG_DIST');
     }
-    // Sort: STRONG_ACC > ACC > BUY > WATCH > DIST > STRONG_DIST > NEUTRAL
-    const rank = (r: RowState) => {
-      if (r.patrol_verdict === 'STRONG_ACC') return 6;
-      if (r.patrol_verdict === 'ACC') return 5;
-      if (r.cv_verdict === 'BUY') return 4;
-      if (r.cv_verdict === 'WATCH') return 3;
-      if (r.patrol_verdict === 'DIST') return 2;
-      if (r.patrol_verdict === 'STRONG_DIST') return 1;
-      return 0;
-    };
-    return [...out].sort((a, b) => rank(b) - rank(a) ||
-      (b.positioning_score || 0) - (a.positioning_score || 0) ||
-      (b.acc_n - b.dist_n) - (a.acc_n - a.dist_n));
+    // Sort by composite priority — bullish at top, bearish at bottom
+    return [...out].sort((a, b) => priorityScore(b) - priorityScore(a));
   }, [rows, filter]);
 
   const verdictTag = (v?: string) => {
@@ -232,46 +274,100 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
           const isInst = (r.positioning_score || 0) >= 60;
           const dayPct = r.day_pct;
           const dpClass = dayPct == null ? '' : (dayPct > 0 ? 'bull' : dayPct < 0 ? 'bear' : '');
+
+          // Build label chips for this row
+          type Lbl = { text: string; bg: string; fg: string; border?: string; title?: string };
+          const labels: Lbl[] = [];
+
+          // Patrol verdict label (always present)
+          labels.push({
+            text: `${tag.text}${r.patrol_score ? ` ${r.patrol_score}` : ''}`,
+            bg: tag.bg, fg: tag.fg,
+            title: 'Patrol verdict (today)',
+          });
+          // Conviction action
+          if (r.cv_verdict === 'BUY') {
+            const tooLate = r.cv_urgency === 'EXHAUSTED' || r.cv_urgency === 'TOO_LATE';
+            labels.push({
+              text: tooLate ? `BUY/${r.cv_urgency}` : `🚀 BUY${r.cv_urgency ? `/${r.cv_urgency}` : ''}`,
+              bg: tooLate ? 'rgba(176,53,40,0.10)' : 'rgba(63,140,71,0.20)',
+              fg: tooLate ? 'var(--bear)' : 'var(--bull)',
+              title: 'Conviction engine signal',
+            });
+          } else if (r.cv_verdict === 'WATCH') {
+            labels.push({
+              text: `👁 WATCH${r.cv_urgency ? `/${r.cv_urgency}` : ''}`,
+              bg: 'rgba(217,119,87,0.12)', fg: 'var(--accent)',
+              title: 'Conviction engine watching',
+            });
+          }
+          // Institutional positioning
+          if (isInst) {
+            labels.push({
+              text: `⭐ ${positioning} ${r.positioning_score}`,
+              bg: 'rgba(217,119,87,0.18)', fg: 'var(--accent)',
+              title: 'Premarket DP + flow + aggressor skew indicate institutional positioning',
+            });
+          } else if ((r.positioning_score || 0) >= 40) {
+            labels.push({
+              text: `${positioning} ${r.positioning_score}`,
+              bg: 'rgba(176,176,176,0.08)', fg: 'var(--dim)',
+            });
+          }
+          // V8 staging: PRE-BREAK (call) or DISTRO (put)
+          if (r.is_buy) {
+            labels.push({ text: `📈 PRE-BREAK ${r.staging_score}`, bg: 'rgba(63,140,71,0.10)', fg: 'var(--bull)',
+              title: 'V8 staging score crossed BUY threshold' });
+          }
+          if (r.is_put_buy) {
+            labels.push({ text: `📉 DISTRO ${r.staging_put_score}`, bg: 'rgba(176,53,40,0.10)', fg: 'var(--bear)',
+              title: 'V8 staging score crossed PUT threshold' });
+          }
+          // Stealth (multi-day acc)
+          if (r.is_stealth) {
+            labels.push({ text: '🌱 STEALTH', bg: 'rgba(120,140,93,0.15)', fg: 'var(--green, #788c5d)',
+              title: 'Multi-day institutional accumulation (≥5 days)' });
+          }
+          if (r.is_stealth_dist) {
+            labels.push({ text: '☠ STEALTH-DIST', bg: 'rgba(176,53,40,0.10)', fg: 'var(--bear)',
+              title: 'Multi-day institutional distribution' });
+          }
+          // Flip warning
+          if (r.has_flip) {
+            labels.push({ text: '⚠ FLIP', bg: 'rgba(176,53,40,0.10)', fg: 'var(--bear)',
+              title: 'Patrol flipped direction today (ACC↔DIST) — mixed signal' });
+          }
+
           return (
             <article key={r.ticker} className="card" style={{ padding: '10px 14px', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
               <div style={{ flex: '0 0 auto', minWidth: 70 }}>
                 <span className="ticker" style={{ fontSize: 18, fontWeight: 700 }}>{r.ticker}</span>
               </div>
-              <div style={{ flex: '0 0 auto' }}>
-                <span style={{
-                  background: tag.bg, color: tag.fg, padding: '3px 10px',
-                  borderRadius: 4, fontSize: 11, fontWeight: 600,
-                  fontFamily: 'Poppins, Arial, sans-serif',
-                }}>{tag.text} {r.patrol_score ?? ''}</span>
-              </div>
-              <div style={{ flex: '0 0 auto', fontSize: 11, color: 'var(--dim)' }}>
-                <span style={{ color: isInst ? 'var(--accent)' : 'var(--dim)', fontWeight: isInst ? 600 : 400 }}>
-                  {positioning} {r.positioning_score ?? 0}
+              <div style={{ flex: '1 1 auto', display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+                {labels.map((l, i) => (
+                  <span key={i} title={l.title || ''} style={{
+                    background: l.bg, color: l.fg, padding: '3px 8px',
+                    borderRadius: 4, fontSize: 11, fontWeight: 600,
+                    fontFamily: 'Poppins, Arial, sans-serif', whiteSpace: 'nowrap',
+                  }}>{l.text}</span>
+                ))}
+                <span style={{ fontSize: 11, color: 'var(--dim)', marginLeft: 4 }}>
+                  fires <span style={{ color: 'var(--bull)' }}>{r.acc_n}</span>/<span style={{ color: 'var(--bear)' }}>{r.dist_n}</span>
                 </span>
               </div>
-              <div style={{ flex: '0 0 auto', fontSize: 11, color: 'var(--dim)' }}>
-                fires <span style={{ color: 'var(--bull)' }}>{r.acc_n}</span>/
-                <span style={{ color: 'var(--bear)' }}>{r.dist_n}</span>
-                {r.has_flip && <span style={{ color: 'var(--bear)', marginLeft: 4 }}>⚠flip</span>}
-              </div>
-              <div style={{ flex: '1 1 auto', textAlign: 'right' }}>
+              <div style={{ flex: '0 0 auto', textAlign: 'right' }}>
                 {dayPct != null && (
-                  <span className={dpClass} style={{ marginRight: 12, fontFamily: 'Poppins, Arial, sans-serif', fontVariantNumeric: 'tabular-nums' }}>
+                  <span className={dpClass} style={{ marginRight: 10, fontFamily: 'Poppins, Arial, sans-serif', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
                     {dayPct >= 0 ? '+' : ''}{dayPct.toFixed(2)}%
                   </span>
                 )}
                 {r.live_price != null && (
-                  <span style={{ marginRight: 12, fontFamily: 'Poppins, Arial, sans-serif', fontVariantNumeric: 'tabular-nums' }}>
+                  <span style={{ marginRight: 10, fontFamily: 'Poppins, Arial, sans-serif', fontVariantNumeric: 'tabular-nums' }}>
                     ${r.live_price.toFixed(2)}
                   </span>
                 )}
-                {r.cv_verdict && (
-                  <span style={{ fontSize: 11, color: 'var(--dim)' }}>
-                    {r.cv_verdict}{r.cv_urgency ? `/${r.cv_urgency}` : ''}
-                  </span>
-                )}
                 {r.mcap_b != null && r.mcap_b > 0 && (
-                  <span style={{ marginLeft: 12, fontSize: 11, color: 'var(--dim)' }}>
+                  <span style={{ fontSize: 11, color: 'var(--dim)' }}>
                     ${r.mcap_b >= 1000 ? `${(r.mcap_b / 1000).toFixed(1)}T` : `${r.mcap_b.toFixed(0)}B`}
                   </span>
                 )}
