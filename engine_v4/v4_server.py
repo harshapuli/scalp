@@ -894,6 +894,11 @@ class V4DashboardServer(SimpleHTTPRequestHandler):
         if path in ('/api/v4/picks_77', '/v2/api/v4/picks_77'):
             self._serve_json(os.path.join(BASE_DIR, 'data', 'picks_77.json'),
                 "data/picks_77.json not found yet — run the bucket-builder."); return
+        # Per-ticker last-30-min flow baselines (median + std + quality tier)
+        # Used by BucketView to z-score current flow vs the ticker's own norm.
+        if path in ('/api/v4/eod_flow_baselines', '/v2/api/v4/eod_flow_baselines'):
+            self._serve_json(os.path.join(BASE_DIR, 'data', 'eod_flow_baselines.json'),
+                "data/eod_flow_baselines.json not found yet — run v4_eod_baselines_compute.py."); return
         # Recent buy-click + view log entries (read-only tail of the JSONL log)
         if path in ('/api/v4/prebreak_log', '/v2/api/v4/prebreak_log'):
             self._serve_prebreak_log_tail(); return

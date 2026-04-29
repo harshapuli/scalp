@@ -2,8 +2,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import {
-  fetchPicks77, fetchPatrol, fetchConviction, fetchStaging,
-  type Picks77Resp, type PatrolResp, type ConvictionResp,
+  fetchPicks77, fetchPatrol, fetchConviction, fetchStaging, fetchEodBaselines,
+  type Picks77Resp, type PatrolResp, type ConvictionResp, type EodBaselinesResp, type EodBaseline,
 } from '@/lib/api';
 import { fmtAge } from '@/lib/format';
 import RefreshStatus from '@/components/RefreshStatus';
@@ -54,6 +54,9 @@ interface RowState {
   last_hr_call_m?: number;
   earnings_regime?: 'EARN_WK' | 'EARN_MTH' | 'NO_EARN';  // null if no earnings data
   days_to_earnings?: number;
+  // Per-ticker baseline (for z-score normalization)
+  baseline?: EodBaseline;
+  z_score?: number;  // (last_hr_call_m - baseline.median_m) / baseline.std_floor_m
 }
 
 // Map a ticker's next earnings date to one of three regimes.
@@ -86,45 +89,91 @@ type Prediction = {
   basis: string;     // human-readable basis for the prediction
 };
 
+// HYBRID predictor — uses z-score where the per-ticker baseline is reliable
+// (STRONG/USABLE quality), falls back to absolute-$ thresholds for THIN data,
+// and skips entirely when no baseline exists.
+//
+// Z-score cells (calibrated 2026-04-22→29, n=104):
+//   z ≥ +2.0  → 67% win rate, +44pp edge (n=6)  STRONG CALL signal
+//   z ≥ +1.5  → 41% win rate, +18pp edge (n=17) MOD CALL signal
+//   z ≤ -0.5  → 80% win rate, +13pp edge (n=10) PUT signal
+//   z ≤ -1.0  → 70% win rate, +3pp edge (n=20)  weaker PUT
+//
+// Earnings regime layered on top (refines magnitude estimate):
+//   EARN_WK PUT:  bigger magnitude expected (-15% to -28%)
+//   EARN_MTH:     moderate magnitude (-7% to -12% / +1% to +4%)
+//   NO_EARN:      smaller magnitude (+2% to +6%)
 function predictionFor(r: RowState): Prediction | null {
   if (r.last_hr_call_m == null || r.has_flip) return null;
   const lhc = r.last_hr_call_m;
   const reg = r.earnings_regime;
-  if (!reg) return null;
+  const z = r.z_score;
+  const bq = r.baseline?.quality;
 
-  // EARN_WK PUT: -$0.5M to -$2M  → 75-100% win, avg +12% to +29% aligned
+  // Helper: build a prediction object
+  const mk = (bias: 'CALL' | 'PUT', lo: number, hi: number, win: number, n: number,
+              regimeLbl: string, basis: string): Prediction =>
+    ({ bias, pct_low: lo, pct_high: hi, win_rate: win, n, regime: regimeLbl, basis });
+
+  // ─── PATH A: z-score-based (STRONG / USABLE baseline) ───
+  if (z != null && (bq === 'STRONG' || bq === 'USABLE')) {
+    const baselineLbl = `z=${z.toFixed(2)}σ vs ticker baseline ($${r.baseline?.median_m.toFixed(1)}M ± $${r.baseline?.std_floor_m.toFixed(1)}M${bq === 'USABLE' ? ', n='+r.baseline?.n_days+' days' : ''})`;
+    // CALL z ≥ +2.0 (rare, strong)
+    if (z >= 2.0) {
+      // Magnitude depends on regime
+      const [lo, hi] = reg === 'NO_EARN' ? [2, 8] : reg === 'EARN_MTH' ? [1, 5] : [1, 6];
+      return mk('CALL', lo, hi, 67, 6, `Z≥+2 / ${reg || 'unknown'}`,
+        `Unusual late-hour call surge — ${baselineLbl}. Backtested 67% 3d-up, +44pp edge.`);
+    }
+    if (z >= 1.5) {
+      const [lo, hi] = reg === 'NO_EARN' ? [1, 5] : [0, 3];
+      return mk('CALL', lo, hi, 41, 17, `Z≥+1.5 / ${reg || 'unknown'}`,
+        `Moderate call surge — ${baselineLbl}. Backtested 41% 3d-up, +18pp edge.`);
+    }
+    // PUT z ≤ -0.5 — strongest PUT cell
+    if (z <= -0.5 && z > -1.5) {
+      // Earnings regime amplifies expected drop magnitude
+      const [lo, hi] = reg === 'EARN_WK' ? [-25, -10] :
+                       reg === 'EARN_MTH' ? [-12, -5] : [-5, -1];
+      return mk('PUT', lo, hi, 80, 10, `-1.5<Z≤-0.5 / ${reg || 'unknown'}`,
+        `Unusual late-hour put-flow — ${baselineLbl}. Backtested 80% 3d-down, +13pp edge.`);
+    }
+    if (z <= -1.5) {
+      // Past -1.5 the signal weakens (mean-reversion / over-extension)
+      // Only fire if there's an earnings catalyst to anchor it
+      if (reg === 'EARN_WK' || reg === 'EARN_MTH') {
+        const [lo, hi] = reg === 'EARN_WK' ? [-30, -15] : [-12, -5];
+        return mk('PUT', lo, hi, 70, 9, `Z≤-1.5 + earnings`,
+          `Heavy late-hour put-flow with earnings catalyst — ${baselineLbl}. Magnitude expected larger but historical hit-rate degrades past -1.5σ.`);
+      }
+      // No regime → no prediction (the data showed this inverts)
+      return null;
+    }
+    // Inside ±0.5σ — typical, no signal
+    return null;
+  }
+
+  // ─── PATH B: absolute-$ fallback (THIN baseline or unknown) ───
+  // Use the original earnings-regime-aware cells for tickers without
+  // enough history for a stable z-score.
+  if (!reg) return null;  // need at least an earnings regime to fall back
+
   if (reg === 'EARN_WK' && lhc <= -0.5 && lhc >= -2.0) {
-    return {
-      bias: 'PUT', pct_low: -28, pct_high: -12,
-      win_rate: 88, n: 4, regime: 'EARN_WK',
-      basis: `Late-hour put-flow $${lhc.toFixed(1)}M with earnings ${r.days_to_earnings}d away. Smart money de-risking before binary event.`,
-    };
+    return mk('PUT', -28, -12, 88, 4, 'EARN_WK (abs-$ fallback)',
+      `Late-hour put-flow $${lhc.toFixed(1)}M with earnings ${r.days_to_earnings}d away. Smart money de-risking before binary event. (No stable baseline — using absolute-$.)`);
   }
-  // EARN_MTH PUT: -$0.5M to -$2M  → 100% win, avg +7% to +12%
   if (reg === 'EARN_MTH' && lhc <= -0.5 && lhc >= -2.0) {
-    return {
-      bias: 'PUT', pct_low: -12, pct_high: -7,
-      win_rate: 100, n: 7, regime: 'EARN_MTH',
-      basis: `Late-hour put-flow $${lhc.toFixed(1)}M with earnings ${r.days_to_earnings}d away. Institutional positioning ahead of medium-term catalyst.`,
-    };
+    return mk('PUT', -12, -7, 100, 7, 'EARN_MTH (abs-$ fallback)',
+      `Late-hour put-flow $${lhc.toFixed(1)}M with earnings ${r.days_to_earnings}d away. (No stable baseline — using absolute-$.)`);
   }
-  // EARN_MTH CALL: +$0.5M to +$3M  → 50-66% win, avg +0% to +2%
   if (reg === 'EARN_MTH' && lhc >= 0.5 && lhc <= 3.0) {
-    return {
-      bias: 'CALL', pct_low: 1, pct_high: 4,
-      win_rate: 60, n: 5, regime: 'EARN_MTH',
-      basis: `Late-hour call $${lhc.toFixed(1)}M with earnings ${r.days_to_earnings}d away. Pre-event accumulation into the print.`,
-    };
+    return mk('CALL', 1, 4, 60, 5, 'EARN_MTH (abs-$ fallback)',
+      `Late-hour call $${lhc.toFixed(1)}M with earnings ${r.days_to_earnings}d away. (No stable baseline — using absolute-$.)`);
   }
-  // NO_EARN CALL: +$1M to +$4M  → 50-66% win, avg +2% to +6%
   if (reg === 'NO_EARN' && lhc >= 1.0 && lhc <= 4.0) {
-    return {
-      bias: 'CALL', pct_low: 2, pct_high: 6,
-      win_rate: 60, n: 6, regime: 'NO_EARN',
-      basis: `Late-hour organic call surge $${lhc.toFixed(1)}M (no near-term earnings). Stealth institutional buying.`,
-    };
+    return mk('CALL', 2, 6, 60, 6, 'NO_EARN (abs-$ fallback)',
+      `Late-hour organic call surge $${lhc.toFixed(1)}M. (No stable baseline — using absolute-$.)`);
   }
-  // No prediction outside calibrated cells. Out-of-range = no signal.
   return null;
 }
 
@@ -340,6 +389,11 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
     queryFn: fetchStaging,
     refetchInterval: 60_000,
   });
+  const { data: baselines } = useQuery<EodBaselinesResp>({
+    queryKey: ['eod_baselines'],
+    queryFn: fetchEodBaselines,
+    refetchInterval: 30 * 60 * 1000,  // 30 min — baselines update daily
+  });
 
   const cvByT = useMemo(() => {
     const m: Record<string, any> = {};
@@ -373,6 +427,12 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
       const last_hr_raw = factors['last_hr_call_$'];
       const last_hr_call_m = (typeof last_hr_raw === 'number') ? last_hr_raw / 1e6 : undefined;
       const { regime, days } = regimeFromEarningsDate((t as any).next_earnings_date);
+      // Per-ticker baseline + z-score (if last_hr_call_m available)
+      const baseline = baselines?.baselines?.[t.ticker];
+      let z_score: number | undefined = undefined;
+      if (last_hr_call_m != null && baseline && baseline.std_floor_m > 0) {
+        z_score = (last_hr_call_m - baseline.median_m) / baseline.std_floor_m;
+      }
       return {
         ticker: t.ticker,
         mcap_b: t.mcap_b ?? null,
@@ -395,9 +455,11 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
         last_hr_call_m,
         earnings_regime: regime,
         days_to_earnings: days,
+        baseline,
+        z_score,
       };
     });
-  }, [picks, patrol, cvByT, stByT, bucket]);
+  }, [picks, patrol, cvByT, stByT, baselines, bucket]);
 
   const counts = useMemo(() => {
     let acc = 0, dist = 0, neutral = 0, active = 0;

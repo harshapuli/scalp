@@ -146,3 +146,23 @@ export interface Picks77Resp {
   };
 }
 export const fetchPicks77 = () => getJSON<Picks77Resp>('/api/v4/picks_77');
+
+// Per-ticker baseline of last-30-min net call premium.
+// Used by the predictor to z-score current flow vs the ticker's own norm.
+// Quality field tells the UI which formula to use (z-score vs absolute-$).
+export interface EodBaseline {
+  median_m: number;       // median last-30m net_call_$ in millions
+  std_m: number;          // raw stdev (may be 0 for thin data)
+  std_floor_m: number;    // floored stdev (used as denominator for z)
+  n_days: number;         // sessions in baseline
+  n_nonzero: number;      // sessions with non-trivial flow
+  quality: 'STRONG' | 'USABLE' | 'THIN';
+}
+export interface EodBaselinesResp {
+  generated_utc?: string;
+  sessions_loaded?: number;
+  tickers_baselined?: number;
+  bucket_quality?: Record<string, { STRONG: number; USABLE: number; THIN: number; NO_DATA: number }>;
+  baselines: Record<string, EodBaseline>;
+}
+export const fetchEodBaselines = () => getJSON<EodBaselinesResp>('/api/v4/eod_flow_baselines');
