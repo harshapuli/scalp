@@ -315,28 +315,21 @@ function actionFor(r: RowState): { action: ActionLevel; bg: string; fg: string; 
       why: 'ACC + (institutional positioning OR WATCH conviction) — actionable',
     };
     return {
-      action: 'FORMING',
-      bg: 'rgba(106,155,204,0.18)', fg: '#6a9bcc',
-      why: 'ACC firing but no positioning/conviction confirmation yet',
+      action: 'HOLD',
+      bg: 'rgba(176,176,176,0.10)', fg: 'var(--dim)',
+      why: 'ACC firing but no positioning/conviction confirmation yet — backtest showed FORMING tier had -6.3pp negative edge.',
     };
   }
 
-  // 5. Neutral patrol — but other signals say something
-  if (r.is_stealth) return {
-    action: 'FORMING',
-    bg: 'rgba(106,155,204,0.18)', fg: '#6a9bcc',
-    why: 'Multi-day stealth accumulation — wait for patrol ACC to confirm',
-  };
-  if (r.is_buy) return {
-    action: 'FORMING',
-    bg: 'rgba(106,155,204,0.14)', fg: '#6a9bcc',
-    why: 'V8 staging score crossed — wait for patrol ACC to confirm',
-  };
-  if (cv === 'BUY' && (u === 'PULLBACK' || u === 'HIT')) return {
-    action: 'FORMING',
-    bg: 'rgba(106,155,204,0.14)', fg: '#6a9bcc',
-    why: 'Conviction BUY but patrol neutral — borderline, wait for ACC fire',
-  };
+  // 5. Neutral patrol — collapse to HOLD.
+  // Backtest verdict: the old FORMING tier (n=39) had -6.3 pp 1d edge —
+  // CONSISTENTLY NEGATIVE across all buckets. Promoting these to a
+  // distinct "FORMING" action was misleading. The underlying signals
+  // (stealth, v8 staging, conviction WATCH) still surface as chips on
+  // the row, but the action label reserves itself for composite signals
+  // that actually predict edge.
+  //
+  // PUT_WAIT preserved — small sample but directionally consistent so far.
   if (r.is_stealth_dist || r.is_put_buy) return {
     action: 'PUT_WAIT',
     bg: 'rgba(176,53,40,0.10)', fg: 'var(--bear)',
@@ -580,8 +573,9 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
 
   // Action-tier rank: BUY = top, PUT = next (also actionable), then WAIT etc.
   // HOLD/SKIP at bottom. Within same tier, sort by absolute composite quality.
+  // FORMING removed — backtest confirmed -6.3pp negative edge.
   const ACTION_RANK: Record<string, number> = {
-    BUY: 100, PUT: 90, WAIT: 70, PUT_WAIT: 65, FORMING: 50, HOLD: 10, SKIP: 5,
+    BUY: 100, PUT: 90, WAIT: 70, PUT_WAIT: 65, HOLD: 10, SKIP: 5,
   };
 
   const filtered = useMemo(() => {
@@ -593,7 +587,7 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
       // Use ACTION LABEL (not raw signals) — show only actionable rows
       out = withAction.filter(({ action }) =>
         action === 'BUY' || action === 'PUT' || action === 'WAIT' ||
-        action === 'PUT_WAIT' || action === 'FORMING'
+        action === 'PUT_WAIT'
       );
     } else if (filter === 'ACC') {
       out = withAction.filter(({ r }) => r.patrol_verdict === 'ACC' || r.patrol_verdict === 'STRONG_ACC');
