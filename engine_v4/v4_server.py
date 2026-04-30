@@ -904,6 +904,10 @@ class V4DashboardServer(SimpleHTTPRequestHandler):
         if path in ('/api/v4/intraday_surge', '/v2/api/v4/intraday_surge'):
             self._serve_json(os.path.join(BASE_DIR, 'data', 'intraday_surge_state.json'),
                 "data/intraday_surge_state.json not found — run v4_intraday_surge_compute.py."); return
+        # Silence-streak detector — silent N days then BREAK pattern
+        if path in ('/api/v4/silence_streak', '/v2/api/v4/silence_streak'):
+            self._serve_json(os.path.join(BASE_DIR, 'data', 'silence_streak_state.json'),
+                "data/silence_streak_state.json not found — run v4_silence_streak_compute.py."); return
         # Recent buy-click + view log entries (read-only tail of the JSONL log)
         if path in ('/api/v4/prebreak_log', '/v2/api/v4/prebreak_log'):
             self._serve_prebreak_log_tail(); return

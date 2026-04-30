@@ -194,3 +194,26 @@ export interface IntradaySurgeResp {
   tickers: Record<string, IntradaySurgeTicker>;
 }
 export const fetchIntradaySurge = () => getJSON<IntradaySurgeResp>('/api/v4/intraday_surge');
+
+// Silence-streak detector — silent N days then BREAK pattern.
+// Captures the institutional "pent-up energy releases" signal the user
+// observed in AMD/NVDA/META/AMZN.
+export interface SilenceStreakTicker {
+  ticker: string;
+  silent_streak_days: number;
+  today_call_m?: number | null;
+  today_z?: number | null;
+  is_breakout: boolean;
+  breakout_side?: 'CALL' | 'PUT' | null;
+  breakout_strength?: number;
+  baseline_quality?: string;
+  baseline_n_days?: number;
+}
+export interface SilenceStreakResp {
+  generated_utc?: string;
+  today_iso?: string;
+  thresholds?: { silent_threshold: number; break_threshold: number; min_silent_days: number };
+  n_breakouts?: number;
+  tickers: Record<string, SilenceStreakTicker>;
+}
+export const fetchSilenceStreak = () => getJSON<SilenceStreakResp>('/api/v4/silence_streak');

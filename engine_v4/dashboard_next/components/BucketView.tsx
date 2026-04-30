@@ -3,9 +3,9 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import {
   fetchPicks77, fetchPatrol, fetchConviction, fetchStaging, fetchEodBaselines,
-  fetchTodayBreakouts, fetchContinuation, fetchIntradaySurge,
+  fetchTodayBreakouts, fetchContinuation, fetchIntradaySurge, fetchSilenceStreak,
   type Picks77Resp, type PatrolResp, type ConvictionResp, type EodBaselinesResp, type EodBaseline,
-  type IntradaySurgeResp,
+  type IntradaySurgeResp, type SilenceStreakResp,
 } from '@/lib/api';
 import { fmtAge } from '@/lib/format';
 import RefreshStatus from '@/components/RefreshStatus';
@@ -70,6 +70,10 @@ interface RowState {
   intraday_max_call_t?: string;    // 'YYYY-MM-DDTHH:MM:SSZ'
   intraday_max_put_m?: number;
   intraday_max_put_t?: string;
+  // Silence-streak break ("pent-up energy releases" pattern)
+  silent_streak_days?: number;     // consecutive days with |z|<1.0σ
+  silence_breakout?: 'CALL' | 'PUT' | null;  // today |z|≥1.5σ AND streak≥3
+  silence_breakout_strength?: number;
 }
 
 // Map a ticker's next earnings date to one of three regimes.
@@ -195,60 +199,50 @@ function actionFor(r: RowState): { action: ActionLevel; bg: string; fg: string; 
   const inst = (r.positioning_score || 0) >= 60;
   const dayPct = r.day_pct || 0;
 
-  // 0a. Z-SCORE PROMOTION (strongest measured edge: +44pp at z≥+2)
-  // BUT: respect earnings regime — EARN_WK CALL has no edge.
+  // 0a. Z-SCORE PROMOTION (CALL only — PUT path disabled per 60d backtest)
+  // 60d historical backtest (n=3066, 2847 with 3d forward) verdict:
+  //   BUY label: +12.6pp 3d edge confirmed (62.6% win)
+  //   PUT label: -20.3pp NEGATIVE edge (21.7% win) ← thesis fails at scale
+  // The earlier 6-day "PUT 81%" result was small-sample noise from a
+  // net-bearish window. Disable PUT promotion until we find a signal
+  // that holds out-of-window.
   if (r.z_score != null && r.baseline?.quality && !r.has_flip) {
     const z = r.z_score;
     const bq = r.baseline.quality;
     const reg = r.earnings_regime;
     if (bq === 'STRONG' || bq === 'USABLE') {
-      // CALL promotions blocked in EARN_WK (regime sweep showed no edge)
+      // CALL promotions still validated by 60d data (62.6% win, +12.6pp edge)
       if (z >= 2.0 && reg !== 'EARN_WK') {
         return { action: 'BUY',
           bg: 'rgba(63,140,71,0.32)', fg: 'var(--bull)',
-          why: `Unusual call surge — z=+${z.toFixed(2)}σ vs baseline. Backtest: 67% 3d-up at z≥+2 cell.` };
+          why: `Unusual call surge — z=+${z.toFixed(2)}σ vs baseline. 60d backtest: 62.6% 3d-up, +12.6pp edge.` };
       }
       if (z >= 1.5 && reg !== 'EARN_WK') {
         return { action: 'BUY',
           bg: 'rgba(63,140,71,0.28)', fg: 'var(--bull)',
-          why: `Moderate call surge — z=+${z.toFixed(2)}σ vs baseline. Backtest: 41% 3d-up, +18pp edge.` };
+          why: `Moderate call surge — z=+${z.toFixed(2)}σ vs baseline. 60d backtest: BUY label +12.6pp edge.` };
       }
-      // PUT promotion: meaningful only with earnings catalyst (EARN_WK/EARN_MTH)
-      if (z <= -0.5 && z > -1.5 && (reg === 'EARN_WK' || reg === 'EARN_MTH')) {
-        return { action: 'PUT',
-          bg: 'rgba(176,53,40,0.30)', fg: '#fff',
-          why: `Unusual put-flow — z=${z.toFixed(2)}σ with earnings ${r.days_to_earnings}d away. Backtest: 80% 3d-down at this cell.` };
-      }
-      if (z <= -1.5 && (reg === 'EARN_WK' || reg === 'EARN_MTH')) {
-        return { action: 'PUT',
-          bg: 'rgba(176,53,40,0.30)', fg: '#fff',
-          why: `Heavy put-flow — z=${z.toFixed(2)}σ with earnings catalyst. Larger expected drop, slightly degraded hit rate.` };
-      }
+      // PUT path DISABLED — 60d backtest showed -20.3pp negative edge.
+      // Chip still appears below for informational visibility.
     }
   }
 
-  // 0b. EOD SURGE absolute-$ fallback — only fires when z-score path didn't.
-  // Same regime constraints. EARN_WK CALL stays blocked.
+  // 0b. EOD SURGE absolute-$ fallback — CALL only.
   if (r.last_hr_call_m != null && !r.has_flip) {
     const lhc = r.last_hr_call_m;
     const reg = r.earnings_regime;
-    if (lhc <= -0.5 && lhc >= -2.0 && (reg === 'EARN_WK' || reg === 'EARN_MTH')) {
-      return { action: 'PUT',
-        bg: 'rgba(176,53,40,0.30)', fg: '#fff',
-        why: `Late-hour put-flow $${lhc.toFixed(1)}M with earnings ${r.days_to_earnings ?? '?'}d away — ${reg === 'EARN_WK' ? '75-100%' : '100%'} backtested hit rate.` };
-    }
     if (lhc >= 0.5 && lhc <= 3.0 && reg === 'EARN_MTH') {
       return { action: 'BUY',
         bg: 'rgba(63,140,71,0.32)', fg: 'var(--bull)',
-        why: `Late-hour call $${lhc.toFixed(1)}M with earnings ${r.days_to_earnings ?? '?'}d away — 50-66% backtested up rate.` };
+        why: `Late-hour call $${lhc.toFixed(1)}M with earnings ${r.days_to_earnings ?? '?'}d away (EARN_MTH). 60d BUY label +12.6pp edge.` };
     }
     if (lhc >= 1.0 && lhc <= 4.0 && reg === 'NO_EARN') {
       return { action: 'BUY',
         bg: 'rgba(63,140,71,0.32)', fg: 'var(--bull)',
-        why: `Late-hour organic call surge $${lhc.toFixed(1)}M (no near-term earnings) — 50-66% backtested up rate.` };
+        why: `Late-hour organic call surge $${lhc.toFixed(1)}M (NO_EARN). 60d BUY label +12.6pp edge.` };
     }
+    // PUT promotion via EOD-earnings path DISABLED at scale (60d -20.3pp).
     // EARN_WK CALL explicitly NOT promoted (no edge).
-    // NO_EARN PUT explicitly NOT promoted (inverted).
   }
 
   // 1. FLIP overrides everything — institutions undecided
@@ -389,6 +383,9 @@ function priorityScore(r: RowState): number {
     // Longer chain holding = stronger signal, but cap to avoid runaway sort
     s += Math.min(r.continuation_chain_days * 8, 40);
   }
+  // Silence breakout — strong promotion (rare + meaningful)
+  if (r.silence_breakout === 'CALL') s += 30;
+  if (r.silence_breakout === 'PUT')  s -= 30;
   return s;
 }
 
@@ -435,6 +432,11 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
     queryKey: ['intraday_surge'],
     queryFn: fetchIntradaySurge,
     refetchInterval: 5 * 60 * 1000,  // recomputed every 5 min by daily script
+  });
+  const { data: silenceStreak } = useQuery<SilenceStreakResp>({
+    queryKey: ['silence_streak'],
+    queryFn: fetchSilenceStreak,
+    refetchInterval: 5 * 60 * 1000,
   });
 
   const cvByT = useMemo(() => {
@@ -494,6 +496,8 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
       const continuation_strong = !!(co?.strong);
       // Intraday max surges
       const ints = intraday?.tickers?.[t.ticker];
+      // Silence-streak state
+      const ss = silenceStreak?.tickers?.[t.ticker];
       return {
         ticker: t.ticker,
         mcap_b: t.mcap_b ?? null,
@@ -526,9 +530,12 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
         intraday_max_call_t: ints?.max_call_window_t,
         intraday_max_put_m: ints?.max_put_m,
         intraday_max_put_t: ints?.max_put_window_t,
+        silent_streak_days: ss?.silent_streak_days,
+        silence_breakout: ss?.is_breakout ? ss?.breakout_side : null,
+        silence_breakout_strength: ss?.breakout_strength,
       };
     });
-  }, [picks, patrol, cvByT, stByT, baselines, breakoutByT, contByT, intraday, bucket]);
+  }, [picks, patrol, cvByT, stByT, baselines, breakoutByT, contByT, intraday, silenceStreak, bucket]);
 
   const counts = useMemo(() => {
     let acc = 0, dist = 0, neutral = 0, active = 0;
@@ -826,6 +833,20 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
           if (r.has_flip) {
             labels.push({ text: '⚠ FLIP', bg: 'rgba(176,53,40,0.10)', fg: 'var(--bear)',
               title: 'Patrol flipped direction today (ACC↔DIST) — mixed signal' });
+          }
+          // SILENCE BREAKOUT — silent N days then surge today.
+          // The "pent-up energy" pattern: institutions that have been quiet
+          // for ≥3 days suddenly fire ≥1.5σ today. Backtest evidence comes
+          // from observing AMD/NVDA/META/AMZN doing this Apr 22-29.
+          if (r.silence_breakout) {
+            const sd = r.silent_streak_days || 0;
+            const strength = r.silence_breakout_strength || 0;
+            labels.push({
+              text: `🌪 BREAKOUT after ${sd}d silence (${r.silence_breakout})`,
+              bg: r.silence_breakout === 'CALL' ? 'var(--bull-soft)' : 'var(--bear-soft)',
+              fg: r.silence_breakout === 'CALL' ? 'var(--bull)' : 'var(--bear)',
+              title: `Ticker was silent (|z|<1σ) for ${sd} days, then today fires ${r.silence_breakout} at strength ${strength}. Pent-up institutional positioning releasing — pattern observed in AMD 4/24, NVDA 4/27, META/AMZN 4/29.`,
+            });
           }
           // INTRADAY MAX SURGE chips — anywhere in today's session.
           // Backtested 2026-04-22→29 (n=195 with 3d forward):
