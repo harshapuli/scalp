@@ -70,6 +70,31 @@ def compute_last_30m_call(ticks: list) -> tuple:
     return (s, n) if n else (None, 0)
 
 
+def compute_intraday_max_windows(ticks: list, window_min: int = 30) -> dict:
+    """For one day's ticks, slide a 30-min window and find max CALL + max PUT.
+    Returns {'max_call_m': X, 'max_call_t': 'HH:MM', 'max_put_m': X, 'max_put_t': 'HH:MM'}
+    """
+    if not isinstance(ticks, list) or len(ticks) < window_min:
+        return {}
+    sorted_ticks = sorted(ticks, key=lambda t: (t.get('tape_time') or t.get('t') or ''))
+    best_call = best_put = 0.0
+    best_call_t = best_put_t = None
+    for i in range(len(sorted_ticks) - window_min + 1):
+        s = 0.0
+        for t in sorted_ticks[i:i + window_min]:
+            try: s += float(t.get('net_call_premium', 0) or 0)
+            except: pass
+        t_iso = sorted_ticks[i].get('tape_time') or sorted_ticks[i].get('t')
+        if s > best_call: best_call = s; best_call_t = t_iso
+        if s < best_put:  best_put = s;  best_put_t = t_iso
+    return {
+        'intraday_max_call_m': round(best_call / 1e6, 3),
+        'intraday_max_call_t': (best_call_t or '')[11:16],
+        'intraday_max_put_m':  round(best_put / 1e6, 3),
+        'intraday_max_put_t':  (best_put_t or '')[11:16],
+    }
+
+
 def main():
     days = 60
     max_tickers = 999
@@ -108,7 +133,10 @@ def main():
         if tkr not in history: history[tkr] = {}
         for d in dates:
             d_iso = d.isoformat()
-            if d_iso in history[tkr]:
+            # Skip if already cached AND has the new intraday_max field.
+            # Older entries without intraday_max get re-fetched to populate.
+            existing = history[tkr].get(d_iso)
+            if existing and 'intraday_max_call_m' in existing:
                 skipped_cached += 1
                 continue
             try:
@@ -116,10 +144,13 @@ def main():
                 ticks = r.get('data') if isinstance(r, dict) else None
                 call_sum, n = compute_last_30m_call(ticks)
                 close_px = load_close_for_ticker_date(tkr, d)
+                # Intraday max windows (anywhere in session)
+                intraday = compute_intraday_max_windows(ticks)
                 history[tkr][d_iso] = {
                     'call_m': round(call_sum / 1e6, 3) if call_sum is not None else None,
                     'n_ticks': n,
                     'close_px': close_px,
+                    **intraday,
                 }
                 total_calls += 1
             except Exception as e:
