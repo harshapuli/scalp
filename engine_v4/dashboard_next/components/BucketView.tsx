@@ -849,30 +849,44 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
             });
           }
           // INTRADAY MAX SURGE chips — anywhere in today's session.
+          // Times shown in PT (UTC - 7 during DST).
           // Backtested 2026-04-22→29 (n=195 with 3d forward):
           //   PUT at OPEN $1-7M → 79-86% 3d-down hit rate ★★★ best signal
           //   PUT $1-3M anywhere → 60-80% 3d-down
           //   CALL $15M+ at any time → 67%+ 3d-up
           //   CALL $1-3M at OPEN → 0% (noise)
           //   PUT/CALL ≥$15M → degrades (mean reversion)
+          //
+          // utc→PT helper: market hours 13:30-20:00 UTC = 6:30-13:00 PT
+          const utcToPt = (utc_hhmm: string): string => {
+            if (!utc_hhmm || utc_hhmm.length < 5) return utc_hhmm;
+            try {
+              const hh = parseInt(utc_hhmm.slice(0,2));
+              const mm = utc_hhmm.slice(3,5);
+              const pt_hh = (hh - 7 + 24) % 24;  // DST: PT = UTC-7
+              return `${pt_hh.toString().padStart(2,'0')}:${mm}`;
+            } catch { return utc_hhmm; }
+          };
           if (r.intraday_max_call_m != null && r.intraday_max_call_m >= 7) {
-            const t = (r.intraday_max_call_t || '').slice(11, 16);
+            const t_utc = (r.intraday_max_call_t || '').slice(11, 16);
+            const t_pt = utcToPt(t_utc);
             labels.push({
-              text: `🌅 INTRADAY CALL +$${r.intraday_max_call_m.toFixed(0)}M @ ${t}`,
+              text: `🌅 INTRADAY CALL +$${r.intraday_max_call_m.toFixed(0)}M @ ${t_pt} PT`,
               bg: 'var(--bull-soft)', fg: 'var(--bull)',
-              title: `Max 30-min CALL surge today: +$${r.intraday_max_call_m.toFixed(1)}M at ${t} UTC. Backtested 67%+ 3d-up rate at $15M+ tier.`,
+              title: `Max 30-min CALL surge today: +$${r.intraday_max_call_m.toFixed(1)}M starting at ${t_pt} PT (${t_utc} UTC). Backtested 67%+ 3d-up rate at $15M+ tier.`,
             });
           }
           if (r.intraday_max_put_m != null && r.intraday_max_put_m <= -1 && r.intraday_max_put_m > -7) {
-            const t = (r.intraday_max_put_t || '').slice(11, 16);
-            const hh = parseInt(t.slice(0,2) || '0');
+            const t_utc = (r.intraday_max_put_t || '').slice(11, 16);
+            const t_pt = utcToPt(t_utc);
+            const hh = parseInt(t_utc.slice(0,2) || '0');
             const window_lbl = hh < 14 ? 'OPEN' : hh < 17 ? 'morning' : hh < 19 ? 'midday' : 'power-hour';
             const winRate = (hh < 14 && r.intraday_max_put_m <= -3) ? '86%' :
                             (hh < 14) ? '79%' : '60-73%';
             labels.push({
-              text: `🌅 ${window_lbl} PUT $${r.intraday_max_put_m.toFixed(1)}M @ ${t}`,
+              text: `🌅 ${window_lbl} PUT $${r.intraday_max_put_m.toFixed(1)}M @ ${t_pt} PT`,
               bg: 'var(--bear-soft)', fg: 'var(--bear)',
-              title: `Max 30-min PUT surge today: $${r.intraday_max_put_m.toFixed(1)}M at ${t} UTC (${window_lbl}). Backtested ${winRate} 3d-down hit rate at this cell.`,
+              title: `Max 30-min PUT surge today: $${r.intraday_max_put_m.toFixed(1)}M starting at ${t_pt} PT (${t_utc} UTC, ${window_lbl}). Backtested ${winRate} 3d-down hit rate at this cell.`,
             });
           }
           // Late-hour flow surge — REGIME-AWARE.
