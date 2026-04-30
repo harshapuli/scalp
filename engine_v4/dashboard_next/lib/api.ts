@@ -169,3 +169,28 @@ export interface EodBaselinesResp {
   baselines: Record<string, EodBaseline>;
 }
 export const fetchEodBaselines = () => getJSON<EodBaselinesResp>('/api/v4/eod_flow_baselines');
+
+// Per-ticker max 30-min CALL/PUT surge anywhere in today's session.
+// Source: data/intraday_surge_state.json (computed by v4_intraday_surge_compute.py).
+// Catches institutional surges that don't happen during power hour —
+// 79-86% of put surges occur at OPEN per backtest.
+export interface IntradaySurgeTicker {
+  ticker: string;
+  max_call_m: number;
+  max_call_window_t?: string;
+  max_put_m: number;
+  max_put_window_t?: string;
+  call_alert?: boolean;
+  put_alert?: boolean;
+}
+export interface IntradaySurgeResp {
+  generated_utc?: string;
+  snapshot_used?: string;
+  window_size_min?: number;
+  call_alert_threshold_m?: number;
+  put_alert_threshold_m?: number;
+  n_call_alerts?: number;
+  n_put_alerts?: number;
+  tickers: Record<string, IntradaySurgeTicker>;
+}
+export const fetchIntradaySurge = () => getJSON<IntradaySurgeResp>('/api/v4/intraday_surge');

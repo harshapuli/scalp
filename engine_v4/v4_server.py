@@ -899,6 +899,11 @@ class V4DashboardServer(SimpleHTTPRequestHandler):
         if path in ('/api/v4/eod_flow_baselines', '/v2/api/v4/eod_flow_baselines'):
             self._serve_json(os.path.join(BASE_DIR, 'data', 'eod_flow_baselines.json'),
                 "data/eod_flow_baselines.json not found yet — run v4_eod_baselines_compute.py."); return
+        # Per-ticker max 30-min CALL/PUT surge anywhere in today's session
+        # (institutions can position any time, not just power hour).
+        if path in ('/api/v4/intraday_surge', '/v2/api/v4/intraday_surge'):
+            self._serve_json(os.path.join(BASE_DIR, 'data', 'intraday_surge_state.json'),
+                "data/intraday_surge_state.json not found — run v4_intraday_surge_compute.py."); return
         # Recent buy-click + view log entries (read-only tail of the JSONL log)
         if path in ('/api/v4/prebreak_log', '/v2/api/v4/prebreak_log'):
             self._serve_prebreak_log_tail(); return

@@ -3,8 +3,9 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import {
   fetchPicks77, fetchPatrol, fetchConviction, fetchStaging, fetchEodBaselines,
-  fetchTodayBreakouts, fetchContinuation,
+  fetchTodayBreakouts, fetchContinuation, fetchIntradaySurge,
   type Picks77Resp, type PatrolResp, type ConvictionResp, type EodBaselinesResp, type EodBaseline,
+  type IntradaySurgeResp,
 } from '@/lib/api';
 import { fmtAge } from '@/lib/format';
 import RefreshStatus from '@/components/RefreshStatus';
@@ -63,6 +64,12 @@ interface RowState {
   triggered_strong?: boolean;      // STRONG-tier breakout
   continuation_chain_days?: number; // multi-day chain length (0 if not in chain)
   continuation_strong?: boolean;
+  // Intraday max surges (anywhere in today's session, not just power hour)
+  // Backtested 2026-04-22→29: PUT at OPEN $1-7M = 79-86% 3d-down hit rate
+  intraday_max_call_m?: number;
+  intraday_max_call_t?: string;    // 'YYYY-MM-DDTHH:MM:SSZ'
+  intraday_max_put_m?: number;
+  intraday_max_put_t?: string;
 }
 
 // Map a ticker's next earnings date to one of three regimes.
@@ -424,6 +431,11 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
     queryFn: fetchContinuation,
     refetchInterval: 60_000,
   });
+  const { data: intraday } = useQuery<IntradaySurgeResp>({
+    queryKey: ['intraday_surge'],
+    queryFn: fetchIntradaySurge,
+    refetchInterval: 5 * 60 * 1000,  // recomputed every 5 min by daily script
+  });
 
   const cvByT = useMemo(() => {
     const m: Record<string, any> = {};
@@ -480,6 +492,8 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
       const triggered_strong = !!(br?.strong);
       const continuation_chain_days = co ? (co.days_in_chain || 0) : 0;
       const continuation_strong = !!(co?.strong);
+      // Intraday max surges
+      const ints = intraday?.tickers?.[t.ticker];
       return {
         ticker: t.ticker,
         mcap_b: t.mcap_b ?? null,
@@ -508,9 +522,13 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
         triggered_strong,
         continuation_chain_days,
         continuation_strong,
+        intraday_max_call_m: ints?.max_call_m,
+        intraday_max_call_t: ints?.max_call_window_t,
+        intraday_max_put_m: ints?.max_put_m,
+        intraday_max_put_t: ints?.max_put_window_t,
       };
     });
-  }, [picks, patrol, cvByT, stByT, baselines, breakoutByT, contByT, bucket]);
+  }, [picks, patrol, cvByT, stByT, baselines, breakoutByT, contByT, intraday, bucket]);
 
   const counts = useMemo(() => {
     let acc = 0, dist = 0, neutral = 0, active = 0;
@@ -808,6 +826,33 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
           if (r.has_flip) {
             labels.push({ text: '⚠ FLIP', bg: 'rgba(176,53,40,0.10)', fg: 'var(--bear)',
               title: 'Patrol flipped direction today (ACC↔DIST) — mixed signal' });
+          }
+          // INTRADAY MAX SURGE chips — anywhere in today's session.
+          // Backtested 2026-04-22→29 (n=195 with 3d forward):
+          //   PUT at OPEN $1-7M → 79-86% 3d-down hit rate ★★★ best signal
+          //   PUT $1-3M anywhere → 60-80% 3d-down
+          //   CALL $15M+ at any time → 67%+ 3d-up
+          //   CALL $1-3M at OPEN → 0% (noise)
+          //   PUT/CALL ≥$15M → degrades (mean reversion)
+          if (r.intraday_max_call_m != null && r.intraday_max_call_m >= 7) {
+            const t = (r.intraday_max_call_t || '').slice(11, 16);
+            labels.push({
+              text: `🌅 INTRADAY CALL +$${r.intraday_max_call_m.toFixed(0)}M @ ${t}`,
+              bg: 'var(--bull-soft)', fg: 'var(--bull)',
+              title: `Max 30-min CALL surge today: +$${r.intraday_max_call_m.toFixed(1)}M at ${t} UTC. Backtested 67%+ 3d-up rate at $15M+ tier.`,
+            });
+          }
+          if (r.intraday_max_put_m != null && r.intraday_max_put_m <= -1 && r.intraday_max_put_m > -7) {
+            const t = (r.intraday_max_put_t || '').slice(11, 16);
+            const hh = parseInt(t.slice(0,2) || '0');
+            const window_lbl = hh < 14 ? 'OPEN' : hh < 17 ? 'morning' : hh < 19 ? 'midday' : 'power-hour';
+            const winRate = (hh < 14 && r.intraday_max_put_m <= -3) ? '86%' :
+                            (hh < 14) ? '79%' : '60-73%';
+            labels.push({
+              text: `🌅 ${window_lbl} PUT $${r.intraday_max_put_m.toFixed(1)}M @ ${t}`,
+              bg: 'var(--bear-soft)', fg: 'var(--bear)',
+              title: `Max 30-min PUT surge today: $${r.intraday_max_put_m.toFixed(1)}M at ${t} UTC (${window_lbl}). Backtested ${winRate} 3d-down hit rate at this cell.`,
+            });
           }
           // Late-hour flow surge — REGIME-AWARE.
           // Show chip only in regimes where the signal has a measured edge.

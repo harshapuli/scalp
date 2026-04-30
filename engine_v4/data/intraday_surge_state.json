@@ -1,0 +1,604 @@
+{
+  "generated_utc": "2026-04-30T00:56:06+00:00",
+  "snapshot_used": "v4_snapshot_2026-04-29.json",
+  "window_size_min": 30,
+  "call_alert_threshold_m": 1.0,
+  "put_alert_threshold_m": -1.0,
+  "n_tickers_scanned": 73,
+  "n_call_alerts": 35,
+  "n_put_alerts": 46,
+  "tickers": {
+    "RIVN": {
+      "ticker": "RIVN",
+      "max_call_m": 0.105,
+      "max_call_window_t": "2026-04-29T15:17:00.000000Z",
+      "max_put_m": -0.423,
+      "max_put_window_t": "2026-04-29T15:53:00.000000Z"
+    },
+    "SNDK": {
+      "ticker": "SNDK",
+      "max_call_m": 18.885,
+      "max_call_window_t": "2026-04-29T13:30:00.000000Z",
+      "max_put_m": -8.051,
+      "max_put_window_t": "2026-04-29T15:51:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "SATS": {
+      "ticker": "SATS",
+      "max_call_m": 0.961,
+      "max_call_window_t": "2026-04-29T19:01:00.000000Z",
+      "max_put_m": -0.511,
+      "max_put_window_t": "2026-04-29T15:00:00.000000Z"
+    },
+    "WULF": {
+      "ticker": "WULF",
+      "max_call_m": 0.227,
+      "max_call_window_t": "2026-04-29T14:57:00.000000Z",
+      "max_put_m": -1.172,
+      "max_put_window_t": "2026-04-29T13:39:00.000000Z",
+      "put_alert": true
+    },
+    "OKLO": {
+      "ticker": "OKLO",
+      "max_call_m": 0.789,
+      "max_call_window_t": "2026-04-29T18:10:00.000000Z",
+      "max_put_m": -1.149,
+      "max_put_window_t": "2026-04-29T13:39:00.000000Z",
+      "put_alert": true
+    },
+    "DE": {
+      "ticker": "DE",
+      "max_call_m": 0.117,
+      "max_call_window_t": "2026-04-29T14:08:00.000000Z",
+      "max_put_m": -0.043,
+      "max_put_window_t": "2026-04-29T18:56:00.000000Z"
+    },
+    "NET": {
+      "ticker": "NET",
+      "max_call_m": 0.297,
+      "max_call_window_t": "2026-04-29T18:35:00.000000Z",
+      "max_put_m": -1.96,
+      "max_put_window_t": "2026-04-29T14:06:00.000000Z",
+      "put_alert": true
+    },
+    "NVDA": {
+      "ticker": "NVDA",
+      "max_call_m": 5.441,
+      "max_call_window_t": "2026-04-29T17:02:00.000000Z",
+      "max_put_m": -17.79,
+      "max_put_window_t": "2026-04-29T14:14:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "AMD": {
+      "ticker": "AMD",
+      "max_call_m": 15.048,
+      "max_call_window_t": "2026-04-29T14:16:00.000000Z",
+      "max_put_m": -6.937,
+      "max_put_window_t": "2026-04-29T15:07:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "SOFI": {
+      "ticker": "SOFI",
+      "max_call_m": 1.182,
+      "max_call_window_t": "2026-04-29T14:15:00.000000Z",
+      "max_put_m": -4.633,
+      "max_put_window_t": "2026-04-29T15:08:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "TSM": {
+      "ticker": "TSM",
+      "max_call_m": 2.725,
+      "max_call_window_t": "2026-04-29T13:55:00.000000Z",
+      "max_put_m": -1.006,
+      "max_put_window_t": "2026-04-29T16:28:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "ENPH": {
+      "ticker": "ENPH",
+      "max_call_m": 0.214,
+      "max_call_window_t": "2026-04-29T15:49:00.000000Z",
+      "max_put_m": -0.423,
+      "max_put_window_t": "2026-04-29T13:30:00.000000Z"
+    },
+    "SMH": {
+      "ticker": "SMH",
+      "max_call_m": 4.47,
+      "max_call_window_t": "2026-04-29T13:47:00.000000Z",
+      "max_put_m": -2.017,
+      "max_put_window_t": "2026-04-29T15:54:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "GLD": {
+      "ticker": "GLD",
+      "max_call_m": 1.391,
+      "max_call_window_t": "2026-04-29T18:46:00.000000Z",
+      "max_put_m": -2.484,
+      "max_put_window_t": "2026-04-29T16:30:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "XLF": {
+      "ticker": "XLF",
+      "max_call_m": 0.208,
+      "max_call_window_t": "2026-04-29T13:51:00.000000Z",
+      "max_put_m": -0.061,
+      "max_put_window_t": "2026-04-29T16:55:00.000000Z"
+    },
+    "NKE": {
+      "ticker": "NKE",
+      "max_call_m": 0.083,
+      "max_call_window_t": "2026-04-29T14:50:00.000000Z",
+      "max_put_m": -0.364,
+      "max_put_window_t": "2026-04-29T13:36:00.000000Z"
+    },
+    "APP": {
+      "ticker": "APP",
+      "max_call_m": 0.879,
+      "max_call_window_t": "2026-04-29T17:59:00.000000Z",
+      "max_put_m": -2.151,
+      "max_put_window_t": "2026-04-29T16:08:00.000000Z",
+      "put_alert": true
+    },
+    "SNOW": {
+      "ticker": "SNOW",
+      "max_call_m": 0.202,
+      "max_call_window_t": "2026-04-29T14:24:00.000000Z",
+      "max_put_m": -0.277,
+      "max_put_window_t": "2026-04-29T16:30:00.000000Z"
+    },
+    "SPY": {
+      "ticker": "SPY",
+      "max_call_m": 5.182,
+      "max_call_window_t": "2026-04-29T13:46:00.000000Z",
+      "max_put_m": -13.873,
+      "max_put_window_t": "2026-04-29T15:05:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "BABA": {
+      "ticker": "BABA",
+      "max_call_m": 1.449,
+      "max_call_window_t": "2026-04-29T14:38:00.000000Z",
+      "max_put_m": -1.324,
+      "max_put_window_t": "2026-04-29T13:41:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "DELL": {
+      "ticker": "DELL",
+      "max_call_m": 0.271,
+      "max_call_window_t": "2026-04-29T16:30:00.000000Z",
+      "max_put_m": -1.247,
+      "max_put_window_t": "2026-04-29T19:05:00.000000Z",
+      "put_alert": true
+    },
+    "PANW": {
+      "ticker": "PANW",
+      "max_call_m": 0.78,
+      "max_call_window_t": "2026-04-29T17:57:00.000000Z",
+      "max_put_m": -0.438,
+      "max_put_window_t": "2026-04-29T19:26:00.000000Z"
+    },
+    "KWEB": {
+      "ticker": "KWEB",
+      "max_call_m": 0.14,
+      "max_call_window_t": "2026-04-29T18:05:00.000000Z",
+      "max_put_m": -0.121,
+      "max_put_window_t": "2026-04-29T17:10:00.000000Z"
+    },
+    "TLT": {
+      "ticker": "TLT",
+      "max_call_m": 1.417,
+      "max_call_window_t": "2026-04-29T13:37:00.000000Z",
+      "max_put_m": -2.018,
+      "max_put_window_t": "2026-04-29T14:25:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "AMAT": {
+      "ticker": "AMAT",
+      "max_call_m": 0.424,
+      "max_call_window_t": "2026-04-29T15:04:00.000000Z",
+      "max_put_m": -0.573,
+      "max_put_window_t": "2026-04-29T16:01:00.000000Z"
+    },
+    "CRWV": {
+      "ticker": "CRWV",
+      "max_call_m": 7.543,
+      "max_call_window_t": "2026-04-29T14:11:00.000000Z",
+      "max_put_m": -2.379,
+      "max_put_window_t": "2026-04-29T18:39:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "COIN": {
+      "ticker": "COIN",
+      "max_call_m": 0.507,
+      "max_call_window_t": "2026-04-29T17:33:00.000000Z",
+      "max_put_m": -2.617,
+      "max_put_window_t": "2026-04-29T14:02:00.000000Z",
+      "put_alert": true
+    },
+    "PLTR": {
+      "ticker": "PLTR",
+      "max_call_m": 0.692,
+      "max_call_window_t": "2026-04-29T15:22:00.000000Z",
+      "max_put_m": -3.266,
+      "max_put_window_t": "2026-04-29T13:40:00.000000Z",
+      "put_alert": true
+    },
+    "AMZN": {
+      "ticker": "AMZN",
+      "max_call_m": 19.775,
+      "max_call_window_t": "2026-04-29T13:46:00.000000Z",
+      "max_put_m": -21.138,
+      "max_put_window_t": "2026-04-29T18:59:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "CAR": {
+      "ticker": "CAR",
+      "max_call_m": 0.917,
+      "max_call_window_t": "2026-04-29T14:55:00.000000Z",
+      "max_put_m": -0.978,
+      "max_put_window_t": "2026-04-29T17:12:00.000000Z"
+    },
+    "LLY": {
+      "ticker": "LLY",
+      "max_call_m": 1.512,
+      "max_call_window_t": "2026-04-29T15:12:00.000000Z",
+      "max_put_m": -2.155,
+      "max_put_window_t": "2026-04-29T15:33:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "RKLB": {
+      "ticker": "RKLB",
+      "max_call_m": 0.716,
+      "max_call_window_t": "2026-04-29T14:15:00.000000Z",
+      "max_put_m": -0.814,
+      "max_put_window_t": "2026-04-29T16:49:00.000000Z"
+    },
+    "HOOD": {
+      "ticker": "HOOD",
+      "max_call_m": 0.826,
+      "max_call_window_t": "2026-04-29T18:32:00.000000Z",
+      "max_put_m": -7.538,
+      "max_put_window_t": "2026-04-29T13:31:00.000000Z",
+      "put_alert": true
+    },
+    "INTC": {
+      "ticker": "INTC",
+      "max_call_m": 31.63,
+      "max_call_window_t": "2026-04-29T14:09:00.000000Z",
+      "max_put_m": -5.741,
+      "max_put_window_t": "2026-04-29T17:15:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "ADI": {
+      "ticker": "ADI",
+      "max_call_m": 0.433,
+      "max_call_window_t": "2026-04-29T13:53:00.000000Z",
+      "max_put_m": -0.262,
+      "max_put_window_t": "2026-04-29T16:49:00.000000Z"
+    },
+    "CRWD": {
+      "ticker": "CRWD",
+      "max_call_m": 2.717,
+      "max_call_window_t": "2026-04-29T17:50:00.000000Z",
+      "max_put_m": -0.779,
+      "max_put_window_t": "2026-04-29T18:08:00.000000Z",
+      "call_alert": true
+    },
+    "NBIS": {
+      "ticker": "NBIS",
+      "max_call_m": 2.047,
+      "max_call_window_t": "2026-04-29T17:37:00.000000Z",
+      "max_put_m": -2.339,
+      "max_put_window_t": "2026-04-29T13:31:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "MU": {
+      "ticker": "MU",
+      "max_call_m": 13.789,
+      "max_call_window_t": "2026-04-29T16:42:00.000000Z",
+      "max_put_m": -10.19,
+      "max_put_window_t": "2026-04-29T13:44:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "IREN": {
+      "ticker": "IREN",
+      "max_call_m": 0.704,
+      "max_call_window_t": "2026-04-29T14:25:00.000000Z",
+      "max_put_m": -2.656,
+      "max_put_window_t": "2026-04-29T15:26:00.000000Z",
+      "put_alert": true
+    },
+    "IWM": {
+      "ticker": "IWM",
+      "max_call_m": 2.217,
+      "max_call_window_t": "2026-04-29T18:51:00.000000Z",
+      "max_put_m": -1.804,
+      "max_put_window_t": "2026-04-29T15:44:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "SMCI": {
+      "ticker": "SMCI",
+      "max_call_m": 0.158,
+      "max_call_window_t": "2026-04-29T14:52:00.000000Z",
+      "max_put_m": -1.272,
+      "max_put_window_t": "2026-04-29T14:06:00.000000Z",
+      "put_alert": true
+    },
+    "QCOM": {
+      "ticker": "QCOM",
+      "max_call_m": 3.229,
+      "max_call_window_t": "2026-04-29T13:32:00.000000Z",
+      "max_put_m": -2.538,
+      "max_put_window_t": "2026-04-29T14:43:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "GOOG": {
+      "ticker": "GOOG",
+      "max_call_m": 5.981,
+      "max_call_window_t": "2026-04-29T14:16:00.000000Z",
+      "max_put_m": -3.638,
+      "max_put_window_t": "2026-04-29T16:05:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "ORCL": {
+      "ticker": "ORCL",
+      "max_call_m": 3.047,
+      "max_call_window_t": "2026-04-29T14:25:00.000000Z",
+      "max_put_m": -1.179,
+      "max_put_window_t": "2026-04-29T16:07:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "ALAB": {
+      "ticker": "ALAB",
+      "max_call_m": 0.894,
+      "max_call_window_t": "2026-04-29T19:12:00.000000Z",
+      "max_put_m": -0.345,
+      "max_put_window_t": "2026-04-29T14:30:00.000000Z"
+    },
+    "CVNA": {
+      "ticker": "CVNA",
+      "max_call_m": 0.952,
+      "max_call_window_t": "2026-04-29T13:58:00.000000Z",
+      "max_put_m": -4.619,
+      "max_put_window_t": "2026-04-29T17:36:00.000000Z",
+      "put_alert": true
+    },
+    "MARA": {
+      "ticker": "MARA",
+      "max_call_m": 0.506,
+      "max_call_window_t": "2026-04-29T19:30:00.000000Z",
+      "max_put_m": -0.546,
+      "max_put_window_t": "2026-04-29T13:34:00.000000Z"
+    },
+    "UNH": {
+      "ticker": "UNH",
+      "max_call_m": 5.161,
+      "max_call_window_t": "2026-04-29T14:25:00.000000Z",
+      "max_put_m": -3.198,
+      "max_put_window_t": "2026-04-29T13:43:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "LULU": {
+      "ticker": "LULU",
+      "max_call_m": 0.253,
+      "max_call_window_t": "2026-04-29T15:41:00.000000Z",
+      "max_put_m": -0.259,
+      "max_put_window_t": "2026-04-29T14:37:00.000000Z"
+    },
+    "ADBE": {
+      "ticker": "ADBE",
+      "max_call_m": 0.294,
+      "max_call_window_t": "2026-04-29T15:33:00.000000Z",
+      "max_put_m": -0.078,
+      "max_put_window_t": "2026-04-29T19:14:00.000000Z"
+    },
+    "ASML": {
+      "ticker": "ASML",
+      "max_call_m": 3.153,
+      "max_call_window_t": "2026-04-29T14:10:00.000000Z",
+      "max_put_m": -1.27,
+      "max_put_window_t": "2026-04-29T15:42:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "GDX": {
+      "ticker": "GDX",
+      "max_call_m": 0.452,
+      "max_call_window_t": "2026-04-29T17:52:00.000000Z",
+      "max_put_m": -1.066,
+      "max_put_window_t": "2026-04-29T16:47:00.000000Z",
+      "put_alert": true
+    },
+    "TQQQ": {
+      "ticker": "TQQQ",
+      "max_call_m": 7.925,
+      "max_call_window_t": "2026-04-29T14:05:00.000000Z",
+      "max_put_m": -11.502,
+      "max_put_window_t": "2026-04-29T16:10:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "EWZ": {
+      "ticker": "EWZ",
+      "max_call_m": 1.849,
+      "max_call_window_t": "2026-04-29T13:55:00.000000Z",
+      "max_put_m": -3.066,
+      "max_put_window_t": "2026-04-29T13:46:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "AVGO": {
+      "ticker": "AVGO",
+      "max_call_m": 3.994,
+      "max_call_window_t": "2026-04-29T19:01:00.000000Z",
+      "max_put_m": -2.317,
+      "max_put_window_t": "2026-04-29T18:18:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "DIS": {
+      "ticker": "DIS",
+      "max_call_m": 0.077,
+      "max_call_window_t": "2026-04-29T15:32:00.000000Z",
+      "max_put_m": -0.258,
+      "max_put_window_t": "2026-04-29T17:08:00.000000Z"
+    },
+    "QQQ": {
+      "ticker": "QQQ",
+      "max_call_m": 8.211,
+      "max_call_window_t": "2026-04-29T15:04:00.000000Z",
+      "max_put_m": -22.735,
+      "max_put_window_t": "2026-04-29T13:55:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "UBER": {
+      "ticker": "UBER",
+      "max_call_m": 0.206,
+      "max_call_window_t": "2026-04-29T13:31:00.000000Z",
+      "max_put_m": -0.266,
+      "max_put_window_t": "2026-04-29T19:08:00.000000Z"
+    },
+    "RGTI": {
+      "ticker": "RGTI",
+      "max_call_m": 0.368,
+      "max_call_window_t": "2026-04-29T14:06:00.000000Z",
+      "max_put_m": -0.094,
+      "max_put_window_t": "2026-04-29T19:13:00.000000Z"
+    },
+    "NFLX": {
+      "ticker": "NFLX",
+      "max_call_m": 1.343,
+      "max_call_window_t": "2026-04-29T14:41:00.000000Z",
+      "max_put_m": -2.047,
+      "max_put_window_t": "2026-04-29T18:25:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "XLU": {
+      "ticker": "XLU",
+      "max_call_m": 0.37,
+      "max_call_window_t": "2026-04-29T19:29:00.000000Z",
+      "max_put_m": -0.044,
+      "max_put_window_t": "2026-04-29T15:41:00.000000Z"
+    },
+    "MDB": {
+      "ticker": "MDB",
+      "max_call_m": 0.105,
+      "max_call_window_t": "2026-04-29T14:39:00.000000Z",
+      "max_put_m": -0.201,
+      "max_put_window_t": "2026-04-29T16:22:00.000000Z"
+    },
+    "SMR": {
+      "ticker": "SMR",
+      "max_call_m": 0.106,
+      "max_call_window_t": "2026-04-29T14:16:00.000000Z",
+      "max_put_m": -0.244,
+      "max_put_window_t": "2026-04-29T13:35:00.000000Z"
+    },
+    "SLV": {
+      "ticker": "SLV",
+      "max_call_m": 2.708,
+      "max_call_window_t": "2026-04-29T14:05:00.000000Z",
+      "max_put_m": -2.324,
+      "max_put_window_t": "2026-04-29T18:21:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "DDOG": {
+      "ticker": "DDOG",
+      "max_call_m": 1.9,
+      "max_call_window_t": "2026-04-29T17:25:00.000000Z",
+      "max_put_m": -0.334,
+      "max_put_window_t": "2026-04-29T18:42:00.000000Z",
+      "call_alert": true
+    },
+    "MRVL": {
+      "ticker": "MRVL",
+      "max_call_m": 2.769,
+      "max_call_window_t": "2026-04-29T14:16:00.000000Z",
+      "max_put_m": -2.445,
+      "max_put_window_t": "2026-04-29T18:31:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "TSLA": {
+      "ticker": "TSLA",
+      "max_call_m": 5.607,
+      "max_call_window_t": "2026-04-29T18:46:00.000000Z",
+      "max_put_m": -10.391,
+      "max_put_window_t": "2026-04-29T13:56:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "CRDO": {
+      "ticker": "CRDO",
+      "max_call_m": 0.317,
+      "max_call_window_t": "2026-04-29T18:34:00.000000Z",
+      "max_put_m": -1.214,
+      "max_put_window_t": "2026-04-29T13:57:00.000000Z",
+      "put_alert": true
+    },
+    "NVO": {
+      "ticker": "NVO",
+      "max_call_m": 0.451,
+      "max_call_window_t": "2026-04-29T14:31:00.000000Z",
+      "max_put_m": -0.629,
+      "max_put_window_t": "2026-04-29T13:32:00.000000Z"
+    },
+    "RIOT": {
+      "ticker": "RIOT",
+      "max_call_m": 0.345,
+      "max_call_window_t": "2026-04-29T19:28:00.000000Z",
+      "max_put_m": -0.431,
+      "max_put_window_t": "2026-04-29T13:35:00.000000Z"
+    },
+    "META": {
+      "ticker": "META",
+      "max_call_m": 3.374,
+      "max_call_window_t": "2026-04-29T18:47:00.000000Z",
+      "max_put_m": -11.483,
+      "max_put_window_t": "2026-04-29T19:30:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "MSTR": {
+      "ticker": "MSTR",
+      "max_call_m": 2.227,
+      "max_call_window_t": "2026-04-29T14:21:00.000000Z",
+      "max_put_m": -2.167,
+      "max_put_window_t": "2026-04-29T15:31:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    },
+    "MSFT": {
+      "ticker": "MSFT",
+      "max_call_m": 9.299,
+      "max_call_window_t": "2026-04-29T13:30:00.000000Z",
+      "max_put_m": -9.595,
+      "max_put_window_t": "2026-04-29T17:43:00.000000Z",
+      "call_alert": true,
+      "put_alert": true
+    }
+  }
+}
