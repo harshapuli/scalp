@@ -1,16 +1,27 @@
 'use client';
 import { useQuery } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef } from 'react';
 import {
-  fetchPicks77, fetchPatrol, fetchConviction, fetchStaging, fetchEodBaselines,
-  fetchTodayBreakouts, fetchContinuation, fetchIntradaySurge, fetchSilenceStreak,
-  type Picks77Resp, type PatrolResp, type ConvictionResp, type EodBaselinesResp, type EodBaseline,
-  type IntradaySurgeResp, type SilenceStreakResp,
+  fetchPicks77, fetchPatrol, fetchConviction,
+  type Picks77Resp, type PatrolResp, type ConvictionResp, type ConvictionRow,
 } from '@/lib/api';
 import { fmtAge } from '@/lib/format';
+import TickerCard from '@/components/TickerCard';
 import RefreshStatus from '@/components/RefreshStatus';
 
+/**
+ * BucketView — uses the same conviction-page design pattern.
+ * Picks_77 ticker list filtered to one bucket (mega/mid/small/indices),
+ * rendered through the conviction TickerCard. Filter chips mirror /conviction.
+ *
+ * Replaces the previous custom-chip mess with the design the user
+ * confirmed they liked (per Apr 29 feedback: "i liked the last design
+ * we have on conviction page").
+ */
+
 type BucketName = 'mega' | 'mid' | 'small' | 'indices';
+type StageKey = 'ALL' | 'STEALTH' | 'FORMING' | 'TRADE_NOW' | 'WAIT';
+type SideKey = 'ALL' | 'CALL' | 'PUT';
 
 const BUCKET_LABELS: Record<BucketName, { emoji: string; label: string; sub: string }> = {
   mega:    { emoji: '🐳', label: 'Mega',    sub: '≥$200B market cap' },
@@ -19,384 +30,44 @@ const BUCKET_LABELS: Record<BucketName, { emoji: string; label: string; sub: str
   indices: { emoji: '📊', label: 'Indices', sub: 'broad market + sector ETFs' },
 };
 
-type Filter = 'ACTIVE' | 'ACC' | 'DIST' | 'ALL';
-
-interface RowState {
-  ticker: string;
-  mcap_b: number | null;
-  sector?: string;
-  // patrol
-  patrol_verdict?: string;
-  patrol_score?: number;
-  positioning?: string;
-  positioning_score?: number;
-  acc_n: number;
-  dist_n: number;
-  has_flip: boolean;
-  // conviction (live)
-  cv_verdict?: string;
-  cv_urgency?: string;
-  live_price?: number;
-  day_pct?: number;
-  is_stealth?: boolean;
-  is_stealth_dist?: boolean;
-  // staging (v8)
-  staging_score?: number;
-  staging_put_score?: number;
-  is_buy?: boolean;
-  is_put_buy?: boolean;
-  // late-hour flow surge ("someone always knows" signal)
-  // Source: patrol factors.last_hr_call_$ — net call premium in final hour.
-  // Regime-aware backtest (2026-04-22→29, n=409 ticker-days):
-  //   EARN_WK  PUT  -$0.5 to -$2M  → 75-100% next-3d down (n=3-4)
-  //   EARN_MTH CALL +$0.5 to +$3M  → 50-66% up (+33-40pp edge)
-  //   EARN_MTH PUT  -$0.5 to -$2M  → 100% down (n=2-7)
-  //   NO_EARN  CALL +$1 to +$4M    → 50-66% up (+20-36pp edge)
-  //   NO_EARN  PUT  any threshold  → INVERTED, predicts bounce
-  last_hr_call_m?: number;
-  earnings_regime?: 'EARN_WK' | 'EARN_MTH' | 'NO_EARN';  // null if no earnings data
-  days_to_earnings?: number;
-  // Per-ticker baseline (for z-score normalization)
-  baseline?: EodBaseline;
-  z_score?: number;  // (last_hr_call_m - baseline.median_m) / baseline.std_floor_m
-  // Cross-engine signals (replaces the secondary nav)
-  triggered_today?: boolean;       // ticker fired in v4_today_breakout_scanner today
-  triggered_strong?: boolean;      // STRONG-tier breakout
-  continuation_chain_days?: number; // multi-day chain length (0 if not in chain)
-  continuation_strong?: boolean;
-  // Intraday max surges (anywhere in today's session, not just power hour)
-  // Backtested 2026-04-22→29: PUT at OPEN $1-7M = 79-86% 3d-down hit rate
-  intraday_max_call_m?: number;
-  intraday_max_call_t?: string;    // 'YYYY-MM-DDTHH:MM:SSZ'
-  intraday_max_put_m?: number;
-  intraday_max_put_t?: string;
-  // Silence-streak break ("pent-up energy releases" pattern)
-  silent_streak_days?: number;     // consecutive days with |z|<1.0σ
-  silence_breakout?: 'CALL' | 'PUT' | null;  // today |z|≥1.5σ AND streak≥3
-  silence_breakout_strength?: number;
-}
-
-// Map a ticker's next earnings date to one of three regimes.
-// Returns null if the ticker has no earnings date (e.g. ETFs).
-function regimeFromEarningsDate(earningsDate?: string): { regime: RowState['earnings_regime']; days?: number } {
-  if (!earningsDate) return { regime: undefined, days: undefined };
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const e = new Date(earningsDate);
-  e.setHours(0, 0, 0, 0);
-  const days = Math.abs(Math.round((e.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
-  if (days <= 7)  return { regime: 'EARN_WK',  days };
-  if (days <= 30) return { regime: 'EARN_MTH', days };
-  return { regime: 'NO_EARN', days };
-}
-
-// PREDICTION layer — translates observed late-hour flow + regime into
-// a forward-looking 3d move estimate, backed by backtest cells.
-// "If we see this much flow, here's what historically happened next."
-//
-// Each cell carries: bias direction, expected move range, win rate, sample n.
-// Calibration source: v4_eod_surge_regime_sweep.json (Apr 22-29, n=409).
-type Prediction = {
-  bias: 'CALL' | 'PUT';
-  pct_low: number;   // typical winner magnitude (low end)
-  pct_high: number;  // typical winner magnitude (high end)
-  win_rate: number;  // % historical hit rate at this cell
-  n: number;         // sample size
-  regime: string;
-  basis: string;     // human-readable basis for the prediction
+// Mirror conviction page's stage derivation
+const stageOf = (r: ConvictionRow): StageKey | 'PASS' => {
+  const pt = (r as any).pattern_type;
+  if (pt === 'DISTRIBUTION' || pt === 'SQUEEZE') return 'PASS';
+  const stealthHidden = !!r.is_stealth && (r.day_pct == null || (r.day_pct as number) < 2.0);
+  if (r.verdict === 'PENDING' || r.verdict === 'SKIP') {
+    return stealthHidden ? 'STEALTH' : 'PASS';
+  }
+  const u = (r.trade_idea && r.trade_idea.entry_urgency) || (r as any).urgency;
+  const isWaitUrgency = u === 'PULLBACK' || u === 'EXTENSION' || u === 'EXHAUSTED' || u === 'TOO_LATE';
+  if (r.verdict === 'BUY') {
+    if (u === 'ENTRY' || u === 'HIT') return 'TRADE_NOW';
+    if (isWaitUrgency) return 'WAIT';
+    return 'FORMING';
+  }
+  if (r.verdict === 'WATCH') {
+    if (isWaitUrgency) return 'WAIT';
+    return 'FORMING';
+  }
+  if (stealthHidden) return 'STEALTH';
+  return 'PASS';
 };
+const sideOf = (r: ConvictionRow): SideKey =>
+  (r.direction === 'BEARISH' || (r as any).verdict === 'PUT') ? 'PUT' : 'CALL';
 
-// HYBRID predictor — uses z-score where the per-ticker baseline is reliable
-// (STRONG/USABLE quality), falls back to absolute-$ thresholds for THIN data,
-// and skips entirely when no baseline exists.
-//
-// Z-score cells (calibrated 2026-04-22→29, n=104):
-//   z ≥ +2.0  → 67% win rate, +44pp edge (n=6)  STRONG CALL signal
-//   z ≥ +1.5  → 41% win rate, +18pp edge (n=17) MOD CALL signal
-//   z ≤ -0.5  → 80% win rate, +13pp edge (n=10) PUT signal
-//   z ≤ -1.0  → 70% win rate, +3pp edge (n=20)  weaker PUT
-//
-// Earnings regime layered on top (refines magnitude estimate):
-//   EARN_WK PUT:  bigger magnitude expected (-15% to -28%)
-//   EARN_MTH:     moderate magnitude (-7% to -12% / +1% to +4%)
-//   NO_EARN:      smaller magnitude (+2% to +6%)
-function predictionFor(r: RowState): Prediction | null {
-  if (r.last_hr_call_m == null || r.has_flip) return null;
-  const lhc = r.last_hr_call_m;
-  const reg = r.earnings_regime;
-  const z = r.z_score;
-  const bq = r.baseline?.quality;
-
-  // Helper: build a prediction object
-  const mk = (bias: 'CALL' | 'PUT', lo: number, hi: number, win: number, n: number,
-              regimeLbl: string, basis: string): Prediction =>
-    ({ bias, pct_low: lo, pct_high: hi, win_rate: win, n, regime: regimeLbl, basis });
-
-  // ─── PATH A: z-score-based (STRONG / USABLE baseline) ───
-  if (z != null && (bq === 'STRONG' || bq === 'USABLE')) {
-    const baselineLbl = `z=${z.toFixed(2)}σ vs ticker baseline ($${r.baseline?.median_m.toFixed(1)}M ± $${r.baseline?.std_floor_m.toFixed(1)}M${bq === 'USABLE' ? ', n='+r.baseline?.n_days+' days' : ''})`;
-    // CALL z ≥ +2.0 (rare, strong) — but EARN_WK CALL has NO edge (regime sweep)
-    if (z >= 2.0 && reg !== 'EARN_WK') {
-      const [lo, hi] = reg === 'NO_EARN' ? [2, 8] : reg === 'EARN_MTH' ? [1, 5] : [1, 6];
-      return mk('CALL', lo, hi, 67, 6, `Z≥+2 / ${reg || 'unknown'}`,
-        `Unusual late-hour call surge — ${baselineLbl}. Backtested 67% 3d-up, +44pp edge.`);
-    }
-    if (z >= 1.5 && reg !== 'EARN_WK') {
-      const [lo, hi] = reg === 'NO_EARN' ? [1, 5] : [0, 3];
-      return mk('CALL', lo, hi, 41, 17, `Z≥+1.5 / ${reg || 'unknown'}`,
-        `Moderate call surge — ${baselineLbl}. Backtested 41% 3d-up, +18pp edge.`);
-    }
-    // PUT z ≤ -0.5 — strongest PUT cell
-    if (z <= -0.5 && z > -1.5) {
-      const [lo, hi] = reg === 'EARN_WK' ? [-25, -10] :
-                       reg === 'EARN_MTH' ? [-12, -5] : [-5, -1];
-      return mk('PUT', lo, hi, 80, 10, `-1.5<Z≤-0.5 / ${reg || 'unknown'}`,
-        `Unusual late-hour put-flow — ${baselineLbl}. Backtested 80% 3d-down, +13pp edge.`);
-    }
-    if (z <= -1.5) {
-      if (reg === 'EARN_WK' || reg === 'EARN_MTH') {
-        const [lo, hi] = reg === 'EARN_WK' ? [-30, -15] : [-12, -5];
-        return mk('PUT', lo, hi, 70, 9, `Z≤-1.5 + earnings`,
-          `Heavy late-hour put-flow with earnings catalyst — ${baselineLbl}. Magnitude expected larger but historical hit-rate degrades past -1.5σ.`);
-      }
-      return null;
-    }
-    return null;
-  }
-
-  // ─── PATH B: absolute-$ fallback (THIN baseline or unknown) ───
-  // Use the original earnings-regime-aware cells for tickers without
-  // enough history for a stable z-score.
-  if (!reg) return null;  // need at least an earnings regime to fall back
-
-  if (reg === 'EARN_WK' && lhc <= -0.5 && lhc >= -2.0) {
-    return mk('PUT', -28, -12, 88, 4, 'EARN_WK (abs-$ fallback)',
-      `Late-hour put-flow $${lhc.toFixed(1)}M with earnings ${r.days_to_earnings}d away. Smart money de-risking before binary event. (No stable baseline — using absolute-$.)`);
-  }
-  if (reg === 'EARN_MTH' && lhc <= -0.5 && lhc >= -2.0) {
-    return mk('PUT', -12, -7, 100, 7, 'EARN_MTH (abs-$ fallback)',
-      `Late-hour put-flow $${lhc.toFixed(1)}M with earnings ${r.days_to_earnings}d away. (No stable baseline — using absolute-$.)`);
-  }
-  if (reg === 'EARN_MTH' && lhc >= 0.5 && lhc <= 3.0) {
-    return mk('CALL', 1, 4, 60, 5, 'EARN_MTH (abs-$ fallback)',
-      `Late-hour call $${lhc.toFixed(1)}M with earnings ${r.days_to_earnings}d away. (No stable baseline — using absolute-$.)`);
-  }
-  if (reg === 'NO_EARN' && lhc >= 1.0 && lhc <= 4.0) {
-    return mk('CALL', 2, 6, 60, 6, 'NO_EARN (abs-$ fallback)',
-      `Late-hour organic call surge $${lhc.toFixed(1)}M. (No stable baseline — using absolute-$.)`);
-  }
-  return null;
-}
-
-// Single primary action per ticker — what to do, at a glance.
-// Implements the trading playbook (patrol + conviction + positioning + flip).
-// Returns the chip text, color, and a tooltip explaining why.
-type ActionLevel = 'BUY' | 'WAIT' | 'FORMING' | 'HOLD' | 'SKIP' | 'PUT' | 'PUT_WAIT';
-function actionFor(r: RowState): { action: ActionLevel; bg: string; fg: string; why: string } {
-  const v = r.patrol_verdict;
-  const cv = r.cv_verdict;
-  const u = r.cv_urgency;
-  const inst = (r.positioning_score || 0) >= 60;
-  const dayPct = r.day_pct || 0;
-
-  // 0a. Z-SCORE PROMOTION (CALL only — PUT path disabled per 60d backtest)
-  // 60d historical backtest (n=3066, 2847 with 3d forward) verdict:
-  //   BUY label: +12.6pp 3d edge confirmed (62.6% win)
-  //   PUT label: -20.3pp NEGATIVE edge (21.7% win) ← thesis fails at scale
-  // The earlier 6-day "PUT 81%" result was small-sample noise from a
-  // net-bearish window. Disable PUT promotion until we find a signal
-  // that holds out-of-window.
-  if (r.z_score != null && r.baseline?.quality && !r.has_flip) {
-    const z = r.z_score;
-    const bq = r.baseline.quality;
-    const reg = r.earnings_regime;
-    if (bq === 'STRONG' || bq === 'USABLE') {
-      // CALL promotions still validated by 60d data (62.6% win, +12.6pp edge)
-      if (z >= 2.0 && reg !== 'EARN_WK') {
-        return { action: 'BUY',
-          bg: 'rgba(63,140,71,0.32)', fg: 'var(--bull)',
-          why: `Unusual call surge — z=+${z.toFixed(2)}σ vs baseline. 60d backtest: 62.6% 3d-up, +12.6pp edge.` };
-      }
-      if (z >= 1.5 && reg !== 'EARN_WK') {
-        return { action: 'BUY',
-          bg: 'rgba(63,140,71,0.28)', fg: 'var(--bull)',
-          why: `Moderate call surge — z=+${z.toFixed(2)}σ vs baseline. 60d backtest: BUY label +12.6pp edge.` };
-      }
-      // PUT path DISABLED — 60d backtest showed -20.3pp negative edge.
-      // Chip still appears below for informational visibility.
-    }
-  }
-
-  // 0b. EOD SURGE absolute-$ fallback — CALL only.
-  if (r.last_hr_call_m != null && !r.has_flip) {
-    const lhc = r.last_hr_call_m;
-    const reg = r.earnings_regime;
-    if (lhc >= 0.5 && lhc <= 3.0 && reg === 'EARN_MTH') {
-      return { action: 'BUY',
-        bg: 'rgba(63,140,71,0.32)', fg: 'var(--bull)',
-        why: `Late-hour call $${lhc.toFixed(1)}M with earnings ${r.days_to_earnings ?? '?'}d away (EARN_MTH). 60d BUY label +12.6pp edge.` };
-    }
-    if (lhc >= 1.0 && lhc <= 4.0 && reg === 'NO_EARN') {
-      return { action: 'BUY',
-        bg: 'rgba(63,140,71,0.32)', fg: 'var(--bull)',
-        why: `Late-hour organic call surge $${lhc.toFixed(1)}M (NO_EARN). 60d BUY label +12.6pp edge.` };
-    }
-    // PUT promotion via EOD-earnings path DISABLED at scale (60d -20.3pp).
-    // EARN_WK CALL explicitly NOT promoted (no edge).
-  }
-
-  // 1. FLIP overrides everything — institutions undecided
-  if (r.has_flip) return {
-    action: 'SKIP',
-    bg: 'rgba(120,120,120,0.18)', fg: 'var(--dim)',
-    why: 'Patrol flipped direction today — mixed signal, no edge',
-  };
-
-  // 2. Strong distribution → PUT
-  if (v === 'STRONG_DIST') return {
-    action: 'PUT',
-    bg: 'rgba(176,53,40,0.30)', fg: '#fff',
-    why: 'Multi-day institutional distribution — best PUT setups',
-  };
-  if (v === 'DIST' && inst) return {
-    action: 'PUT',
-    bg: 'rgba(176,53,40,0.25)', fg: 'var(--bear)',
-    why: 'Distribution + institutional positioning — short setup',
-  };
-  if (v === 'DIST' && r.is_put_buy) return {
-    action: 'PUT',
-    bg: 'rgba(176,53,40,0.20)', fg: 'var(--bear)',
-    why: 'Patrol DIST + V8 staging confirms PUT setup',
-  };
-  if (v === 'DIST') return {
-    action: 'SKIP',
-    bg: 'rgba(120,120,120,0.18)', fg: 'var(--dim)',
-    why: 'Distribution but no institutional confirmation — just weakness',
-  };
-
-  // 3. Strong accumulation paths
-  if (v === 'STRONG_ACC') {
-    if (u === 'EXHAUSTED' || u === 'TOO_LATE' || dayPct >= 8) return {
-      action: 'WAIT',
-      bg: 'rgba(217,119,87,0.25)', fg: 'var(--accent)',
-      why: 'Setup real but entry chasing — wait for pullback to add',
-    };
-    return {
-      action: 'BUY',
-      bg: 'rgba(63,140,71,0.32)', fg: 'var(--bull)',
-      why: 'STRONG institutional acc + actionable entry — top setup',
-    };
-  }
-
-  // 4. Single-day ACC paths
-  if (v === 'ACC') {
-    if (cv === 'BUY' && (u === 'PULLBACK' || u === 'EXTENSION')) return {
-      action: 'BUY',
-      bg: 'rgba(63,140,71,0.32)', fg: 'var(--bull)',
-      why: 'ACC + buy-the-dip conviction — best entry profile',
-    };
-    if (cv === 'BUY' && (u === 'HIT' || u === 'ENTRY' || u === 'MARKET') && dayPct < 5) return {
-      action: 'BUY',
-      bg: 'rgba(63,140,71,0.28)', fg: 'var(--bull)',
-      why: 'ACC + conviction BUY in entry zone, not extended',
-    };
-    if (cv === 'BUY' && (u === 'EXHAUSTED' || u === 'TOO_LATE')) return {
-      action: 'WAIT',
-      bg: 'rgba(217,119,87,0.20)', fg: 'var(--accent)',
-      why: 'ACC firing but conviction says exhausted — wait for pullback',
-    };
-    if (dayPct >= 7) return {
-      action: 'WAIT',
-      bg: 'rgba(217,119,87,0.18)', fg: 'var(--accent)',
-      why: 'ACC firing but already +7% today — chase risk, wait for pullback',
-    };
-    if (inst || cv === 'WATCH') return {
-      action: 'BUY',
-      bg: 'rgba(63,140,71,0.22)', fg: 'var(--bull)',
-      why: 'ACC + (institutional positioning OR WATCH conviction) — actionable',
-    };
-    return {
-      action: 'HOLD',
-      bg: 'rgba(176,176,176,0.10)', fg: 'var(--dim)',
-      why: 'ACC firing but no positioning/conviction confirmation yet — backtest showed FORMING tier had -6.3pp negative edge.',
-    };
-  }
-
-  // 5. Neutral patrol — collapse to HOLD.
-  // Backtest verdict: the old FORMING tier (n=39) had -6.3 pp 1d edge —
-  // CONSISTENTLY NEGATIVE across all buckets. Promoting these to a
-  // distinct "FORMING" action was misleading. The underlying signals
-  // (stealth, v8 staging, conviction WATCH) still surface as chips on
-  // the row, but the action label reserves itself for composite signals
-  // that actually predict edge.
-  //
-  // PUT_WAIT preserved — small sample but directionally consistent so far.
-  if (r.is_stealth_dist || r.is_put_buy) return {
-    action: 'PUT_WAIT',
-    bg: 'rgba(176,53,40,0.10)', fg: 'var(--bear)',
-    why: 'Distribution signal but patrol neutral — wait for DIST fire',
-  };
-
-  return {
-    action: 'HOLD',
-    bg: 'rgba(176,176,176,0.10)', fg: 'var(--dim)',
-    why: 'Neutral — no actionable signal right now',
-  };
-}
-
-// Composite priority for sorting — higher = more actionable LONG, lower = SHORT
-function priorityScore(r: RowState): number {
-  let s = 0;
-  // Patrol verdict (biggest weight)
-  if (r.patrol_verdict === 'STRONG_ACC') s += 100;
-  else if (r.patrol_verdict === 'ACC') s += 60;
-  else if (r.patrol_verdict === 'DIST') s -= 60;
-  else if (r.patrol_verdict === 'STRONG_DIST') s -= 100;
-  // Conviction overlay
-  if (r.cv_verdict === 'BUY') s += 30;
-  else if (r.cv_verdict === 'WATCH') s += 15;
-  else if (r.cv_urgency === 'EXHAUSTED' || r.cv_urgency === 'TOO_LATE') s -= 10;
-  // Institutional positioning
-  if ((r.positioning_score || 0) >= 60) s += 25;
-  else if ((r.positioning_score || 0) >= 40) s += 10;
-  // V8 staging fires
-  if (r.is_buy) s += 20;
-  if (r.is_put_buy) s -= 20;
-  // Stealth tag (multi-day acc)
-  if (r.is_stealth) s += 15;
-  if (r.is_stealth_dist) s -= 15;
-  // Flip penalty (mixed signal)
-  if (r.has_flip) s -= 10;
-  // Net fire count tilt
-  s += (r.acc_n - r.dist_n) * 2;
-  // Late-hour flow surge — backtested +30.7pp edge for ≥$5M call surges
-  if (r.last_hr_call_m != null) {
-    if (r.last_hr_call_m >= 5)  s += 35;   // SURGE_5M+ tier (45.5% win rate)
-    else if (r.last_hr_call_m >= 1)  s += 12;
-    else if (r.last_hr_call_m <= -5) s -= 35;
-    else if (r.last_hr_call_m <= -1) s -= 12;
-  }
-  // Cross-engine signals — only continuation matters for entry timing.
-  // Breakout-today is "missed the trigger" so it gets only a small bump.
-  if (r.triggered_today) s += 5;  // small acknowledgment, not actionable
-  if (r.continuation_chain_days && r.continuation_chain_days >= 1) {
-    // Longer chain holding = stronger signal, but cap to avoid runaway sort
-    s += Math.min(r.continuation_chain_days * 8, 40);
-  }
-  // Silence breakout — strong promotion (rare + meaningful)
-  if (r.silence_breakout === 'CALL') s += 30;
-  if (r.silence_breakout === 'PUT')  s -= 30;
-  return s;
-}
+const STAGE_RANK: Record<string, number> = {
+  TRADE_NOW: 4, WAIT: 3, FORMING: 2, STEALTH: 1, PASS: 0,
+};
 
 export default function BucketView({ bucket }: { bucket: BucketName }) {
   const meta = BUCKET_LABELS[bucket];
-  const [filter, setFilter] = useState<Filter>('ACTIVE');
+  const [stage, setStage] = useState<StageKey>('ALL');
+  const [side, setSide] = useState<SideKey>('ALL');
 
   const { data: picks } = useQuery<Picks77Resp>({
     queryKey: ['picks_77'],
     queryFn: fetchPicks77,
-    refetchInterval: 5 * 60 * 1000, // bucket list rarely changes
+    refetchInterval: 5 * 60 * 1000,
   });
   const { data: patrol } = useQuery<PatrolResp>({
     queryKey: ['flow_patrol'],
@@ -408,638 +79,205 @@ export default function BucketView({ bucket }: { bucket: BucketName }) {
     queryFn: fetchConviction,
     refetchInterval: 30_000,
   });
-  const { data: staging } = useQuery<any>({
-    queryKey: ['staging'],
-    queryFn: fetchStaging,
-    refetchInterval: 60_000,
-  });
-  const { data: baselines } = useQuery<EodBaselinesResp>({
-    queryKey: ['eod_baselines'],
-    queryFn: fetchEodBaselines,
-    refetchInterval: 30 * 60 * 1000,  // 30 min — baselines update daily
-  });
-  const { data: breakouts } = useQuery<any>({
-    queryKey: ['today_breakouts'],
-    queryFn: fetchTodayBreakouts,
-    refetchInterval: 60_000,
-  });
-  const { data: continuation } = useQuery<any>({
-    queryKey: ['continuation'],
-    queryFn: fetchContinuation,
-    refetchInterval: 60_000,
-  });
-  const { data: intraday } = useQuery<IntradaySurgeResp>({
-    queryKey: ['intraday_surge'],
-    queryFn: fetchIntradaySurge,
-    refetchInterval: 5 * 60 * 1000,  // recomputed every 5 min by daily script
-  });
-  const { data: silenceStreak } = useQuery<SilenceStreakResp>({
-    queryKey: ['silence_streak'],
-    queryFn: fetchSilenceStreak,
-    refetchInterval: 5 * 60 * 1000,
-  });
 
-  const cvByT = useMemo(() => {
-    const m: Record<string, any> = {};
-    for (const r of cv?.results || []) m[r.ticker] = r;
-    return m;
-  }, [cv]);
-  const stByT = useMemo(() => {
-    const m: Record<string, any> = {};
-    for (const r of (staging?.all_scored || [])) m[r.ticker] = r;
-    return m;
-  }, [staging]);
-  const breakoutByT = useMemo(() => {
-    const m: Record<string, any> = {};
-    for (const r of (breakouts?.buys || [])) m[r.ticker] = r;
-    return m;
-  }, [breakouts]);
-  const contByT = useMemo(() => {
-    const m: Record<string, any> = {};
-    for (const r of (continuation?.buys || [])) m[r.ticker] = r;
-    return m;
-  }, [continuation]);
+  // Build set of tickers in this bucket
+  const bucketTickers = useMemo(() => {
+    const ticks = (picks?.buckets?.[bucket] as any[]) || [];
+    return new Set(ticks.map((t) => t.ticker));
+  }, [picks, bucket]);
 
-  const rows = useMemo<RowState[]>(() => {
-    const tickers = (picks?.buckets?.[bucket] as any[]) || [];
-    return tickers.map((t: any) => {
-      const p = patrol?.tickers?.[t.ticker] || ({} as any);
-      const alerts = (p as any).alerts || [];
-      let acc_n = 0, dist_n = 0, has_flip = false;
-      let prev: 'ACC' | 'DIST' | null = null;
-      for (const a of alerts) {
-        const tt = a?.type || '';
-        const side: 'ACC' | 'DIST' | null = tt.includes('ACC') ? 'ACC' : tt.includes('DIST') ? 'DIST' : null;
-        if (!side) continue;
-        if (side === 'ACC') acc_n++; else dist_n++;
-        if (prev && prev !== side) has_flip = true;
-        prev = side;
-      }
-      const cvr = cvByT[t.ticker] || {};
-      const sr = stByT[t.ticker] || {};
-      const factors = (p as any).factors || {};
-      const last_hr_raw = factors['last_hr_call_$'];
-      const last_hr_call_m = (typeof last_hr_raw === 'number') ? last_hr_raw / 1e6 : undefined;
-      const { regime, days } = regimeFromEarningsDate((t as any).next_earnings_date);
-      // Per-ticker baseline + z-score (if last_hr_call_m available)
-      const baseline = baselines?.baselines?.[t.ticker];
-      let z_score: number | undefined = undefined;
-      if (last_hr_call_m != null && baseline && baseline.std_floor_m > 0) {
-        z_score = (last_hr_call_m - baseline.median_m) / baseline.std_floor_m;
-      }
-      // Cross-engine signals
-      const br = breakoutByT[t.ticker];
-      const co = contByT[t.ticker];
-      const triggered_today = !!br;
-      const triggered_strong = !!(br?.strong);
-      const continuation_chain_days = co ? (co.days_in_chain || 0) : 0;
-      const continuation_strong = !!(co?.strong);
-      // Intraday max surges
-      const ints = intraday?.tickers?.[t.ticker];
-      // Silence-streak state
-      const ss = silenceStreak?.tickers?.[t.ticker];
-      return {
-        ticker: t.ticker,
-        mcap_b: t.mcap_b ?? null,
-        sector: t.sector,
-        patrol_verdict: p.verdict,
-        patrol_score: p.score,
-        positioning: (p as any).positioning,
-        positioning_score: (p as any).positioning_score,
-        acc_n, dist_n, has_flip,
-        cv_verdict: cvr.verdict,
-        cv_urgency: cvr.trade_idea?.entry_urgency || cvr.urgency,
-        live_price: cvr.last_price,
-        day_pct: cvr.day_pct,
-        is_stealth: cvr.is_stealth,
-        is_stealth_dist: cvr.is_stealth_dist,
-        staging_score: sr.score,
-        staging_put_score: sr.put_score,
-        is_buy: sr.is_buy,
-        is_put_buy: sr.is_put_buy,
-        last_hr_call_m,
-        earnings_regime: regime,
-        days_to_earnings: days,
-        baseline,
-        z_score,
-        triggered_today,
-        triggered_strong,
-        continuation_chain_days,
-        continuation_strong,
-        intraday_max_call_m: ints?.max_call_m,
-        intraday_max_call_t: ints?.max_call_window_t,
-        intraday_max_put_m: ints?.max_put_m,
-        intraday_max_put_t: ints?.max_put_window_t,
-        silent_streak_days: ss?.silent_streak_days,
-        silence_breakout: ss?.is_breakout ? ss?.breakout_side : null,
-        silence_breakout_strength: ss?.breakout_strength,
-      };
-    });
-  }, [picks, patrol, cvByT, stByT, baselines, breakoutByT, contByT, intraday, silenceStreak, bucket]);
+  // Filter conviction rows to this bucket
+  const rows = useMemo(() => {
+    if (!cv?.results) return [];
+    return cv.results.filter((r) => bucketTickers.has(r.ticker));
+  }, [cv, bucketTickers]);
 
-  const counts = useMemo(() => {
-    let acc = 0, dist = 0, neutral = 0, active = 0;
-    let n_inst = 0, n_strong_acc = 0, n_strong_dist = 0;
-    let total_acc_fires = 0, total_dist_fires = 0;
-    let total_dp_today_m = 0;
-    let pm_blocks = 0;
-    let total_pm_dp_m = 0;
-    const top_call: { t: string; s: number }[] = [];
-    const top_put:  { t: string; s: number }[] = [];
-    const top_eod_call: { t: string; m: number }[] = [];
-    const top_eod_put:  { t: string; m: number }[] = [];
-    // Patrol state has factors per ticker — pull from cache via patrol query
-    const ptickers = patrol?.tickers || {};
+  // Stage / side counts
+  const stageCounts = useMemo(() => {
+    const c: Record<StageKey, number> = { ALL: 0, STEALTH: 0, FORMING: 0, TRADE_NOW: 0, WAIT: 0 };
     for (const r of rows) {
-      const v = r.patrol_verdict || 'NEUTRAL';
-      const score = r.patrol_score ?? 50;
-      if (v === 'ACC' || v === 'STRONG_ACC') {
-        acc++;
-        top_call.push({ t: r.ticker, s: score });
-      } else if (v === 'DIST' || v === 'STRONG_DIST') {
-        dist++;
-        top_put.push({ t: r.ticker, s: score });
-      } else neutral++;
+      const s = stageOf(r);
+      if (s !== 'PASS') c.ALL++;
+      if (s === 'STEALTH' || s === 'FORMING' || s === 'TRADE_NOW' || s === 'WAIT') c[s]++;
+    }
+    return c;
+  }, [rows]);
+
+  const sideCounts = useMemo(() => {
+    const c: Record<SideKey, number> = { ALL: rows.length, CALL: 0, PUT: 0 };
+    for (const r of rows) c[sideOf(r)]++;
+    return c;
+  }, [rows]);
+
+  // Patrol summary (DP$ totals + top CALL/PUT, scoped to bucket)
+  const patrolSummary = useMemo(() => {
+    const tk = patrol?.tickers || {};
+    let acc = 0, dist = 0, neutral = 0, n_inst = 0, n_strong_acc = 0, n_strong_dist = 0;
+    let total_dp_today_m = 0, total_pm_dp_m = 0, pm_blocks = 0;
+    const top_call: { t: string; s: number }[] = [];
+    const top_put: { t: string; s: number }[] = [];
+    for (const tkr of bucketTickers) {
+      const p: any = tk[tkr];
+      if (!p) continue;
+      const v = p.verdict || 'NEUTRAL';
+      const score = p.score ?? 50;
+      if (v === 'ACC' || v === 'STRONG_ACC') { acc++; top_call.push({ t: tkr, s: score }); }
+      else if (v === 'DIST' || v === 'STRONG_DIST') { dist++; top_put.push({ t: tkr, s: score }); }
+      else neutral++;
       if (v === 'STRONG_ACC') n_strong_acc++;
       if (v === 'STRONG_DIST') n_strong_dist++;
-      if ((r.positioning_score || 0) >= 60) n_inst++;
-      total_acc_fires += r.acc_n;
-      total_dist_fires += r.dist_n;
-      if (v !== 'NEUTRAL' || ['BUY','WATCH'].includes(r.cv_verdict || '')) active++;
-
-      // DP + PM block totals (from patrol factors)
-      const f: any = (ptickers[r.ticker] as any)?.factors || {};
+      if ((p.positioning_score || 0) >= 60) n_inst++;
+      const f = p.factors || {};
       total_dp_today_m += (f['dark_pool_$'] || 0) / 1e6;
       total_pm_dp_m   += (f['pm_dp_total_$'] || 0) / 1e6;
       pm_blocks       += (f['pm_dp_blocks'] || 0);
-
-      // Top EOD CALL / PUT surges (sorted by absolute $)
-      if (r.last_hr_call_m != null && r.last_hr_call_m >= 0.5) {
-        top_eod_call.push({ t: r.ticker, m: r.last_hr_call_m });
-      }
-      if (r.last_hr_call_m != null && r.last_hr_call_m <= -0.5) {
-        top_eod_put.push({ t: r.ticker, m: r.last_hr_call_m });
-      }
     }
     top_call.sort((a, b) => b.s - a.s);
     top_put.sort((a, b) => a.s - b.s);
-    top_eod_call.sort((a, b) => b.m - a.m);
-    top_eod_put.sort((a, b) => a.m - b.m);
     return {
-      all: rows.length, acc, dist, neutral, active,
-      n_inst, n_strong_acc, n_strong_dist, total_acc_fires, total_dist_fires,
+      acc, dist, neutral, n_inst, n_strong_acc, n_strong_dist,
       total_dp_today_m, total_pm_dp_m, pm_blocks,
       top_call: top_call.slice(0, 5),
       top_put: top_put.slice(0, 5),
-      top_eod_call: top_eod_call.slice(0, 5),
-      top_eod_put: top_eod_put.slice(0, 5),
     };
-  }, [rows, patrol?.tickers]);
+  }, [patrol, bucketTickers]);
 
-  // Action-tier rank: BUY = top, PUT = next (also actionable), then WAIT etc.
-  // HOLD/SKIP at bottom. Within same tier, sort by absolute composite quality.
-  // FORMING removed — backtest confirmed -6.3pp negative edge.
-  const ACTION_RANK: Record<string, number> = {
-    BUY: 100, PUT: 90, WAIT: 70, PUT_WAIT: 65, HOLD: 10, SKIP: 5,
-  };
-
+  // Filter + sort (stage rank → score → confidence → ticker)
   const filtered = useMemo(() => {
-    // Compute action label per row once for filtering + sorting
-    const withAction = rows.map(r => ({ r, action: actionFor(r).action }));
-    let out = withAction;
+    const matched = rows.filter((r) => {
+      const s = stageOf(r);
+      if (stage === 'ALL') {
+        if (s === 'PASS') return false;
+      } else {
+        if (s !== stage) return false;
+      }
+      if (side !== 'ALL' && sideOf(r) !== side) return false;
+      return true;
+    });
+    matched.sort((a, b) => {
+      const sA = STAGE_RANK[stageOf(a)] ?? 0;
+      const sB = STAGE_RANK[stageOf(b)] ?? 0;
+      if (sB !== sA) return sB - sA;
+      const scA = (a.score ?? 0) as number;
+      const scB = (b.score ?? 0) as number;
+      if (scB !== scA) return scB - scA;
+      const cA = (a.confidence ?? 0) as number;
+      const cB = (b.confidence ?? 0) as number;
+      if (cB !== cA) return cB - cA;
+      return (a.ticker || '').localeCompare(b.ticker || '');
+    });
+    return matched;
+  }, [rows, stage, side]);
 
-    if (filter === 'ACTIVE') {
-      // Use ACTION LABEL (not raw signals) — show only actionable rows
-      out = withAction.filter(({ action }) =>
-        action === 'BUY' || action === 'PUT' || action === 'WAIT' ||
-        action === 'PUT_WAIT'
-      );
-    } else if (filter === 'ACC') {
-      out = withAction.filter(({ r }) => r.patrol_verdict === 'ACC' || r.patrol_verdict === 'STRONG_ACC');
-    } else if (filter === 'DIST') {
-      out = withAction.filter(({ r }) => r.patrol_verdict === 'DIST' || r.patrol_verdict === 'STRONG_DIST');
-    }
-
-    // Sort: action tier first (BUY at top, PUT next, WAIT, FORMING, then HOLD/SKIP)
-    // Within tier: by absolute composite priority (strongest signal first)
-    return [...out].sort((a, b) => {
-      const ar = ACTION_RANK[a.action] ?? 0;
-      const br = ACTION_RANK[b.action] ?? 0;
-      if (ar !== br) return br - ar;
-      return Math.abs(priorityScore(b.r)) - Math.abs(priorityScore(a.r));
-    }).map(x => x.r);
-  }, [rows, filter]);
-
-  // ACC/DIST renamed to CALL/PUT in the UI per user — clearer trade direction
-  const verdictTag = (v?: string) => {
-    if (v === 'STRONG_ACC') return { bg: 'var(--bull-soft)', fg: 'var(--bull)', text: 'STRONG CALL' };
-    if (v === 'ACC') return { bg: 'var(--bull-soft)', fg: 'var(--bull)', text: 'CALL' };
-    if (v === 'STRONG_DIST') return { bg: 'var(--bear-soft)', fg: 'var(--bear)', text: 'STRONG PUT' };
-    if (v === 'DIST') return { bg: 'var(--bear-soft)', fg: 'var(--bear)', text: 'PUT' };
-    return { bg: 'var(--hair)', fg: 'var(--mid)', text: 'NEUTRAL' };
-  };
+  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   return (
-    <main className="bucket-page">
+    <main>
       <header>
         <h1>{meta.emoji} {meta.label} bucket</h1>
-        <div className="sub-head">{meta.sub} · {counts.all} tickers · patrol scoped to this bucket</div>
+        <div className="sub-head">{meta.sub} · {bucketTickers.size} tickers · conviction-style view</div>
         <div className="meta">
           <RefreshStatus label={meta.label} />
-          {patrol?.ts_utc && <span className="meta-pill">patrol: {fmtAge(patrol.ts_utc)?.ago}</span>}
           {cv?.generated_at_utc && <span className="meta-pill">conviction: {fmtAge(cv.generated_at_utc)?.ago}</span>}
+          {patrol?.ts_utc && <span className="meta-pill">patrol: {fmtAge(patrol.ts_utc)?.ago}</span>}
         </div>
       </header>
 
-      {/* Bucket summary — Anthropic-tightened, three rows */}
-      <div className="bucket-summary">
-        <div className="bucket-summary__row cols-5">
-          <div className="bucket-summary__metric">
-            <strong style={{ color: 'var(--bull)' }}>{counts.acc}</strong>
-            CALL firing
-            {counts.n_strong_acc > 0 && <div style={{ fontSize: 10, color: 'var(--bull)', fontWeight: 600 }}>incl. {counts.n_strong_acc} STRONG</div>}
+      {/* Patrol summary scoped to bucket — same as before, simplified */}
+      <div style={{
+        margin: '12px auto 8px', padding: '12px 14px',
+        maxWidth: 720, borderRadius: 10,
+        background: 'var(--panel)', border: '1px solid var(--hair)',
+        fontFamily: 'Poppins, Arial, sans-serif', fontSize: 12,
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+          <strong style={{ color: 'var(--ink)', fontSize: 13 }}>🛡 Bucket patrol (live, 15 s)</strong>
+          <span style={{ color: 'var(--dim)' }}>{bucketTickers.size} tickers · refresh {fmtAge(patrol?.ts_utc)?.ago ?? '—'}</span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, color: 'var(--dim)', fontSize: 11 }}>
+          <div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--bull)', fontVariantNumeric: 'tabular-nums' }}>{patrolSummary.acc}</div>
+            <div>CALL firing</div>
+            {patrolSummary.n_strong_acc > 0 && <div style={{ fontSize: 10, color: 'var(--bull)', fontWeight: 600 }}>incl. {patrolSummary.n_strong_acc} STRONG</div>}
           </div>
-          <div className="bucket-summary__metric">
-            <strong style={{ color: 'var(--bear)' }}>{counts.dist}</strong>
-            PUT firing
-            {counts.n_strong_dist > 0 && <div style={{ fontSize: 10, color: 'var(--bear)', fontWeight: 600 }}>incl. {counts.n_strong_dist} STRONG</div>}
+          <div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--bear)', fontVariantNumeric: 'tabular-nums' }}>{patrolSummary.dist}</div>
+            <div>PUT firing</div>
+            {patrolSummary.n_strong_dist > 0 && <div style={{ fontSize: 10, color: 'var(--bear)', fontWeight: 600 }}>incl. {patrolSummary.n_strong_dist} STRONG</div>}
           </div>
-          <div className="bucket-summary__metric">
-            <strong style={{ color: 'var(--accent)' }}>{counts.n_inst}</strong>
-            institutional
+          <div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent)', fontVariantNumeric: 'tabular-nums' }}>{patrolSummary.n_inst}</div>
+            <div>institutional</div>
             <div style={{ fontSize: 10 }}>positioning ≥60</div>
           </div>
-          <div className="bucket-summary__metric">
-            <strong style={{ color: 'var(--mid)' }}>{counts.neutral}</strong>
-            neutral
+          <div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>${patrolSummary.total_dp_today_m.toFixed(0)}M</div>
+            <div>DP today</div>
+            <div style={{ fontSize: 10 }}>${patrolSummary.total_pm_dp_m.toFixed(0)}M pm · {patrolSummary.pm_blocks} blocks</div>
           </div>
-          <div className="bucket-summary__metric">
-            <strong style={{ color: 'var(--ink)' }}>{counts.total_acc_fires}/{counts.total_dist_fires}</strong>
-            alerts today
-            <div style={{ fontSize: 10 }}>call / put</div>
-          </div>
-        </div>
-        <div className="bucket-summary__row cols-3">
-          <div className="bucket-summary__metric">
-            <strong style={{ color: 'var(--ink)' }}>${counts.total_dp_today_m.toFixed(0)}M</strong>
-            dark pool today
-          </div>
-          <div className="bucket-summary__metric">
-            <strong style={{ color: 'var(--ink)' }}>${counts.total_pm_dp_m.toFixed(0)}M</strong>
-            premarket DP · {counts.pm_blocks} blocks
-          </div>
-          <div className="bucket-summary__metric">
-            <strong style={{ color: 'var(--ink)' }}>{counts.top_eod_call.length}↑ / {counts.top_eod_put.length}↓</strong>
-            EOD surges (last 30 min)
+          <div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--mid)', fontVariantNumeric: 'tabular-nums' }}>{patrolSummary.neutral}</div>
+            <div>neutral</div>
           </div>
         </div>
-        {(counts.top_call.length > 0 || counts.top_put.length > 0 || counts.top_eod_call.length > 0 || counts.top_eod_put.length > 0) && (
-          <div className="bucket-summary__row" style={{ display: 'block' }}>
-            <div className="bucket-summary__movers">
-              {counts.top_call.length > 0 && (
-                <div><strong style={{ color: 'var(--bull)' }}>Top CALL:</strong> {counts.top_call.map(x => `${x.t}(${x.s})`).join(' · ')}</div>
-              )}
-              {counts.top_put.length > 0 && (
-                <div><strong style={{ color: 'var(--bear)' }}>Top PUT:</strong> {counts.top_put.map(x => `${x.t}(${x.s})`).join(' · ')}</div>
-              )}
-              {counts.top_eod_call.length > 0 && (
-                <div><strong style={{ color: 'var(--bull)' }}>EOD CALL:</strong> {counts.top_eod_call.map(x => `${x.t} +$${x.m.toFixed(1)}M`).join(' · ')}</div>
-              )}
-              {counts.top_eod_put.length > 0 && (
-                <div><strong style={{ color: 'var(--bear)' }}>EOD PUT:</strong> {counts.top_eod_put.map(x => `${x.t} -$${Math.abs(x.m).toFixed(1)}M`).join(' · ')}</div>
-              )}
-            </div>
+        {(patrolSummary.top_call.length > 0 || patrolSummary.top_put.length > 0) && (
+          <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px dashed var(--hair)', display: 'flex', gap: 16, fontSize: 11, color: 'var(--dim)', flexWrap: 'wrap' }}>
+            {patrolSummary.top_call.length > 0 && (
+              <div>
+                <strong style={{ color: 'var(--bull)' }}>Top CALL:</strong>{' '}
+                {patrolSummary.top_call.map((x) => `${x.t}(${x.s})`).join(' · ')}
+              </div>
+            )}
+            {patrolSummary.top_put.length > 0 && (
+              <div>
+                <strong style={{ color: 'var(--bear)' }}>Top PUT:</strong>{' '}
+                {patrolSummary.top_put.map((x) => `${x.t}(${x.s})`).join(' · ')}
+              </div>
+            )}
           </div>
         )}
       </div>
 
+      {/* Stage filter row — mirrors /conviction */}
       <div className="filter-row">
-        <span className="lbl">show</span>
-        <span className={`chip ${filter === 'ACTIVE' ? 'active' : ''}`} onClick={() => setFilter('ACTIVE')}>
-          ⚡ Active <span className="count">{counts.active}</span>
-        </span>
-        <span className={`chip ${filter === 'ACC' ? 'active' : ''}`} onClick={() => setFilter('ACC')}>
-          🟢 CALL <span className="count">{counts.acc}</span>
-        </span>
-        <span className={`chip ${filter === 'DIST' ? 'active' : ''}`} onClick={() => setFilter('DIST')}>
-          🔴 PUT <span className="count">{counts.dist}</span>
-        </span>
-        <span className={`chip ${filter === 'ALL' ? 'active' : ''}`} onClick={() => setFilter('ALL')}>
-          All <span className="count">{counts.all}</span>
-        </span>
+        <span className="lbl">stage</span>
+        {(['STEALTH', 'FORMING', 'TRADE_NOW', 'WAIT', 'ALL'] as StageKey[]).map((k) => (
+          <span
+            key={k}
+            className={`chip ${stage === k ? 'active' : ''}`}
+            onClick={() => setStage(k)}
+          >
+            {k === 'STEALTH' ? '🌱 Stealth' : k === 'FORMING' ? '🌿 Forming' : k === 'TRADE_NOW' ? '⚡ Trade now' : k === 'WAIT' ? '⏸ Wait' : 'All'}
+            <span className="count">{stageCounts[k]}</span>
+          </span>
+        ))}
       </div>
 
-      {!picks && <div className="empty">Loading {meta.label}…</div>}
-      {picks && filtered.length === 0 && (
-        <div className="empty">
-          {filter === 'ACTIVE' ? `No setups firing in ${meta.label} right now.` :
-           filter === 'ACC' ? `No CALL verdicts in ${meta.label}.` :
-           filter === 'DIST' ? `No PUT verdicts in ${meta.label}.` :
-           `${meta.label} bucket is empty.`}
-        </div>
+      {/* Side filter row */}
+      <div className="filter-row">
+        <span className="lbl">side</span>
+        {(['ALL', 'CALL', 'PUT'] as SideKey[]).map((k) => (
+          <span
+            key={k}
+            className={`chip ${side === k ? 'active' : ''}`}
+            onClick={() => setSide(k)}
+          >
+            {k === 'CALL' ? '🐂 Call' : k === 'PUT' ? '🐻 Put' : 'All'}
+            <span className="count">{sideCounts[k]}</span>
+          </span>
+        ))}
+      </div>
+
+      {/* Cards */}
+      {!cv && <div className="empty">Loading {meta.label}…</div>}
+      {cv && filtered.length === 0 && (
+        <div className="empty">No tickers match the current filter.</div>
       )}
-
-      <div>
-        {filtered.map((r) => {
-          const tag = verdictTag(r.patrol_verdict);
-          const positioning = r.positioning || 'THIN';
-          const isInst = (r.positioning_score || 0) >= 60;
-          const dayPct = r.day_pct;
-          const dpClass = dayPct == null ? '' : (dayPct > 0 ? 'bull' : dayPct < 0 ? 'bear' : '');
-
-          // Build label chips for this row
-          type Lbl = { text: string; bg: string; fg: string; border?: string; title?: string };
-          const labels: Lbl[] = [];
-
-          // Patrol verdict label — text only, score moves to tooltip
-          // (e.g. "CALL 66" was confusing; the score is auxiliary detail)
-          const scoreContext = r.patrol_score == null ? '' :
-            r.patrol_score >= 76 ? ` (${r.patrol_score}/100 — heavy buying)` :
-            r.patrol_score >= 60 ? ` (${r.patrol_score}/100 — moderate buying)` :
-            r.patrol_score >= 40 ? ` (${r.patrol_score}/100 — balanced)` :
-            r.patrol_score >= 26 ? ` (${r.patrol_score}/100 — moderate selling)` :
-                                   ` (${r.patrol_score}/100 — heavy selling)`;
-          labels.push({
-            text: tag.text,
-            bg: tag.bg, fg: tag.fg,
-            title: `Patrol verdict today${scoreContext}. Scale 0-100, neutral=50, ≥60 institutional buying, ≤39 distribution.`,
-          });
-          // Conviction action
-          if (r.cv_verdict === 'BUY') {
-            const tooLate = r.cv_urgency === 'EXHAUSTED' || r.cv_urgency === 'TOO_LATE';
-            labels.push({
-              text: tooLate ? `BUY/${r.cv_urgency}` : `🚀 BUY${r.cv_urgency ? `/${r.cv_urgency}` : ''}`,
-              bg: tooLate ? 'rgba(176,53,40,0.10)' : 'rgba(63,140,71,0.20)',
-              fg: tooLate ? 'var(--bear)' : 'var(--bull)',
-              title: 'Conviction engine signal',
-            });
-          } else if (r.cv_verdict === 'WATCH') {
-            labels.push({
-              text: `👁 WATCH${r.cv_urgency ? `/${r.cv_urgency}` : ''}`,
-              bg: 'rgba(217,119,87,0.12)', fg: 'var(--accent)',
-              title: 'Conviction engine watching',
-            });
-          }
-          // Institutional positioning
-          if (isInst) {
-            labels.push({
-              text: `⭐ ${positioning} ${r.positioning_score}`,
-              bg: 'rgba(217,119,87,0.18)', fg: 'var(--accent)',
-              title: 'Premarket DP + flow + aggressor skew indicate institutional positioning',
-            });
-          } else if ((r.positioning_score || 0) >= 40) {
-            labels.push({
-              text: `${positioning} ${r.positioning_score}`,
-              bg: 'rgba(176,176,176,0.08)', fg: 'var(--dim)',
-            });
-          }
-          // V8 staging: PRE-BREAK (call) or DISTRO (put)
-          // If the breakout already FIRED today, suppress PRE-BREAK
-          // (the setup is now stale — 🚀 BREAK chip carries the info).
-          if (r.is_buy && !r.triggered_today) {
-            labels.push({ text: `📈 PRE-BREAK ${r.staging_score}`, bg: 'rgba(63,140,71,0.10)', fg: 'var(--bull)',
-              title: 'V8 staging score crossed BUY threshold' });
-          }
-          if (r.is_put_buy) {
-            labels.push({ text: `📉 DISTRO ${r.staging_put_score}`, bg: 'rgba(176,53,40,0.10)', fg: 'var(--bear)',
-              title: 'V8 staging score crossed PUT threshold' });
-          }
-          // Stealth (multi-day acc)
-          if (r.is_stealth) {
-            labels.push({ text: '🌱 STEALTH', bg: 'rgba(120,140,93,0.15)', fg: 'var(--green, #788c5d)',
-              title: 'Multi-day institutional accumulation (≥5 days)' });
-          }
-          if (r.is_stealth_dist) {
-            labels.push({ text: '☠ STEALTH-DIST', bg: 'rgba(176,53,40,0.10)', fg: 'var(--bear)',
-              title: 'Multi-day institutional distribution' });
-          }
-          // Breakout-fired-today chip removed per user feedback:
-          // "if it broke today you missed the entry — only continuation
-          //  matters because that's where you can still get in."
-          // The triggered_today fact still feeds the priority sort
-          // (slightly), but no chip — keeps the row uncluttered.
-          //
-          // Multi-day continuation chain — THIS is the actionable signal.
-          // Means: ticker broke out N days ago AND is still holding above
-          // the breakout origin. Entry on a pullback is still viable.
-          if (r.continuation_chain_days && r.continuation_chain_days >= 1) {
-            labels.push({
-              text: `🏃 CONTINUE × ${r.continuation_chain_days}d`,
-              bg: 'rgba(120,140,93,0.18)', fg: 'var(--green, #788c5d)',
-              title: `In a ${r.continuation_chain_days}-day breakout continuation chain. Origin breakout still holding — entry on a pullback is still viable.`,
-            });
-          }
-          // Flip warning
-          if (r.has_flip) {
-            labels.push({ text: '⚠ FLIP', bg: 'rgba(176,53,40,0.10)', fg: 'var(--bear)',
-              title: 'Patrol flipped direction today (ACC↔DIST) — mixed signal' });
-          }
-          // SILENCE BREAKOUT — silent N days then surge today.
-          // The "pent-up energy" pattern: institutions that have been quiet
-          // for ≥3 days suddenly fire ≥1.5σ today. Backtest evidence comes
-          // from observing AMD/NVDA/META/AMZN doing this Apr 22-29.
-          if (r.silence_breakout) {
-            const sd = r.silent_streak_days || 0;
-            const strength = r.silence_breakout_strength || 0;
-            labels.push({
-              text: `🌪 BREAKOUT after ${sd}d silence (${r.silence_breakout})`,
-              bg: r.silence_breakout === 'CALL' ? 'var(--bull-soft)' : 'var(--bear-soft)',
-              fg: r.silence_breakout === 'CALL' ? 'var(--bull)' : 'var(--bear)',
-              title: `Ticker was silent (|z|<1σ) for ${sd} days, then today fires ${r.silence_breakout} at strength ${strength}. Pent-up institutional positioning releasing — pattern observed in AMD 4/24, NVDA 4/27, META/AMZN 4/29.`,
-            });
-          }
-          // INTRADAY MAX SURGE chips — anywhere in today's session.
-          // Times shown in PT (UTC - 7 during DST).
-          // Backtested 2026-04-22→29 (n=195 with 3d forward):
-          //   PUT at OPEN $1-7M → 79-86% 3d-down hit rate ★★★ best signal
-          //   PUT $1-3M anywhere → 60-80% 3d-down
-          //   CALL $15M+ at any time → 67%+ 3d-up
-          //   CALL $1-3M at OPEN → 0% (noise)
-          //   PUT/CALL ≥$15M → degrades (mean reversion)
-          //
-          // utc→PT helper: market hours 13:30-20:00 UTC = 6:30-13:00 PT
-          const utcToPt = (utc_hhmm: string): string => {
-            if (!utc_hhmm || utc_hhmm.length < 5) return utc_hhmm;
-            try {
-              const hh = parseInt(utc_hhmm.slice(0,2));
-              const mm = utc_hhmm.slice(3,5);
-              const pt_hh = (hh - 7 + 24) % 24;  // DST: PT = UTC-7
-              return `${pt_hh.toString().padStart(2,'0')}:${mm}`;
-            } catch { return utc_hhmm; }
-          };
-          if (r.intraday_max_call_m != null && r.intraday_max_call_m >= 7) {
-            const t_utc = (r.intraday_max_call_t || '').slice(11, 16);
-            const t_pt = utcToPt(t_utc);
-            labels.push({
-              text: `🌅 INTRADAY CALL +$${r.intraday_max_call_m.toFixed(0)}M @ ${t_pt} PT`,
-              bg: 'var(--bull-soft)', fg: 'var(--bull)',
-              title: `Max 30-min CALL surge today: +$${r.intraday_max_call_m.toFixed(1)}M starting at ${t_pt} PT (${t_utc} UTC). Backtested 67%+ 3d-up rate at $15M+ tier.`,
-            });
-          }
-          if (r.intraday_max_put_m != null && r.intraday_max_put_m <= -1 && r.intraday_max_put_m > -7) {
-            const t_utc = (r.intraday_max_put_t || '').slice(11, 16);
-            const t_pt = utcToPt(t_utc);
-            const hh = parseInt(t_utc.slice(0,2) || '0');
-            const window_lbl = hh < 14 ? 'OPEN' : hh < 17 ? 'morning' : hh < 19 ? 'midday' : 'power-hour';
-            const winRate = (hh < 14 && r.intraday_max_put_m <= -3) ? '86%' :
-                            (hh < 14) ? '79%' : '60-73%';
-            labels.push({
-              text: `🌅 ${window_lbl} PUT $${r.intraday_max_put_m.toFixed(1)}M @ ${t_pt} PT`,
-              bg: 'var(--bear-soft)', fg: 'var(--bear)',
-              title: `Max 30-min PUT surge today: $${r.intraday_max_put_m.toFixed(1)}M starting at ${t_pt} PT (${t_utc} UTC, ${window_lbl}). Backtested ${winRate} 3d-down hit rate at this cell.`,
-            });
-          }
-          // Late-hour flow surge — REGIME-AWARE.
-          // Show chip only in regimes where the signal has a measured edge.
-          // NO_EARN PUT explicitly hidden (backtest showed inverted signal).
-          if (r.last_hr_call_m != null) {
-            const lhc = r.last_hr_call_m;
-            const reg = r.earnings_regime;
-            const earnDays = r.days_to_earnings;
-            const earnSuffix = earnDays != null ? ` · earn ${earnDays}d` : '';
-
-            // CALL chip: EARN_MTH gets the lower-threshold tier; NO_EARN needs +$1M
-            if (reg === 'EARN_MTH' && lhc >= 0.5 && lhc <= 3.0) {
-              labels.push({
-                text: `🎯 EOD CALL +$${lhc.toFixed(1)}M${earnSuffix}`,
-                bg: 'var(--bull-soft)', fg: 'var(--bull)',
-                title: `Late-hour call +$${lhc.toFixed(1)}M with earnings ${earnDays}d away (EARN_MTH sweet zone). Backtested 50-66% 3d-up, +33-40pp edge.`,
-              });
-            } else if (reg === 'NO_EARN' && lhc >= 1.0 && lhc <= 4.0) {
-              labels.push({
-                text: `🎯 EOD CALL +$${lhc.toFixed(1)}M · organic`,
-                bg: 'var(--bull-soft)', fg: 'var(--bull)',
-                title: `Late-hour organic call +$${lhc.toFixed(1)}M (no near-term earnings). Backtested 50-66% 3d-up, +20-36pp edge.`,
-              });
-            } else if (reg === 'NO_EARN' && lhc > 4.0) {
-              labels.push({
-                text: `📞 EOD CALL +$${lhc.toFixed(0)}M · large`,
-                bg: 'var(--hair)', fg: 'var(--dim)',
-                title: `Late-hour call +$${lhc.toFixed(1)}M — above the +$4M sweet zone, signal weakens (small sample at higher amounts).`,
-              });
-            }
-            // PUT chip: only meaningful in EARN_WK / EARN_MTH regimes
-            else if ((reg === 'EARN_WK' || reg === 'EARN_MTH') && lhc <= -0.5 && lhc >= -2.0) {
-              const winRate = reg === 'EARN_WK' ? '75-100%' : '100%';
-              labels.push({
-                text: `🎯 EOD PUT -$${Math.abs(lhc).toFixed(1)}M${earnSuffix}`,
-                bg: 'var(--bear-soft)', fg: 'var(--bear)',
-                title: `Late-hour put-flow -$${Math.abs(lhc).toFixed(1)}M with earnings ${earnDays}d away (${reg}). Backtested ${winRate} 3d-down hit rate. Smart money de-risking before binary.`,
-              });
-            } else if (reg === 'NO_EARN' && lhc <= -0.5) {
-              labels.push({
-                text: `⚠ EOD PUT -$${Math.abs(lhc).toFixed(1)}M · contrarian`,
-                bg: 'var(--hair)', fg: 'var(--dim)',
-                title: `Late-hour put-flow -$${Math.abs(lhc).toFixed(1)}M but NO earnings ahead — backtest showed signal INVERTS in this regime (predicts bounce, not drop). Don't trade this side.`,
-              });
-            }
-          }
-
-          // Primary action — what to do, at a glance
-          const act = actionFor(r);
-          const actionEmoji: Record<typeof act.action, string> = {
-            BUY: '🚀', WAIT: '🟡', FORMING: '📊', HOLD: '⏸',
-            SKIP: '⛔', PUT: '🔴', PUT_WAIT: '🔻',
-          };
-          const actionDisplay = act.action === 'PUT_WAIT' ? 'PUT WAIT' : act.action;
-
-          // PREDICTION (forward-looking 3d move estimate based on backtest cell)
-          const pred = predictionFor(r);
-
-          // Map label bg/fg to brand classes (instead of inline rgba)
-          const bkChipClass = (l: { fg: string }) => {
-            if (l.fg.includes('bull') || l.fg === 'var(--bull)') return 'bk-chip bk-chip--bull';
-            if (l.fg.includes('bear') || l.fg === 'var(--bear)') return 'bk-chip bk-chip--bear';
-            if (l.fg.includes('accent') || l.fg === 'var(--accent)') return 'bk-chip bk-chip--accent';
-            if (l.fg.includes('green') || l.fg === '#788c5d') return 'bk-chip bk-chip--green';
-            if (l.fg === '#6a9bcc' || l.fg === 'var(--blue)') return 'bk-chip bk-chip--blue';
-            return 'bk-chip bk-chip--neutral';
-          };
-
-          const sectorMcap = [
-            r.sector,
-            r.mcap_b != null && r.mcap_b > 0
-              ? (r.mcap_b >= 1000 ? `$${(r.mcap_b/1000).toFixed(1)}T` : `$${r.mcap_b.toFixed(0)}B`)
-              : null
-          ].filter(Boolean).join(' · ');
-
-          return (
-            <article key={r.ticker} className="bucket-card" data-action={act.action}>
-              <div className="bucket-card__hero">
-                <div className="bucket-card__id">
-                  <div className="symbol">{r.ticker}</div>
-                  {sectorMcap && <div className="meta">{sectorMcap}</div>}
-                  {r.patrol_score != null && (
-                    <div className="gauge"
-                         title={`Patrol score ${r.patrol_score}/100. ≥60 = institutional buying, ≤39 = distribution. 50 = neutral.`}>
-                      <div className="gauge__needle" style={{ left: `${Math.max(0, Math.min(100, r.patrol_score))}%` }} />
-                    </div>
-                  )}
-                </div>
-
-                <div title={act.why} className={`action-pill action-pill--${act.action}`}>
-                  {actionEmoji[act.action]} {actionDisplay}
-                </div>
-
-                <div>
-                  {pred && (
-                    <span
-                      className={`prediction-strip prediction-strip--${pred.bias}`}
-                      title={`${pred.basis}\n\nBacktest: ${pred.regime} · n=${pred.n} · ${pred.win_rate}% historical hit rate.`}
-                    >
-                      {pred.bias === 'CALL' ? '📈' : '📉'} 3d: {pred.pct_low > 0 ? '+' : ''}{pred.pct_low}% → {pred.pct_high > 0 ? '+' : ''}{pred.pct_high}%
-                      <span className="prediction-strip__conf">{pred.win_rate}% · n={pred.n}</span>
-                    </span>
-                  )}
-                </div>
-
-                <div className="bucket-card__price">
-                  {dayPct != null && (
-                    <div className={`change ${dpClass}`}>{dayPct >= 0 ? '+' : ''}{dayPct.toFixed(2)}%</div>
-                  )}
-                  {r.live_price != null && <div className="price">${r.live_price.toFixed(2)}</div>}
-                  {/* TRADE NOW — only on actionable cards (BUY or PUT) */}
-                  {(act.action === 'BUY' || act.action === 'PUT') && (
-                    <a
-                      className={`trade-btn trade-btn--${act.action}`}
-                      href={`https://www.tradingview.com/chart/?symbol=NASDAQ%3A${r.ticker}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title={`Open ${r.ticker} on TradingView to ${act.action === 'BUY' ? 'BUY' : 'short'}`}
-                    >
-                      {act.action === 'BUY' ? '↗ TRADE NOW' : '↘ SHORT NOW'}
-                    </a>
-                  )}
-                </div>
-              </div>
-
-              <div className="bucket-card__chips">
-                {labels.map((l, i) => {
-                  // Skip the verdict chip itself if action label already conveys it loud enough?
-                  // Keep all for now — they're informational.
-                  let cls = bkChipClass(l);
-                  // Add strong-pulse on STRONG verdict
-                  if (l.text.startsWith('STRONG ')) cls += ' bk-chip--strong';
-                  return (
-                    <span key={i} className={cls} title={l.title || ''}>{l.text}</span>
-                  );
-                })}
-                <span className="bk-chip__meta"
-                      title={`Patrol fired ${r.acc_n} CALL alert${r.acc_n === 1 ? '' : 's'} and ${r.dist_n} PUT alert${r.dist_n === 1 ? '' : 's'} today.`}>
-                  {(r.acc_n > 0 || r.dist_n > 0) ? (
-                    <>
-                      today:&nbsp;
-                      {r.acc_n > 0 && (<span style={{ color: 'var(--bull)', fontWeight: 600 }}>{r.acc_n}× call</span>)}
-                      {r.acc_n > 0 && r.dist_n > 0 && ', '}
-                      {r.dist_n > 0 && (<span style={{ color: 'var(--bear)', fontWeight: 600 }}>{r.dist_n}× put</span>)}
-                    </>
-                  ) : 'no alerts today'}
-                </span>
-              </div>
-            </article>
-          );
-        })}
-      </div>
+      {filtered.map((r) => (
+        <div key={r.ticker} ref={(el) => { cardRefs.current[r.ticker] = el; }}>
+          <TickerCard row={r} />
+        </div>
+      ))}
     </main>
   );
 }
